@@ -81,9 +81,11 @@
 
     cacheElements() {
       this.elements = {
-        // Modal
+        // Modal & Account Login
         modal: document.getElementById('onboarding-modal'),
         inputName: document.getElementById('input-player-name'),
+        inputPassword: document.getElementById('input-player-password'),
+        loginErrorMsg: document.getElementById('login-error-msg'),
         palette: document.getElementById('color-palette'),
         btnEnterTable: document.getElementById('btn-enter-table'),
 
@@ -175,10 +177,14 @@
 
     setupOnboarding() {
       const savedName = localStorage.getItem('roulette_player_name') || '';
+      const savedPassword = localStorage.getItem('roulette_player_password') || '';
       const savedColor = localStorage.getItem('roulette_player_color') || '#D4AF37';
 
       if (this.elements.inputName && savedName) {
         this.elements.inputName.value = savedName;
+      }
+      if (this.elements.inputPassword && savedPassword) {
+        this.elements.inputPassword.value = savedPassword;
       }
       this.myPlayer.color = savedColor;
 
@@ -186,48 +192,69 @@
         this.elements.btnEnterTable.addEventListener('click', () => this.handleOnboardingSubmit());
       }
 
+      const handleKey = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.handleOnboardingSubmit();
+        }
+      };
+
       if (this.elements.inputName) {
-        this.elements.inputName.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            this.handleOnboardingSubmit();
-          }
-        });
+        this.elements.inputName.addEventListener('keydown', handleKey);
+      }
+      if (this.elements.inputPassword) {
+        this.elements.inputPassword.addEventListener('keydown', handleKey);
       }
     }
 
     handleOnboardingSubmit() {
       const rawName = this.elements.inputName ? this.elements.inputName.value.trim() : '';
-      const name = rawName.slice(0, 16) || `Player_${Math.floor(1000 + Math.random() * 9000)}`;
+      const rawPassword = this.elements.inputPassword ? this.elements.inputPassword.value.trim() : '';
 
+      if (!rawName) {
+        this.showLoginError('Voer een gebruikersnaam in');
+        return;
+      }
+
+      const name = rawName.slice(0, 16);
       const activeSwatch = document.querySelector('.color-swatch.active');
       const color = activeSwatch ? activeSwatch.dataset.color : this.myPlayer.color;
 
       this.myPlayer.name = name;
       this.myPlayer.color = color;
 
-      // Save to localStorage
       try {
         localStorage.setItem('roulette_player_name', name);
+        if (rawPassword) {
+          localStorage.setItem('roulette_player_password', rawPassword);
+        } else {
+          localStorage.removeItem('roulette_player_password');
+        }
         localStorage.setItem('roulette_player_color', color);
-      } catch (e) {
-        // Ignore localStorage quota / private browsing errors
-      }
+      } catch (e) {}
 
-      // Update HUD
-      this.updatePlayerHUD();
-
-      // Fade out modal
-      if (this.elements.modal) {
-        this.elements.modal.classList.add('hidden');
-      }
-
-      // Notify controller
       if (this.options.onJoinTable) {
         this.options.onJoinTable({
           name: this.myPlayer.name,
+          password: rawPassword,
           color: this.myPlayer.color
         });
+      }
+    }
+
+    showLoginError(msg) {
+      if (this.elements.loginErrorMsg) {
+        this.elements.loginErrorMsg.textContent = msg;
+        this.elements.loginErrorMsg.classList.remove('hidden');
+      }
+    }
+
+    hideLoginModal() {
+      if (this.elements.modal) {
+        this.elements.modal.classList.add('hidden');
+      }
+      if (this.elements.loginErrorMsg) {
+        this.elements.loginErrorMsg.classList.add('hidden');
       }
     }
 
@@ -673,9 +700,9 @@
       let subline = '';
       if (myResult) {
         if (myResult.totalWon > 0) {
-          subline = `🎉 You won ${myResult.totalWon.toLocaleString()} chips! (Net: +${myResult.net.toLocaleString()})`;
+          subline = `Gewonnen: +${myResult.totalWon.toLocaleString()} fiches (Netto: +${myResult.net.toLocaleString()})`;
         } else if (myResult.totalBet > 0) {
-          subline = `Better luck next spin! (-${myResult.totalBet.toLocaleString()} chips)`;
+          subline = `Volgende ronde meer geluk (-${myResult.totalBet.toLocaleString()} fiches)`;
         }
       }
 
@@ -741,7 +768,7 @@
       if (msg.isSystem) {
         const content = document.createElement('span');
         content.className = 'system-text';
-        content.textContent = `★ ${msg.text}`;
+        content.textContent = msg.text;
         item.appendChild(content);
       } else {
         const sender = document.createElement('span');
@@ -816,14 +843,12 @@
         return;
       }
 
-      const medals = ['🥇', '🥈', '🥉'];
-
       sorted.forEach((p, idx) => {
         const item = document.createElement('div');
         const isMe = p.id === this.myPlayer.id;
         item.className = 'leaderboard-item' + (isMe ? ' is-me' : '');
 
-        const rankIcon = idx < 3 ? medals[idx] : `#${idx + 1}`;
+        const rankIcon = (idx + 1).toString();
         const nameSuffix = isMe ? ' (Jij)' : '';
 
         item.innerHTML = `
@@ -831,7 +856,7 @@
           <div class="leaderboard-avatar" style="background-color: ${p.color || '#D4AF37'};"></div>
           <div class="leaderboard-details">
             <span class="leaderboard-name">${p.name}${nameSuffix}</span>
-            <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} chips</span>
+            <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} fiches</span>
           </div>
         `;
         this.elements.leaderboardList.appendChild(item);
@@ -840,7 +865,7 @@
 
     updateActiveBetsList(allBets = [], tableChipsTotal = 0) {
       if (this.elements.tableTotalChips) {
-        this.elements.tableTotalChips.textContent = `$${(tableChipsTotal || 0).toLocaleString()} totaal`;
+        this.elements.tableTotalChips.textContent = `${(tableChipsTotal || 0).toLocaleString()} fiches`;
       }
 
       if (this.elements.betsCountBadge) {
@@ -851,7 +876,7 @@
       this.elements.activeBetsList.innerHTML = '';
 
       if (allBets.length === 0) {
-        this.elements.activeBetsList.innerHTML = '<div class="empty-state-notice">Nog geen inzetten geplaatst deze ronde</div>';
+        this.elements.activeBetsList.innerHTML = '<div class="empty-state-notice">Geen actieve inzetten deze ronde</div>';
         return;
       }
 
@@ -868,7 +893,7 @@
             <span class="bet-card-player">${b.playerName}</span>
             <span class="bet-card-target">${desc}</span>
           </div>
-          <div class="bet-card-amount">$${(b.bet.amount || 0).toLocaleString()}</div>
+          <div class="bet-card-amount">${(b.bet.amount || 0).toLocaleString()} fiches</div>
         `;
         this.elements.activeBetsList.appendChild(card);
       });

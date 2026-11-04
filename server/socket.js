@@ -103,7 +103,15 @@ function setupSocket(httpServer, options = {}) {
     // 1. join_table
     socket.on('join_table', (payload = {}) => {
       const opts = (payload && typeof payload === 'object') ? payload : {};
-      const player = playerManager.registerPlayer(socket.id, opts);
+      const result = playerManager.registerPlayer(socket.id, opts);
+      if (result && result.error) {
+        socket.emit('login_error', {
+          code: result.error,
+          message: result.message
+        });
+        return;
+      }
+      const player = result;
       currentSocketPlayerId = player.id;
 
       // Send initial table state to joining player

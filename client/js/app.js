@@ -80,14 +80,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('connection_change', ({ connected }) => {
     if (connected) {
-      ui.showToast('Connected to casino table', 'info');
+      ui.showToast('Verbonden met casinotafel', 'info');
     } else {
-      ui.showToast('Connection lost. Reconnecting...', 'error');
+      ui.showToast('Verbinding verbroken. Opnieuw verbinden...', 'error');
     }
+  });
+
+  network.on('login_error', (data) => {
+    ui.showLoginError(data ? data.message : 'Inloggen mislukt');
   });
 
   network.on('table_state', (state) => {
     if (!state) return;
+
+    ui.hideLoginModal();
 
     if (state.playerId) {
       ui.myPlayer.id = state.playerId;

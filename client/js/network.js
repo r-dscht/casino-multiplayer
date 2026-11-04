@@ -132,6 +132,14 @@
         this.emitInternal('player_left', data);
       });
 
+      this.socket.on('players_update', (data) => {
+        this.emitInternal('players_update', data);
+      });
+
+      this.socket.on('login_error', (data) => {
+        this.emitInternal('login_error', data);
+      });
+
       this.socket.on('chat_message', (data) => {
         this.emitInternal('chat_message', data);
       });

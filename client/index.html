@@ -88,9 +88,9 @@
       <!-- Live Multiplayer Social, Leaderboard & Activity Panel -->
       <aside class="social-sidebar">
         <div class="sidebar-tab-buttons">
-          <button class="sidebar-tab active" data-tab="chat">💬 Chat</button>
-          <button class="sidebar-tab" data-tab="leaderboard">🏆 Ranglijst</button>
-          <button class="sidebar-tab" data-tab="bets">🎯 Inzetten <span id="bets-count-badge" class="tab-badge">0</span></button>
+          <button class="sidebar-tab active" data-tab="chat">Chat</button>
+          <button class="sidebar-tab" data-tab="leaderboard">Ranglijst</button>
+          <button class="sidebar-tab" data-tab="bets">Inzetten <span id="bets-count-badge" class="tab-badge">0</span></button>
         </div>
 
         <div class="chat-drawer">
@@ -99,10 +99,10 @@
             <div class="chat-messages" id="chat-messages-container"></div>
             
             <div class="chat-quick-reactions">
-              <button class="reaction-pill" data-msg="Good Luck!">🍀 GL</button>
-              <button class="reaction-pill" data-msg="Red!">🔥 Rood</button>
-              <button class="reaction-pill" data-msg="Black!">🖤 Zwart</button>
-              <button class="reaction-pill" data-msg="Drinks on me!">🍾 Cheers</button>
+              <button class="reaction-pill" data-msg="Veel geluk!">Succes</button>
+              <button class="reaction-pill" data-msg="Rood!">Rood</button>
+              <button class="reaction-pill" data-msg="Zwart!">Zwart</button>
+              <button class="reaction-pill" data-msg="Proost!">Proost</button>
             </div>
 
             <form class="chat-input-bar" id="chat-form">
@@ -126,7 +126,7 @@
           <div class="sidebar-tab-pane" id="tab-pane-bets">
             <div class="tab-pane-header">
               <span class="gold-text">Actieve Inzetten</span>
-              <span class="sub-counter" id="table-total-chips">$0 totaal</span>
+              <span class="sub-counter" id="table-total-chips">0 fiches</span>
             </div>
             <div class="active-bets-scroll" id="active-bets-list">
               <div class="empty-state-notice">Nog geen inzetten geplaatst deze ronde</div>
@@ -140,24 +140,31 @@
     <!-- VIP Onboarding Modal -->
     <div class="modal-overlay" id="onboarding-modal">
       <div class="modal-content glass-panel">
-        <h2 class="gold-text">Le Grand Casino</h2>
-        <p class="modal-subtitle">European Roulette — Choose your VIP alias & marker color</p>
+        <h2 class="gold-text">Casino Inloggen</h2>
+        <p class="modal-subtitle">Europese Roulette - Kies je gebruikersnaam en wachtwoord</p>
 
         <div class="form-group">
-          <label for="input-player-name">VIP Alias</label>
-          <input type="text" id="input-player-name" maxlength="16" placeholder="Enter VIP Name" autocomplete="off" autofocus>
+          <label for="input-player-name">Gebruikersnaam</label>
+          <input type="text" id="input-player-name" maxlength="16" placeholder="Voer je spelersnaam in" autocomplete="off" autofocus>
         </div>
 
         <div class="form-group">
-          <label>Avatar Swatch Color</label>
+          <label for="input-player-password">Wachtwoord (optioneel voor opslag)</label>
+          <input type="password" id="input-player-password" maxlength="32" placeholder="Wachtwoord om saldo te bewaren" autocomplete="current-password">
+        </div>
+
+        <div class="form-group">
+          <label>Kleur avatar</label>
           <div class="color-palette" id="color-palette"></div>
         </div>
 
         <div class="starting-balance-callout">
-          🎁 Welcome Bankroll: <strong>10,000 Chips</strong>
+          Nieuwe spelers starten met <strong>10.000 fiches</strong>. Saldo wordt automatisch opgeslagen.
         </div>
 
-        <button class="btn btn-gold btn-block" id="btn-enter-table">Enter Table</button>
+        <div class="login-error-msg hidden" id="login-error-msg"></div>
+
+        <button class="btn btn-gold btn-block" id="btn-enter-table">Speel Mee</button>
       </div>
     </div>
 
