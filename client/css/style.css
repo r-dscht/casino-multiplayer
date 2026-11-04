@@ -926,3 +926,194 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   0% { transform: translateX(50px); opacity: 0; }
   100% { transform: translateX(0); opacity: 1; }
 }
+
+/* ==========================================================================
+   Sidebar Tabs, Leaderboard & Live Bets Panel
+   ========================================================================== */
+
+.sidebar-tab-buttons {
+  display: flex;
+  background: rgba(4, 12, 9, 0.98);
+  border-bottom: 1px solid var(--border-gold);
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 12px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #9cb3a7;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.sidebar-tab:hover {
+  color: #ffffff;
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.sidebar-tab.active {
+  color: var(--gold-bright);
+  border-bottom: 2px solid var(--gold-primary);
+  background: rgba(212, 175, 55, 0.12);
+}
+
+.tab-badge {
+  background: var(--gold-primary);
+  color: #061510;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.sidebar-tab-pane {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar-tab-pane.active {
+  display: flex;
+}
+
+.tab-pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  background: rgba(6, 18, 13, 0.6);
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sub-counter {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+
+.leaderboard-scroll,
+.active-bets-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Leaderboard Item */
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(14, 34, 25, 0.65);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.leaderboard-item.is-me {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: var(--gold-primary);
+}
+
+.leaderboard-rank {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 800;
+  width: 24px;
+  text-align: center;
+  color: var(--gold-bright);
+}
+
+.leaderboard-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  flex-shrink: 0;
+}
+
+.leaderboard-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.leaderboard-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.leaderboard-chips {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+}
+
+/* Live Active Bet Card */
+.bet-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(10, 26, 19, 0.7);
+  border-left: 3px solid var(--gold-primary);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.bet-card-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #ffffff;
+  flex-shrink: 0;
+}
+
+.bet-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.bet-card-player {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.bet-card-target {
+  color: #a3c4b5;
+  font-size: 0.78rem;
+}
+
+.bet-card-amount {
+  font-weight: 800;
+  color: var(--gold-bright);
+  font-size: 0.88rem;
+}
+
+.empty-state-notice {
+  text-align: center;
+  color: #7a9c8d;
+  font-size: 0.85rem;
+  font-style: italic;
+  padding: 24px 12px;
+}

@@ -20,8 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. Initialize Network Layer
   const network = new CasinoNetwork();
 
-  // 3. Keep track of local active bets for "Double Bets" functionality
+  // 3. Keep track of local active bets and all table live bets
   let currentActiveBets = [];
+  let tableLiveBets = [];
 
   // Helper to compute spot key from bet payload
   function computeSpotKey(type, value) {
@@ -118,14 +119,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render active bets across all players
     currentActiveBets = [];
+    tableLiveBets = [];
     if (state.activeBets && typeof state.activeBets === 'object') {
       Object.entries(state.activeBets).forEach(([pid, bets]) => {
         if (Array.isArray(bets)) {
-          // Find player color
+          // Find player color and name
           const player = (state.players || []).find(p => p.id === pid);
           const color = player ? player.color : '#D4AF37';
+          const name = player ? player.name : `VIP_${pid.slice(0, 4)}`;
 
           bets.forEach(b => {
+            tableLiveBets.push({
+              playerId: pid,
+              playerName: name,
+              playerColor: color,
+              bet: b
+            });
             const spotKey = computeSpotKey(b.type, b.value);
             ui.addChipToSpot(spotKey, color, b.amount);
             if (pid === ui.myPlayer.id) {
@@ -134,6 +143,20 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       });
+    }
+
+    ui.updateActiveBetsList(tableLiveBets, state.tableChipsTotal || 0);
+
+    // Populate initial leaderboard
+    if (Array.isArray(state.players)) {
+      ui.updateLeaderboard(state.players);
+    }
+
+    // Set initial resting pocket on 3D wheel if not spinning
+    if (roulette3D && state.currentPhase !== 'SPINNING') {
+      if (Array.isArray(state.recentHistory) && state.recentHistory.length > 0) {
+        roulette3D.setRestingPocket(state.recentHistory[0]);
+      }
     }
 
     // If joining mid-spin, catch up 3D wheel
@@ -160,11 +183,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // Clear table chips for next round
       ui.clearAllChips();
       currentActiveBets = [];
+      tableLiveBets = [];
+      ui.updateActiveBetsList([], 0);
     }
   });
 
   network.on('round_result', (data) => {
     if (!data) return;
+
+    // Settle 3D wheel and ball precisely on winning pocket
+    if (roulette3D && typeof data.winningNumber === 'number') {
+      roulette3D.setRestingPocket(data.winningNumber);
+    }
 
     // Find my personal result
     let myResult = null;
@@ -205,14 +235,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data || !data.bet) return;
     const spotKey = computeSpotKey(data.bet.type, data.bet.value);
     ui.addChipToSpot(spotKey, data.playerColor || '#D4AF37', data.bet.amount);
+
+    tableLiveBets.push({
+      playerId: data.playerId,
+      playerName: data.playerName,
+      playerColor: data.playerColor,
+      bet: data.bet
+    });
+    ui.updateActiveBetsList(tableLiveBets, data.tableChipsTotal);
   });
 
   network.on('bets_cleared', (data) => {
     if (!data) return;
     ui.clearPlayerChips(data.playerId);
+    tableLiveBets = tableLiveBets.filter(b => b.playerId !== data.playerId);
+    ui.updateActiveBetsList(tableLiveBets, data.tableChipsTotal);
     if (data.playerId === ui.myPlayer.id) {
       currentActiveBets = [];
       ui.showToast('All your bets have been refunded', 'info');
+    }
+  });
+
+  network.on('players_update', (players) => {
+    if (Array.isArray(players)) {
+      ui.updateLeaderboard(players);
+      const me = players.find(p => p.id === ui.myPlayer.id);
+      if (me) {
+        ui.myPlayer.chips = me.chips;
+        ui.updatePlayerHUD();
+      }
     }
   });
 

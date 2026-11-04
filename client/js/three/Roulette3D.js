@@ -290,13 +290,41 @@
         metalness: 0.04
       });
       this.ball = new THREE.Mesh(ballGeo, ballMat);
-      this.ball.position.set(2.4, 0.45, 0);
       this.scene.add(this.ball);
 
       // Initial resting pocket (0 Green)
-      const pocketIdx = 0;
+      this.setRestingPocket(0);
+    }
+
+    /**
+     * Positions the wheel and ball deterministically at the designated winning pocket.
+     * Guarantees 100% visual parity across all connected multiplayer clients.
+     * @param {number} winningNumber 
+     */
+    setRestingPocket(winningNumber) {
+      if (typeof winningNumber !== 'number') return;
+      this.currentWinningNumber = winningNumber;
+      const pocketIdx = this.WHEEL_NUMBERS.indexOf(winningNumber);
+      if (pocketIdx === -1) return;
+
       const sliceAngle = (Math.PI * 2) / 37;
-      this.targetPocketAngle = pocketIdx * sliceAngle - Math.PI / 2;
+      const pocketAngle = pocketIdx * sliceAngle - Math.PI / 2;
+      this.targetPocketAngle = pocketAngle;
+      this.targetPocketLocal = new this.THREE.Vector3(
+        Math.cos(pocketAngle) * 1.68,
+        0.12,
+        Math.sin(pocketAngle) * 1.68
+      );
+
+      // Deterministic rotor alignment: winning pocket always stops at front angle (Math.PI / 2)
+      const desiredEndMod = ((pocketAngle - Math.PI / 2) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      this.rotor.rotation.y = desiredEndMod;
+      this.rotor.updateMatrixWorld(true);
+
+      const worldPocket = this.targetPocketLocal.clone().applyMatrix4(this.rotor.matrixWorld);
+      if (this.ball) {
+        this.ball.position.copy(worldPocket);
+      }
     }
 
     /**
@@ -344,23 +372,37 @@
 
       const pocketIdx = this.WHEEL_NUMBERS.indexOf(winningNumber);
       const sliceAngle = (Math.PI * 2) / 37;
-      // Midpoint angle of pocket on local rotor mesh
-      this.targetPocketAngle = pocketIdx * sliceAngle - Math.PI / 2;
+      const pocketAngle = pocketIdx * sliceAngle - Math.PI / 2;
+      this.targetPocketAngle = pocketAngle;
+      this.targetPocketLocal = new this.THREE.Vector3(
+        Math.cos(pocketAngle) * 1.68,
+        0.12,
+        Math.sin(pocketAngle) * 1.68
+      );
 
-      // Rotor spins 5 full clockwise turns
-      this.wheelStartAngle = this.rotor.rotation.y % (Math.PI * 2);
-      this.wheelEndAngle = this.wheelStartAngle + (Math.PI * 2 * 5);
+      // Deterministic end angle for rotor so pocket ALWAYS stops at Math.PI / 2 (front towards camera)
+      const desiredEndMod = ((pocketAngle - Math.PI / 2) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      const currentRotY = this.rotor.rotation.y;
+      const minClockwiseTurns = 4;
+      const baseEndAngle = currentRotY + minClockwiseTurns * Math.PI * 2;
+      const currentMod = ((baseEndAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      let diff = desiredEndMod - currentMod;
+      if (diff < 0) diff += Math.PI * 2;
 
-      // Target world angle of the designated pocket at t = T
-      const targetWorldAngle = this.wheelEndAngle + this.targetPocketAngle;
+      this.wheelStartAngle = currentRotY;
+      this.wheelEndAngle = baseEndAngle + diff;
 
-      // Ball current angle
+      // Ball current angle in world space
       this.ballStartAngle = this.ball
         ? Math.atan2(this.ball.position.z, this.ball.position.x)
         : 0;
 
-      // Ball executes 7 full counter-clockwise turns ending exactly on target
-      this.ballEndAngle = targetWorldAngle - (Math.PI * 2 * 7);
+      // Ball executes counter-clockwise turns, ending at Math.PI / 2 (the exact landing angle)
+      let targetBallEnd = Math.PI / 2;
+      while (targetBallEnd < this.ballStartAngle + Math.PI * 2 * 5) {
+        targetBallEnd += Math.PI * 2;
+      }
+      this.ballEndAngle = targetBallEnd;
     }
 
     /**
@@ -386,51 +428,45 @@
 
         // Rotor rotation (clockwise)
         this.rotor.rotation.y = this.wheelStartAngle + (this.wheelEndAngle - this.wheelStartAngle) * easeP;
+        this.rotor.updateMatrixWorld(true);
 
-        // Ball angular rotation (counter-clockwise)
-        const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
+        // Get exact real-time world position of the winning pocket
+        const targetWorldPos = this.targetPocketLocal.clone().applyMatrix4(this.rotor.matrixWorld);
 
-        // 3-Phase Ball Trajectory (Radial & Vertical)
-        let r, y;
-        if (p < 0.60) {
-          // Phase 1: High-speed centrifugal rim spin
-          r = 2.40;
-          y = 0.45;
-        } else if (p < 0.85) {
-          // Phase 2: Inward spiral with deflector bounces
-          const u = (p - 0.60) / 0.25;
-          r = 2.40 + (1.68 - 2.40) * u;
-          const bounce = 0.12 * (1 - u) * Math.abs(Math.sin(u * 6 * Math.PI));
-          y = 0.45 + (0.15 - 0.45) * u + bounce;
+        if (p < 0.65) {
+          // Phase 1: High-speed rim spin
+          const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
+          this.ball.position.set(
+            Math.cos(ballAngle) * 2.40,
+            0.45,
+            Math.sin(ballAngle) * 2.40
+          );
+        } else if (p < 1.0) {
+          // Phase 2: Inward descent directly towards targetWorldPos with natural deflector bounce
+          const u = (p - 0.65) / 0.35;
+          const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
+          const rimPos = new this.THREE.Vector3(
+            Math.cos(ballAngle) * 2.40,
+            0.45,
+            Math.sin(ballAngle) * 2.40
+          );
+          
+          this.ball.position.lerpVectors(rimPos, targetWorldPos, u);
+          // Add small diminishing bounce
+          const bounce = 0.08 * (1.0 - u) * Math.abs(Math.sin(u * 5 * Math.PI));
+          this.ball.position.y += bounce;
         } else {
-          // Phase 3: Settle into target pocket with micro-damping
-          const v = (p - 0.85) / 0.15;
-          r = 1.68;
-          const microBounce = 0.04 * (1 - v) * Math.abs(Math.sin(v * 4 * Math.PI));
-          y = 0.15 + microBounce;
-        }
-
-        this.ball.position.set(
-          Math.cos(ballAngle) * r,
-          y,
-          Math.sin(ballAngle) * r
-        );
-
-        // Spin complete: drop to 30 FPS thermal throttle
-        if (p >= 1.0) {
+          // Spin complete: lock ball directly into pocket
           this.isSpinning = false;
           this.targetFps = 30; // Reduce power consumption by >60%
+          this.ball.position.copy(targetWorldPos);
         }
       } else {
-        // Idle phase: slow elegant rotor drift at 30 FPS
-        this.rotor.rotation.y += 0.0012;
-        if (this.targetPocketAngle !== undefined && this.ball) {
-          const lockedAngle = this.rotor.rotation.y + this.targetPocketAngle;
-          this.ball.position.set(
-            Math.cos(lockedAngle) * 1.68,
-            0.15,
-            Math.sin(lockedAngle) * 1.68
-          );
+        // Idle phase: STAY STILL! Wheel and ball remain firmly stationary in the pocket.
+        if (this.targetPocketLocal && this.ball) {
+          this.rotor.updateMatrixWorld(true);
+          const settledPos = this.targetPocketLocal.clone().applyMatrix4(this.rotor.matrixWorld);
+          this.ball.position.copy(settledPos);
         }
       }
 

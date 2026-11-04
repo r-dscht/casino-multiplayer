@@ -76,6 +76,7 @@
       this.buildBettingGrid();
       this.setupChipDock();
       this.setupChat();
+      this.setupSidebarTabs();
     }
 
     cacheElements() {
@@ -103,6 +104,15 @@
         insideModal: document.getElementById('inside-bets-modal'),
         btnCloseInsideModal: document.getElementById('btn-close-inside-modal'),
 
+        // Sidebar Tabs, Leaderboard & Bets
+        sidebarTabs: document.querySelectorAll('.sidebar-tab'),
+        tabPanes: document.querySelectorAll('.sidebar-tab-pane'),
+        leaderboardList: document.getElementById('leaderboard-list'),
+        activeBetsList: document.getElementById('active-bets-list'),
+        betsCountBadge: document.getElementById('bets-count-badge'),
+        tableTotalChips: document.getElementById('table-total-chips'),
+        playersOnlineCount: document.getElementById('players-online-count'),
+
         // Chat
         chatContainer: document.getElementById('chat-messages-container'),
         chatForm: document.getElementById('chat-form'),
@@ -113,6 +123,27 @@
         resultBanner: document.getElementById('result-banner'),
         toastContainer: document.getElementById('toast-container')
       };
+    }
+
+    setupSidebarTabs() {
+      if (!this.elements.sidebarTabs) return;
+      this.elements.sidebarTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetTab = tab.dataset.tab;
+          this.elements.sidebarTabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          if (this.elements.tabPanes) {
+            this.elements.tabPanes.forEach(pane => {
+              if (pane.id === `tab-pane-${targetTab}`) {
+                pane.classList.add('active');
+              } else {
+                pane.classList.remove('active');
+              }
+            });
+          }
+        });
+      });
     }
 
     /* =========================================================================
@@ -729,6 +760,118 @@
       this.elements.chatContainer.appendChild(item);
       // Auto scroll to latest
       this.elements.chatContainer.scrollTop = this.elements.chatContainer.scrollHeight;
+    }
+
+    /* =========================================================================
+     * Leaderboard & Active Bets Rendering
+     * ========================================================================= */
+
+    formatBetDescription(bet) {
+      if (!bet) return '';
+      const { type, value } = bet;
+      switch (type) {
+        case 'straight':
+          return `Nummer ${value} (35:1)`;
+        case 'red':
+          return `Rood (1:1)`;
+        case 'black':
+          return `Zwart (1:1)`;
+        case 'even':
+          return `Even (1:1)`;
+        case 'odd':
+          return `Oneven (1:1)`;
+        case 'low':
+          return `1 t/m 18 (1:1)`;
+        case 'high':
+          return `19 t/m 36 (1:1)`;
+        case 'dozen':
+          return `${value}e Dozijn [${value === 1 ? '1-12' : value === 2 ? '13-24' : '25-36'}] (2:1)`;
+        case 'column':
+          return `Kolom ${value} (2:1)`;
+        case 'split':
+          return `Split [${Array.isArray(value) ? value.join(', ') : value}] (17:1)`;
+        case 'street':
+          return `Street [${Array.isArray(value) ? value.join(', ') : value}] (11:1)`;
+        case 'corner':
+          return `Corner [${Array.isArray(value) ? value.join(', ') : value}] (8:1)`;
+        case 'six_line':
+          return `Six-Line [${Array.isArray(value) ? `${value[0]}-${value[value.length - 1]}` : value}] (5:1)`;
+        default:
+          return `${type} (${value || ''})`;
+      }
+    }
+
+    updateLeaderboard(players = []) {
+      if (!this.elements.leaderboardList) return;
+      const sorted = [...players].sort((a, b) => (b.chips || 0) - (a.chips || 0));
+
+      if (this.elements.playersOnlineCount) {
+        this.elements.playersOnlineCount.textContent = `${sorted.length} online`;
+      }
+
+      this.elements.leaderboardList.innerHTML = '';
+
+      if (sorted.length === 0) {
+        this.elements.leaderboardList.innerHTML = '<div class="empty-state-notice">Geen spelers gevonden</div>';
+        return;
+      }
+
+      const medals = ['🥇', '🥈', '🥉'];
+
+      sorted.forEach((p, idx) => {
+        const item = document.createElement('div');
+        const isMe = p.id === this.myPlayer.id;
+        item.className = 'leaderboard-item' + (isMe ? ' is-me' : '');
+
+        const rankIcon = idx < 3 ? medals[idx] : `#${idx + 1}`;
+        const nameSuffix = isMe ? ' (Jij)' : '';
+
+        item.innerHTML = `
+          <div class="leaderboard-rank">${rankIcon}</div>
+          <div class="leaderboard-avatar" style="background-color: ${p.color || '#D4AF37'};"></div>
+          <div class="leaderboard-details">
+            <span class="leaderboard-name">${p.name}${nameSuffix}</span>
+            <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} chips</span>
+          </div>
+        `;
+        this.elements.leaderboardList.appendChild(item);
+      });
+    }
+
+    updateActiveBetsList(allBets = [], tableChipsTotal = 0) {
+      if (this.elements.tableTotalChips) {
+        this.elements.tableTotalChips.textContent = `$${(tableChipsTotal || 0).toLocaleString()} totaal`;
+      }
+
+      if (this.elements.betsCountBadge) {
+        this.elements.betsCountBadge.textContent = allBets.length.toString();
+      }
+
+      if (!this.elements.activeBetsList) return;
+      this.elements.activeBetsList.innerHTML = '';
+
+      if (allBets.length === 0) {
+        this.elements.activeBetsList.innerHTML = '<div class="empty-state-notice">Nog geen inzetten geplaatst deze ronde</div>';
+        return;
+      }
+
+      allBets.forEach(b => {
+        const card = document.createElement('div');
+        card.className = 'bet-card';
+        card.style.borderLeftColor = b.playerColor || '#D4AF37';
+
+        const desc = this.formatBetDescription(b.bet);
+
+        card.innerHTML = `
+          <div class="bet-card-avatar" style="background-color: ${b.playerColor || '#D4AF37'};"></div>
+          <div class="bet-card-info">
+            <span class="bet-card-player">${b.playerName}</span>
+            <span class="bet-card-target">${desc}</span>
+          </div>
+          <div class="bet-card-amount">$${(b.bet.amount || 0).toLocaleString()}</div>
+        `;
+        this.elements.activeBetsList.appendChild(card);
+      });
     }
 
     /* =========================================================================

@@ -85,23 +85,53 @@
 
       </section>
 
-      <!-- Live Multiplayer Social & Activity Panel -->
+      <!-- Live Multiplayer Social, Leaderboard & Activity Panel -->
       <aside class="social-sidebar">
+        <div class="sidebar-tab-buttons">
+          <button class="sidebar-tab active" data-tab="chat">💬 Chat</button>
+          <button class="sidebar-tab" data-tab="leaderboard">🏆 Ranglijst</button>
+          <button class="sidebar-tab" data-tab="bets">🎯 Inzetten <span id="bets-count-badge" class="tab-badge">0</span></button>
+        </div>
+
         <div class="chat-drawer">
-          <div class="chat-header">Table Social & Activity</div>
-          <div class="chat-messages" id="chat-messages-container"></div>
-          
-          <div class="chat-quick-reactions">
-            <button class="reaction-pill" data-msg="Good Luck!">🍀 GL</button>
-            <button class="reaction-pill" data-msg="Red!">🔥 Red</button>
-            <button class="reaction-pill" data-msg="Black!">🖤 Black</button>
-            <button class="reaction-pill" data-msg="Drinks on me!">🍾 Cheers</button>
+          <!-- 1. Chat Tab -->
+          <div class="sidebar-tab-pane active" id="tab-pane-chat">
+            <div class="chat-messages" id="chat-messages-container"></div>
+            
+            <div class="chat-quick-reactions">
+              <button class="reaction-pill" data-msg="Good Luck!">🍀 GL</button>
+              <button class="reaction-pill" data-msg="Red!">🔥 Rood</button>
+              <button class="reaction-pill" data-msg="Black!">🖤 Zwart</button>
+              <button class="reaction-pill" data-msg="Drinks on me!">🍾 Cheers</button>
+            </div>
+
+            <form class="chat-input-bar" id="chat-form">
+              <input type="text" id="chat-input" placeholder="Typ een bericht..." maxlength="120" autocomplete="off">
+              <button type="submit" class="btn btn-gold-sm">Stuur</button>
+            </form>
           </div>
 
-          <form class="chat-input-bar" id="chat-form">
-            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="120" autocomplete="off">
-            <button type="submit" class="btn btn-gold-sm">Send</button>
-          </form>
+          <!-- 2. Leaderboard Tab -->
+          <div class="sidebar-tab-pane" id="tab-pane-leaderboard">
+            <div class="tab-pane-header">
+              <span class="gold-text">Casino Ranglijst</span>
+              <span class="sub-counter" id="players-online-count">1 online</span>
+            </div>
+            <div class="leaderboard-scroll" id="leaderboard-list">
+              <!-- Dynamically populated with players and their chips -->
+            </div>
+          </div>
+
+          <!-- 3. Active Bets Tab (Who bet how much on what) -->
+          <div class="sidebar-tab-pane" id="tab-pane-bets">
+            <div class="tab-pane-header">
+              <span class="gold-text">Actieve Inzetten</span>
+              <span class="sub-counter" id="table-total-chips">$0 totaal</span>
+            </div>
+            <div class="active-bets-scroll" id="active-bets-list">
+              <div class="empty-state-notice">Nog geen inzetten geplaatst deze ronde</div>
+            </div>
+          </div>
         </div>
       </aside>
 

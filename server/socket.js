@@ -52,6 +52,11 @@ function setupSocket(httpServer, options = {}) {
     io.emit('chat_message', msg);
   }
 
+  function broadcastPlayersUpdate() {
+    const list = playerManager.getConnectedPlayers().sort((a, b) => b.chips - a.chips);
+    io.emit('players_update', list);
+  }
+
   // Hook engine events to socket broadcasts
   engine.on('tick', (data) => {
     io.emit('phase_tick', data);
@@ -59,10 +64,14 @@ function setupSocket(httpServer, options = {}) {
 
   engine.on('phase_change', (data) => {
     io.emit('phase_change', data);
+    if (data && data.phase === 'BETTING') {
+      broadcastPlayersUpdate();
+    }
   });
 
   engine.on('round_result', (data) => {
     io.emit('round_result', data);
+    broadcastPlayersUpdate();
 
     // Announce result in system chat
     const colorCap = data.winningColor
@@ -114,6 +123,7 @@ function setupSocket(httpServer, options = {}) {
           chips: player.chips
         }
       });
+      broadcastPlayersUpdate();
 
       // Announce in chat
       broadcastChatMessage({
@@ -170,6 +180,7 @@ function setupSocket(httpServer, options = {}) {
         bet: result.bet,
         tableChipsTotal: result.tableChipsTotal
       });
+      broadcastPlayersUpdate();
     });
 
     // 3. clear_bets
@@ -196,6 +207,7 @@ function setupSocket(httpServer, options = {}) {
         playerId: player.id,
         tableChipsTotal: result.tableChipsTotal
       });
+      broadcastPlayersUpdate();
     });
 
     // 4. chat_message
@@ -229,6 +241,7 @@ function setupSocket(httpServer, options = {}) {
         if (Number.isInteger(amount) && amount > 0) {
           playerManager.addChips(player.id, amount);
           socket.emit('chips_update', { chips: player.chips });
+          broadcastPlayersUpdate();
           socket.emit('chat_message', {
             sender: 'CASINO',
             color: '#d4af37',
@@ -261,6 +274,7 @@ function setupSocket(httpServer, options = {}) {
           id: player.id,
           name: player.name
         });
+        broadcastPlayersUpdate();
 
         broadcastChatMessage({
           sender: 'CASINO',
