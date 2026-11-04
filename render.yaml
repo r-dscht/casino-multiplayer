@@ -1,0 +1,15 @@
+# Render Blueprint specification for 1-Click Cloud Deployment
+# Free tier web service with native WebSocket & HTTP support
+
+services:
+  - type: web
+    name: casino-multiplayer
+    env: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_TUNNEL
+        value: "false"

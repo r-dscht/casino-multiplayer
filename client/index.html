@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Monte Carlo European Roulette | Le Grand Casino</title>
+  
+  <!-- Luxury Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/layout.css">
+</head>
+<body>
+
+  <!-- Main Application Container -->
+  <div id="casino-app">
+
+    <!-- Top HUD Status Bar -->
+    <header class="hud-header glass-panel">
+      <!-- Player Profile & Bankroll -->
+      <div class="player-badge">
+        <div class="avatar-disc" id="hud-avatar-disc" style="background-color: #D4AF37;"></div>
+        <div class="player-info">
+          <span class="player-name" id="hud-player-name">VIP Player</span>
+          <span class="player-chips" id="hud-player-chips">10,000 CHIPS</span>
+        </div>
+      </div>
+
+      <!-- Center Round Phase & Countdown Pill -->
+      <div class="phase-badge" id="hud-phase-badge">
+        <span class="phase-title phase-betting" id="phase-title">PLACE YOUR BETS</span>
+        <span class="phase-timer" id="phase-timer">20s</span>
+      </div>
+
+      <!-- Right Winning History Strip (Last 15 Numbers) -->
+      <div class="history-strip" id="hud-history-strip">
+        <!-- Colored pills dynamically populated -->
+      </div>
+    </header>
+
+    <!-- Main Viewport (3D Stage + Betting Table + Social Panel) -->
+    <main class="main-viewport">
+      
+      <!-- Primary Play Area -->
+      <section class="play-area">
+        
+        <!-- 3D Three.js Roulette Wheel Viewport -->
+        <div id="roulette-canvas-container">
+          <!-- Victory Result Overlay Banner -->
+          <div class="result-banner hidden" id="result-banner">
+            <!-- Dynamically populated on PAYOUT -->
+          </div>
+        </div>
+
+        <!-- Interactive European Betting Board Section -->
+        <section class="board-section">
+          <div class="board-container glass-panel">
+            
+            <!-- Dynamic Grid (0, 1-36, Columns, Dozens, Outside) -->
+            <div id="roulette-betting-grid"></div>
+
+            <!-- Denomination Dock & Controls -->
+            <div class="controls-bar">
+              <div class="chip-selector">
+                <button class="chip-btn" data-val="10">10</button>
+                <button class="chip-btn" data-val="50">50</button>
+                <button class="chip-btn active" data-val="100">100</button>
+                <button class="chip-btn" data-val="500">500</button>
+                <button class="chip-btn" data-val="1000">1k</button>
+              </div>
+
+              <div class="action-buttons">
+                <button class="btn btn-secondary" id="btn-inside-helper">Special Bets</button>
+                <button class="btn btn-secondary" id="btn-clear-bets">Clear Bets</button>
+                <button class="btn btn-gold" id="btn-double-bets">Double</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </section>
+
+      <!-- Live Multiplayer Social & Activity Panel -->
+      <aside class="social-sidebar">
+        <div class="chat-drawer">
+          <div class="chat-header">Table Social & Activity</div>
+          <div class="chat-messages" id="chat-messages-container"></div>
+          
+          <div class="chat-quick-reactions">
+            <button class="reaction-pill" data-msg="Good Luck!">🍀 GL</button>
+            <button class="reaction-pill" data-msg="Red!">🔥 Red</button>
+            <button class="reaction-pill" data-msg="Black!">🖤 Black</button>
+            <button class="reaction-pill" data-msg="Drinks on me!">🍾 Cheers</button>
+          </div>
+
+          <form class="chat-input-bar" id="chat-form">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="120" autocomplete="off">
+            <button type="submit" class="btn btn-gold-sm">Send</button>
+          </form>
+        </div>
+      </aside>
+
+    </main>
+
+    <!-- VIP Onboarding Modal -->
+    <div class="modal-overlay" id="onboarding-modal">
+      <div class="modal-content glass-panel">
+        <h2 class="gold-text">Le Grand Casino</h2>
+        <p class="modal-subtitle">European Roulette — Choose your VIP alias & marker color</p>
+
+        <div class="form-group">
+          <label for="input-player-name">VIP Alias</label>
+          <input type="text" id="input-player-name" maxlength="16" placeholder="Enter VIP Name" autocomplete="off" autofocus>
+        </div>
+
+        <div class="form-group">
+          <label>Avatar Swatch Color</label>
+          <div class="color-palette" id="color-palette"></div>
+        </div>
+
+        <div class="starting-balance-callout">
+          🎁 Welcome Bankroll: <strong>10,000 Chips</strong>
+        </div>
+
+        <button class="btn btn-gold btn-block" id="btn-enter-table">Enter Table</button>
+      </div>
+    </div>
+
+    <!-- Inside / Multi-Number Bets Helper Modal -->
+    <div class="modal-overlay hidden" id="inside-bets-modal">
+      <div class="modal-content inside-modal-content glass-panel">
+        <h2 class="gold-text">Special Inside Bets</h2>
+        <p class="modal-subtitle">Select multi-number combinations</p>
+
+        <div class="inside-tabs">
+          <button class="inside-tab active" data-cat="split">Splits (17:1)</button>
+          <button class="inside-tab" data-cat="street">Streets (11:1)</button>
+          <button class="inside-tab" data-cat="corner">Corners (8:1)</button>
+          <button class="inside-tab" data-cat="six_line">Six-Lines (5:1)</button>
+        </div>
+
+        <div class="inside-bets-scroll" id="inside-bets-list"></div>
+
+        <div style="margin-top: 16px;">
+          <button class="btn btn-secondary btn-block" id="btn-close-inside-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Toast Notifications -->
+    <div id="toast-container"></div>
+
+  </div>
+
+  <!-- Three.js (Procedural 3D Engine) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Socket.io Client -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Client Application Scripts -->
+  <script src="js/three/Roulette3D.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

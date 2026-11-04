@@ -1,0 +1,23 @@
+{
+  "name": "casino-multiplayer",
+  "version": "1.0.0",
+  "description": "Modern 3D Multiplayer European Roulette Casino",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "tunnel": "node server/tunnel.js",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "dependencies": {
+    "cloudflared": "^0.7.3",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

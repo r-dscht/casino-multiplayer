@@ -1,0 +1,213 @@
+/* ==========================================================================
+   layout.css — Responsive Layout & Flex/Grid Architecture
+   Optimized for Mobile Portrait, Mobile Landscape, Tablet, and Desktop
+   ========================================================================== */
+
+#casino-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--bg-dark);
+}
+
+/* Main Content Grid */
+.main-viewport {
+  display: flex;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Play Area (3D Viewport + Betting Table) */
+.play-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+
+/* Betting Board Section */
+.board-section {
+  padding: 16px 24px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Side Social / Chat Panel */
+.social-sidebar {
+  width: 320px;
+  border-left: 1px solid var(--border-gold);
+  background: rgba(8, 18, 14, 0.95);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 65px); /* Minus top HUD height */
+  position: sticky;
+  top: 65px;
+  flex-shrink: 0;
+}
+
+/* Mobile Toggle for Chat */
+.mobile-chat-toggle {
+  display: none;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+
+/* Tablet & Smaller Desktops (< 1100px) */
+@media (max-width: 1100px) {
+  .social-sidebar {
+    width: 280px;
+  }
+
+  .roulette-board, .outside-row {
+    max-width: 100%;
+  }
+
+  .cell-zero {
+    width: 48px;
+    min-height: 132px;
+  }
+
+  .number-row {
+    height: 44px;
+  }
+
+  .column-cell {
+    height: 44px;
+    width: 52px;
+    font-size: 0.75rem;
+  }
+
+  .outside-row {
+    margin-left: 48px;
+    margin-right: 52px;
+  }
+
+  .grid-cell {
+    font-size: 1rem;
+  }
+}
+
+/* Mobile Devices (< 860px) */
+@media (max-width: 860px) {
+  .main-viewport {
+    flex-direction: column;
+  }
+
+  .social-sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 320px;
+    position: static;
+    border-left: none;
+    border-top: 1px solid var(--border-gold);
+  }
+
+  .hud-header {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .player-badge {
+    order: 1;
+  }
+
+  .phase-badge {
+    order: 2;
+    padding: 6px 14px;
+  }
+
+  .history-strip {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  #roulette-canvas-container {
+    height: 280px;
+  }
+
+  .board-section {
+    padding: 12px 10px;
+  }
+
+  /* Enable smooth horizontal scrolling for touch betting */
+  .board-container {
+    padding: 12px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .roulette-board, .outside-row {
+    min-width: 600px;
+  }
+
+  .cell-zero {
+    width: 44px;
+    min-height: 126px;
+  }
+
+  .number-row {
+    height: 42px;
+  }
+
+  .column-cell {
+    height: 42px;
+    width: 48px;
+    font-size: 0.72rem;
+  }
+
+  .outside-row {
+    margin-left: 44px;
+    margin-right: 48px;
+  }
+
+  .controls-bar {
+    justify-content: center;
+  }
+
+  .chip-btn {
+    width: 42px;
+    height: 42px;
+    font-size: 0.78rem;
+  }
+}
+
+/* Extra Small Phones (< 480px) */
+@media (max-width: 480px) {
+  .player-name {
+    font-size: 0.85rem;
+  }
+
+  .player-chips {
+    font-size: 0.78rem;
+  }
+
+  .phase-title {
+    font-size: 0.82rem;
+  }
+
+  .phase-timer {
+    font-size: 0.85rem;
+    padding: 2px 8px;
+  }
+
+  #roulette-canvas-container {
+    height: 240px;
+  }
+
+  .modal-content {
+    padding: 24px 18px;
+  }
+
+  .color-swatch {
+    width: 30px;
+    height: 30px;
+  }
+}
