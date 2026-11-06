@@ -18,10 +18,13 @@ const { validateBet, evaluateBet } = require('./rouletteMath');
 class RouletteEngine extends EventEmitter {
   /**
    * @param {import('./playerManager')} playerManager 
+   * @param {Object} [options]
+   * @param {import('./bankManager')} [options.bankManager]
    */
-  constructor(playerManager) {
+  constructor(playerManager, options = {}) {
     super();
     this.playerManager = playerManager;
+    this.bankManager = (options && options.bankManager) ? options.bankManager : null;
 
     this.currentPhase = PHASES.BETTING;
     this.phaseDuration = PHASE_DURATIONS[PHASES.BETTING];
@@ -163,6 +166,12 @@ class RouletteEngine extends EventEmitter {
         this.playerManager.addChips(playerId, totalWon);
       }
 
+      // Deduct loan repayments from net profit if player has active debts
+      let repayments = [];
+      if (net > 0 && this.bankManager && typeof this.bankManager.processWinRepayment === 'function') {
+        repayments = this.bankManager.processWinRepayment(playerId, net);
+      }
+
       const currentChips = player ? player.chips : 0;
 
       results.push({
@@ -172,7 +181,8 @@ class RouletteEngine extends EventEmitter {
         totalWon,
         net,
         chips: currentChips,
-        winningBets
+        winningBets,
+        repayments
       });
     }
 

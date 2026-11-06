@@ -73,10 +73,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 5. Connect Socket Network
+  // 5. Initialize Casino Bank & Deals
+  let bank = null;
+  if (typeof CasinoBank !== 'undefined') {
+    bank = new CasinoBank({ network, ui });
+  }
+
+  // 6. Connect Socket Network
   network.connect();
 
-  // 6. Hook Socket Network Events to UI & 3D Wheel
+  // 7. Hook Socket Network Events to UI, Bank & 3D Wheel
 
   network.on('connection_change', ({ connected }) => {
     if (connected) {
@@ -153,9 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ui.updateActiveBetsList(tableLiveBets, state.tableChipsTotal || 0);
 
-    // Populate initial leaderboard
+    // Populate initial leaderboard & bank players
     if (Array.isArray(state.players)) {
       ui.updateLeaderboard(state.players);
+      if (bank) bank.updateConnectedPlayers(state.players);
     }
 
     // Set initial resting pocket on 3D wheel if not spinning
@@ -265,10 +272,12 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('players_update', (players) => {
     if (Array.isArray(players)) {
       ui.updateLeaderboard(players);
+      if (bank) bank.updateConnectedPlayers(players);
       const me = players.find(p => p.id === ui.myPlayer.id);
       if (me) {
         ui.myPlayer.chips = me.chips;
         ui.updatePlayerHUD();
+        if (bank) bank.updateBankData(bank.currentBankData);
       }
     }
   });
@@ -277,11 +286,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data && typeof data.chips === 'number') {
       ui.myPlayer.chips = data.chips;
       ui.updatePlayerHUD();
+      if (bank) bank.updateBankData(bank.currentBankData);
     }
   });
 
   network.on('chat_message', (msg) => {
     ui.addChatMessage(msg);
+  });
+
+  // Bank & Deals Network Events
+  network.on('bank_update', (data) => {
+    if (bank) bank.updateBankData(data);
+  });
+
+  network.on('bank_error', (data) => {
+    const msg = data ? (data.message || 'Bankfout opgetreden') : 'Bankfout opgetreden';
+    ui.showToast(msg, 'error');
+  });
+
+  network.on('bank_success', (data) => {
+    const msg = data ? (data.message || 'Transactie geslaagd') : 'Transactie geslaagd';
+    ui.showToast(msg, 'success');
+  });
+
+  network.on('bank_notification', (data) => {
+    if (data && data.message) {
+      ui.showToast(`${data.title || 'Bank'}: ${data.message}`, 'info');
+    }
+  });
+
+  network.on('bank_bailout_claimed', (data) => {
+    ui.showToast('100 noodfiches bijgeschreven op je saldo!', 'success');
   });
 
   network.on('player_joined', (data) => {

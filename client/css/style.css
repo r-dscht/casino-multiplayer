@@ -1138,3 +1138,439 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   font-style: italic;
   padding: 24px 12px;
 }
+
+/* Modular Topbar & Game Switcher */
+.casino-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background: rgba(5, 12, 9, 0.96);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  z-index: 101;
+}
+
+.nav-brand .brand-title {
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--gold-primary);
+  text-shadow: 0 0 10px var(--gold-glow);
+}
+
+.game-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-btn {
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #a3c4b5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.game-btn:hover:not(.disabled) {
+  border-color: var(--gold-primary);
+  color: #ffffff;
+  background: rgba(212, 175, 55, 0.12);
+}
+
+.game-btn.active {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.game-btn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+/* Bank Button in HUD */
+.btn-bank {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%);
+  border: 1px solid #10b981;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.btn-bank:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.4) 0%, rgba(5, 150, 105, 0.5) 100%);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.bank-badge {
+  background: #e11d48;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Bank Modal Content */
+.bank-modal-content {
+  max-width: 580px;
+  width: 92%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.btn-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.6rem;
+  color: #a3c4b5;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 6px;
+  transition: color 0.2s ease;
+}
+
+.btn-modal-close:hover {
+  color: #ffffff;
+}
+
+.bank-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-gold);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+.bank-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #a3c4b5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.bank-tab:hover {
+  color: #ffffff;
+}
+
+.bank-tab.active {
+  color: var(--gold-bright);
+  border-bottom-color: var(--gold-primary);
+}
+
+.bank-tab-pane {
+  display: none;
+}
+
+.bank-tab-pane.active {
+  display: block;
+}
+
+.bank-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(10, 26, 19, 0.8);
+  border: 1px solid var(--border-gold);
+  border-radius: 6px;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.bank-select option {
+  background: #0a1a13;
+  color: #ffffff;
+}
+
+.loan-type-selector {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex: 1;
+}
+
+.radio-label input[type="radio"]:checked + span {
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+
+.loan-calculation-box {
+  background: rgba(10, 26, 19, 0.85);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #a3c4b5;
+}
+
+.calc-total {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.calc-note {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.col-half {
+  flex: 1;
+}
+
+/* Inbox & Cards */
+.inbox-section {
+  margin-bottom: 22px;
+}
+
+.inbox-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
+}
+
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deal-card, .debt-card, .loan-card {
+  padding: 12px 14px;
+  background: rgba(10, 26, 19, 0.75);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deal-card-header, .debt-card-header, .loan-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  color: #ffffff;
+}
+
+.deal-card-body {
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.deal-card-actions, .debt-card-actions, .loan-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.gold-badge {
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid var(--gold-primary);
+  color: var(--gold-bright);
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.debt-badge {
+  background: rgba(225, 29, 72, 0.2);
+  border: 1px solid #e11d48;
+  color: #fda4af;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.loan-badge {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #f59e0b;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-emerald {
+  background: #10b981;
+}
+
+.debt-card-details, .loan-card-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.debt-card-note {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}
+
+.btn-gold-sm {
+  background: linear-gradient(135deg, var(--gold-primary) 0%, #b7791f 100%);
+  border: none;
+  color: #1a1405;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary-sm {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Bailout Tab */
+.bailout-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.bailout-desc {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.bailout-status-panel {
+  background: rgba(10, 26, 19, 0.8);
+  border: 1px solid var(--border-gold);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bailout-timer-label {
+  font-size: 0.8rem;
+  color: #a3c4b5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.bailout-timer-val {
+  font-family: var(--font-sans);
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.timer-ready {
+  color: #10b981;
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.timer-waiting {
+  color: #f59e0b;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+.bailout-reason {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}

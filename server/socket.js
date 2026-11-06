@@ -8,6 +8,7 @@
 const { Server } = require('socket.io');
 const PlayerManager = require('./game/playerManager');
 const RouletteEngine = require('./game/rouletteEngine');
+const BankManager = require('./game/bankManager');
 
 /**
  * Escapes HTML characters to prevent XSS.
@@ -41,7 +42,8 @@ function setupSocket(httpServer, options = {}) {
   });
 
   const playerManager = new PlayerManager();
-  const engine = new RouletteEngine(playerManager);
+  const bankManager = new BankManager(playerManager);
+  const engine = new RouletteEngine(playerManager, { bankManager });
 
   /** @type {Array<Object>} In-memory chat buffer (max 50) */
   const chatHistory = [];
@@ -94,6 +96,37 @@ function setupSocket(httpServer, options = {}) {
       timestamp: Date.now(),
       isSystem: true
     });
+
+    // Check if any win repayments occurred on active debts
+    if (Array.isArray(data.results)) {
+      data.results.forEach((r) => {
+        if (Array.isArray(r.repayments) && r.repayments.length > 0) {
+          r.repayments.forEach((rep) => {
+            broadcastChatMessage({
+              sender: 'BANK',
+              color: '#10b981',
+              text: `${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+              timestamp: Date.now(),
+              isSystem: true
+            });
+
+            // Update lender socket
+            const lender = playerManager.getPlayerById(rep.lenderId);
+            if (lender && lender.socketId) {
+              io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
+              io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+            }
+          });
+
+          // Update borrower socket
+          const borrower = playerManager.getPlayerById(r.playerId);
+          if (borrower && borrower.socketId) {
+            io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
+            io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+          }
+        }
+      });
+    }
   });
 
   // Client connection handler
@@ -120,6 +153,9 @@ function setupSocket(httpServer, options = {}) {
         ...tableState,
         chatHistory: [...chatHistory]
       });
+
+      // Send initial banking & debt state to player
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
 
       // Broadcast join event to everyone else
       socket.broadcast.emit('player_joined', {
@@ -274,7 +310,202 @@ function setupSocket(httpServer, options = {}) {
       });
     });
 
-    // 5. disconnect
+    // 5. Casino Banking & Loans Protocol
+
+    socket.on('bank_get_state', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+    });
+
+    socket.on('bank_transfer', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const { toPlayerId, amount } = payload;
+      const res = bankManager.directTransfer(player.id, toPlayerId, amount);
+      if (!res.success) {
+        socket.emit('bank_error', { message: res.reason });
+        return;
+      }
+
+      socket.emit('chips_update', { chips: res.fromChips });
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      socket.emit('bank_success', { message: `${res.transaction.amount.toLocaleString()} fiches overgemaakt naar ${res.toPlayer.name}.` });
+
+      if (res.toPlayer && res.toPlayer.socketId) {
+        io.to(res.toPlayer.socketId).emit('chips_update', { chips: res.toChips });
+        io.to(res.toPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(res.toPlayer.id));
+        io.to(res.toPlayer.socketId).emit('bank_notification', {
+          title: 'Fiches Ontvangen',
+          message: `${player.name} heeft ${res.transaction.amount.toLocaleString()} fiches naar je overgemaakt.`
+        });
+      }
+
+      broadcastPlayersUpdate();
+      broadcastChatMessage({
+        sender: 'BANK',
+        color: '#10b981',
+        text: `${player.name} heeft ${res.transaction.amount.toLocaleString()} fiches geschonken aan ${res.toPlayer.name}.`,
+        timestamp: Date.now(),
+        isSystem: true
+      });
+    });
+
+    socket.on('bank_loan_propose', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const { toPlayerId, type, amount, interestPct, winDeductionPct } = payload;
+      const res = bankManager.createLoanProposal({
+        fromId: player.id,
+        toId: toPlayerId,
+        type: type || 'borrow',
+        amount,
+        interestPct,
+        winDeductionPct
+      });
+      if (!res.success) {
+        socket.emit('bank_error', { message: res.reason });
+        return;
+      }
+
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      socket.emit('bank_success', { message: 'Leningvoorstel succesvol verzonden.' });
+
+      const targetPlayer = playerManager.getPlayerById(toPlayerId);
+      if (targetPlayer && targetPlayer.socketId) {
+        io.to(targetPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(targetPlayer.id));
+        const actionText = res.proposal.type === 'borrow' ? 'wil fiches lenen' : 'biedt een lening aan';
+        io.to(targetPlayer.socketId).emit('bank_notification', {
+          title: 'Nieuw Leningvoorstel',
+          message: `${player.name} ${actionText} (${res.proposal.amount.toLocaleString()} fiches). Bekijk de Bank inbox.`
+        });
+      }
+    });
+
+    socket.on('bank_loan_respond', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const { proposalId, action } = payload;
+
+      if (action === 'accept') {
+        const res = bankManager.acceptProposal(proposalId, player.id);
+        if (!res.success) {
+          socket.emit('bank_error', { message: res.reason });
+          return;
+        }
+
+        // Update lender
+        if (res.lender.socketId) {
+          io.to(res.lender.socketId).emit('chips_update', { chips: res.lender.chips });
+          io.to(res.lender.socketId).emit('bank_update', bankManager.getPlayerBankData(res.lender.id));
+        }
+        // Update borrower
+        if (res.borrower.socketId) {
+          io.to(res.borrower.socketId).emit('chips_update', { chips: res.borrower.chips });
+          io.to(res.borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(res.borrower.id));
+        }
+
+        broadcastPlayersUpdate();
+        broadcastChatMessage({
+          sender: 'BANK',
+          color: '#10b981',
+          text: `Deal gesloten: ${res.lender.name} verstrekt ${res.loan.amount.toLocaleString()} fiches aan ${res.borrower.name} (${res.loan.interestPct}% rente, ${res.loan.winDeductionPct}% winstinhouding).`,
+          timestamp: Date.now(),
+          isSystem: true
+        });
+      } else {
+        const res = bankManager.declineProposal(proposalId, player.id);
+        if (!res.success) {
+          socket.emit('bank_error', { message: res.reason });
+          return;
+        }
+        socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+        if (res.proposal) {
+          const otherId = res.proposal.fromId === player.id ? res.proposal.toId : res.proposal.fromId;
+          const otherPlayer = playerManager.getPlayerById(otherId);
+          if (otherPlayer && otherPlayer.socketId) {
+            io.to(otherPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(otherPlayer.id));
+          }
+        }
+        socket.emit('bank_success', { message: 'Voorstel afgewezen.' });
+      }
+    });
+
+    socket.on('bank_repay_debt', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const { loanId, amount } = payload;
+      const res = bankManager.repayLoan(loanId, player.id, amount);
+      if (!res.success) {
+        socket.emit('bank_error', { message: res.reason });
+        return;
+      }
+
+      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      socket.emit('bank_success', {
+        message: `${res.amountRepaid.toLocaleString()} fiches afgelost.${res.isFullyRepaid ? ' Lening is volledig afbetaald!' : ''}`
+      });
+
+      const lender = playerManager.getPlayerById(res.loan.lenderId);
+      if (lender && lender.socketId) {
+        io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
+        io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+        io.to(lender.socketId).emit('bank_notification', {
+          title: 'Aflossing Ontvangen',
+          message: `${player.name} heeft ${res.amountRepaid.toLocaleString()} fiches handmatig afgelost.`
+        });
+      }
+
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('bank_forgive_loan', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const { loanId } = payload;
+      const res = bankManager.forgiveLoan(loanId, player.id);
+      if (!res.success) {
+        socket.emit('bank_error', { message: res.reason });
+        return;
+      }
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      socket.emit('bank_success', { message: 'Lening kwijtgescholden.' });
+
+      const borrower = playerManager.getPlayerById(res.loan.borrowerId);
+      if (borrower && borrower.socketId) {
+        io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+        io.to(borrower.socketId).emit('bank_notification', {
+          title: 'Schuld Kwijtgescholden',
+          message: `${player.name} heeft je openstaande schuld kwijtgescholden.`
+        });
+      }
+    });
+
+    socket.on('bank_claim_bailout', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const res = bankManager.claimEmergencyBailout(player.id);
+      if (!res.success) {
+        socket.emit('bank_error', { message: res.reason });
+        return;
+      }
+
+      socket.emit('chips_update', { chips: res.chips });
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      socket.emit('bank_bailout_claimed', { chips: res.chips, amount: res.amount });
+      broadcastPlayersUpdate();
+
+      broadcastChatMessage({
+        sender: 'CASINO',
+        color: '#d4af37',
+        text: `${player.name} ontving 100 noodfiches van het casinofonds.`,
+        timestamp: Date.now(),
+        isSystem: true
+      });
+    });
+
+    // 6. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
@@ -295,7 +526,7 @@ function setupSocket(httpServer, options = {}) {
     });
   });
 
-  return { io, playerManager, engine, broadcastChatMessage };
+  return { io, playerManager, bankManager, engine, broadcastChatMessage };
 }
 
 module.exports = {

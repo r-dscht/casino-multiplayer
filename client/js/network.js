@@ -143,6 +143,27 @@
       this.socket.on('chat_message', (data) => {
         this.emitInternal('chat_message', data);
       });
+
+      // Bank & Loans events
+      this.socket.on('bank_update', (data) => {
+        this.emitInternal('bank_update', data);
+      });
+
+      this.socket.on('bank_error', (data) => {
+        this.emitInternal('bank_error', data);
+      });
+
+      this.socket.on('bank_success', (data) => {
+        this.emitInternal('bank_success', data);
+      });
+
+      this.socket.on('bank_notification', (data) => {
+        this.emitInternal('bank_notification', data);
+      });
+
+      this.socket.on('bank_bailout_claimed', (data) => {
+        this.emitInternal('bank_bailout_claimed', data);
+      });
     }
 
     /**
@@ -178,6 +199,70 @@
     sendChat(text) {
       if (!this.socket) return;
       this.socket.emit('chat_message', { text });
+    }
+
+    /**
+     * Requests latest player bank status.
+     */
+    getBankState() {
+      if (!this.socket) return;
+      this.socket.emit('bank_get_state', {});
+    }
+
+    /**
+     * Direct transfer of chips to another player.
+     * @param {string} toPlayerId 
+     * @param {number} amount 
+     */
+    transferChips(toPlayerId, amount) {
+      if (!this.socket) return;
+      this.socket.emit('bank_transfer', { toPlayerId, amount });
+    }
+
+    /**
+     * Proposes a loan (borrow or lend).
+     * @param {{ toPlayerId: string, type: 'borrow'|'lend', amount: number, interestPct: number, winDeductionPct: number }} params 
+     */
+    proposeLoan(params) {
+      if (!this.socket) return;
+      this.socket.emit('bank_loan_propose', params);
+    }
+
+    /**
+     * Accepts or declines a loan proposal.
+     * @param {string} proposalId 
+     * @param {'accept'|'decline'} action 
+     */
+    respondLoan(proposalId, action) {
+      if (!this.socket) return;
+      this.socket.emit('bank_loan_respond', { proposalId, action });
+    }
+
+    /**
+     * Repays an active debt.
+     * @param {string} loanId 
+     * @param {number} [amount] 
+     */
+    repayDebt(loanId, amount) {
+      if (!this.socket) return;
+      this.socket.emit('bank_repay_debt', { loanId, amount });
+    }
+
+    /**
+     * Forgives a loan (as lender).
+     * @param {string} loanId 
+     */
+    forgiveLoan(loanId) {
+      if (!this.socket) return;
+      this.socket.emit('bank_forgive_loan', { loanId });
+    }
+
+    /**
+     * Claims 100 free bailout chips.
+     */
+    claimBailout() {
+      if (!this.socket) return;
+      this.socket.emit('bank_claim_bailout', {});
     }
   }
 
