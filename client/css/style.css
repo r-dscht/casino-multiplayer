@@ -2064,3 +2064,908 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   margin-top: 6px;
 }
 
+/* ==========================================================================
+   Milestone 3: 12-Hue Monte Carlo Luxury Avatar System & Metallic Rims
+   ========================================================================== */
+
+.avatar-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-serif);
+  font-weight: 800;
+  color: #fdfbf7;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.25s ease;
+  user-select: none;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* Sizing Matrix */
+.avatar-sm { width: 28px; height: 28px; font-size: 0.72rem; border: 1.5px solid var(--border-gold); }
+.avatar-md { width: 44px; height: 44px; font-size: 1.05rem; border: 2px solid var(--border-gold); }
+.avatar-lg { width: 58px; height: 58px; font-size: 1.35rem; border: 2.5px solid var(--border-gold); }
+.avatar-xl { width: 76px; height: 76px; font-size: 1.8rem; border: 3px solid var(--border-gold); }
+
+/* Metallic Rim Lighting Overlay */
+.avatar-badge::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 65%);
+  pointer-events: none;
+}
+
+/* 12-Hue Monte Carlo Luxury Palette */
+.avatar-gold { background-color: #c5a059; border-color: #f9e79f; }
+.avatar-emerald { background-color: #0d5c3a; border-color: #34d399; }
+.avatar-sapphire { background-color: #1e3a8a; border-color: #60a5fa; }
+.avatar-ruby { background-color: #991b1b; border-color: #f87171; }
+.avatar-obsidian { background-color: #18181b; border-color: #a1a1aa; }
+.avatar-platinum { background-color: #475569; border-color: #e2e8f0; }
+.avatar-amethyst { background-color: #581c87; border-color: #c084fc; }
+.avatar-bronze { background-color: #78350f; border-color: #fbbf24; }
+.avatar-turquoise { background-color: #0f766e; border-color: #2dd4bf; }
+.avatar-champagne { background-color: #831843; border-color: #f472b6; }
+.avatar-amber { background-color: #92400e; border-color: #f59e0b; }
+.avatar-titanium { background-color: #334155; border-color: #94a3b8; }
+
+/* Active Turn Thinking Pulse Animation */
+@keyframes activeTurnPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.85), 0 0 12px rgba(212, 175, 55, 0.7);
+    border-color: #f9e79f;
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(212, 175, 55, 0), 0 0 24px rgba(249, 231, 159, 0.95);
+    border-color: #ffffff;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0), 0 0 12px rgba(212, 175, 55, 0.7);
+    border-color: #f9e79f;
+  }
+}
+
+.is-active-turn {
+  animation: activeTurnPulse 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1.08);
+  z-index: 10;
+}
+
+/* ==========================================================================
+   Milestone 3: 3D CSS Perspective Cards & Animations
+   ========================================================================== */
+
+.bj-card {
+  position: relative;
+  width: 72px;
+  height: 104px;
+  perspective: 1200px;
+  display: inline-block;
+  margin-right: -24px;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.65));
+  animation: cardDealSlide 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  user-select: none;
+}
+
+.bj-card:last-child {
+  margin-right: 0;
+}
+
+.bj-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1);
+  border-radius: 6px;
+}
+
+/* Face Down (Initial State) */
+.bj-card.face-down .bj-card-inner {
+  transform: rotateY(0deg);
+}
+
+/* Face Up (Flipped State) */
+.bj-card.face-up .bj-card-inner {
+  transform: rotateY(180deg);
+}
+
+/* Luxury Card Back */
+.bj-card-back {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 6px;
+  border: 2px solid #c5a059;
+  background: radial-gradient(circle at 50% 50%, #0a261c 0%, #04120d 100%);
+  background-image: repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.15) 0, rgba(197, 160, 89, 0.15) 2px, transparent 0, transparent 8px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bj-card-back::after {
+  content: 'LE GRAND';
+  font-family: var(--font-serif);
+  font-size: 0.52rem;
+  letter-spacing: 0.14em;
+  color: #c5a059;
+  border: 1px solid rgba(197, 160, 89, 0.55);
+  padding: 3px 5px;
+  border-radius: 3px;
+}
+
+/* Luxury Card Front */
+.bj-card-front {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+  background: #fdfbf7;
+  border: 1px solid #dcd7cc;
+  border-radius: 6px;
+  padding: 5px 6px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-red { color: #b91c1c; }
+.card-black { color: #111827; }
+
+.card-corner-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+
+.card-rank {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.card-suit-svg {
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+}
+
+.card-center-suit {
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  opacity: 0.92;
+}
+
+.card-corner-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1;
+  transform: rotate(180deg);
+}
+
+/* Sliding Deal Animation from Dealer Shoe */
+@keyframes cardDealSlide {
+  0% {
+    opacity: 0;
+    transform: translate3d(180px, -180px, 0) rotate(20deg) scale(0.65);
+  }
+  75% {
+    transform: translate3d(-3px, 2px, 0) rotate(-2deg) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+}
+
+/* Natural Blackjack Card Gold Aura Glow */
+@keyframes naturalAuraGlow {
+  0% { box-shadow: 0 0 10px rgba(212, 175, 55, 0.7), 0 0 18px rgba(212, 175, 55, 0.4); }
+  50% { box-shadow: 0 0 22px rgba(249, 231, 159, 1), 0 0 32px rgba(212, 175, 55, 0.8), inset 0 0 6px rgba(249, 231, 159, 0.7); }
+  100% { box-shadow: 0 0 10px rgba(212, 175, 55, 0.7), 0 0 18px rgba(212, 175, 55, 0.4); }
+}
+
+.bj-card.card-highlight-gold .bj-card-front {
+  border: 2px solid #f9e79f;
+  animation: naturalAuraGlow 1.5s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   Milestone 3: Tabbed Chat Interface Styling
+   ========================================================================== */
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-tab-bar {
+  display: flex;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+  background: rgba(4, 14, 10, 0.8);
+}
+
+.chat-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #a3b8b0;
+  font-family: var(--font-serif);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-tab-btn:hover {
+  color: #fdfbf7;
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.chat-tab-btn.active {
+  color: var(--gold-bright);
+  border-bottom-color: var(--gold-primary);
+  background: rgba(212, 175, 55, 0.12);
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.45);
+}
+
+.chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #f3d068 0%, #d4af37 100%);
+  color: #0b1410;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.chat-unread-badge.hidden {
+  display: none !important;
+}
+
+.chat-messages-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+.chat-messages-wrapper .chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.chat-messages-wrapper .chat-messages.hidden {
+  display: none !important;
+}
+
+/* Category typography formatters (Strict 0 Emojis) */
+.msg-category-tag {
+  display: inline-block;
+  font-family: var(--font-serif);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.tag-blackjack {
+  background: rgba(212, 175, 55, 0.22);
+  color: #f9e79f;
+  border: 1px solid rgba(212, 175, 55, 0.6);
+}
+
+.tag-grand-win {
+  background: rgba(16, 185, 129, 0.22);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.6);
+}
+
+.tag-dealer {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.6);
+}
+
+.tag-casino {
+  background: rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+/* ==========================================================================
+   Milestone 3: Navigation Bet Lock Styling
+   ========================================================================== */
+
+.game-pill.navigation-locked,
+.btn-seat-leave.navigation-locked,
+.navigation-locked {
+  opacity: 0.68;
+  cursor: not-allowed !important;
+  position: relative;
+}
+
+.game-pill.navigation-locked::after {
+  content: ' [Gegrendeld]';
+  font-size: 0.68rem;
+  color: #f87171;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+/* ==========================================================================
+   Milestone 3: Animated Balance Ticker & Golden Particle Shimmer
+   ========================================================================== */
+
+.ticker-active-glow {
+  color: #fff2cc !important;
+  text-shadow: 0 0 12px rgba(249, 231, 159, 0.95), 0 0 24px rgba(212, 175, 55, 0.8) !important;
+  transform: scale(1.06);
+  transition: transform 0.15s ease;
+}
+
+.win-shimmer-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 90;
+}
+
+/* Outcome Result Banner */
+.blackjack-result-banner {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 16px 42px;
+  background: rgba(6, 26, 18, 0.96);
+  border: 2px solid var(--gold-primary);
+  border-radius: 12px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.85), 0 0 35px rgba(212, 175, 55, 0.45);
+  text-align: center;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 100;
+  animation: bannerDropIn 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.blackjack-result-banner.hidden {
+  display: none !important;
+}
+
+@keyframes bannerDropIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-24px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.banner-crest-text {
+  font-family: var(--font-serif);
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  color: var(--gold-primary);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.banner-main-title {
+  font-family: var(--font-serif);
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  background: linear-gradient(135deg, #fff2cc 0%, #d4af37 60%, #aa771c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.banner-payout-text {
+  font-family: var(--font-sans);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #34d399;
+  margin-top: 4px;
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+}
+
+.banner-sub-text {
+  font-size: 0.78rem;
+  color: #a3c4b5;
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   Milestone 3: Blackjack Table Components & Controls Bar
+   ========================================================================== */
+
+/* Table Switcher Pills */
+.bj-table-switcher {
+  display: flex;
+  gap: 8px;
+}
+
+.bj-table-pill {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #a3c4b5;
+  font-family: var(--font-serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bj-table-pill:hover {
+  color: #ffffff;
+  border-color: var(--gold-bright);
+}
+
+.bj-table-pill.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.25), rgba(6, 43, 30, 0.5));
+  border-color: var(--gold-primary);
+  color: var(--gold-bright);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+.bj-table-title-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.bj-table-name {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+  letter-spacing: 0.08em;
+}
+
+.bj-table-limits {
+  font-size: 0.72rem;
+  color: #a3c4b5;
+  letter-spacing: 0.05em;
+}
+
+/* Shoe Penetration Bar */
+.bj-shoe-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.shoe-label {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  color: var(--gold-primary);
+  font-weight: 700;
+}
+
+.shoe-bar-track {
+  width: 70px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.shoe-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #f59e0b 70%, #ef4444 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.shoe-text {
+  font-size: 0.72rem;
+  color: #ffffff;
+  font-weight: 600;
+  min-width: 46px;
+  text-align: right;
+}
+
+/* Dealer Area */
+.bj-dealer-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.bj-shoe-graphic {
+  width: 54px;
+  height: 68px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 2px solid var(--border-gold);
+  border-radius: 6px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  box-sizing: border-box;
+}
+
+.shoe-slit {
+  width: 80%;
+  height: 3px;
+  background: #c5a059;
+  border-radius: 2px;
+}
+
+.shoe-badge {
+  font-family: var(--font-serif);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: #c5a059;
+  font-weight: 800;
+}
+
+.bj-dealer-dock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.dealer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dealer-label {
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--gold-bright);
+}
+
+.dealer-score-pill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-gold);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.dealer-score-pill.hidden {
+  display: none !important;
+}
+
+.dealer-cards-dock {
+  display: flex;
+  align-items: center;
+  min-height: 108px;
+}
+
+/* Seats Elements */
+.seat-empty-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.btn-seat-sit {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1.5px dashed var(--gold-primary);
+  border-radius: 8px;
+  color: var(--gold-bright);
+  font-family: var(--font-serif);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-seat-sit:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-style: solid;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.seat-player-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(6, 20, 15, 0.85);
+  border: 1px solid var(--border-gold);
+  border-radius: 10px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.seat-player-box.hidden {
+  display: none !important;
+}
+
+.seat-avatar-dock {
+  position: relative;
+}
+
+.seat-player-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.seat-username {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seat-chips-count {
+  font-size: 0.7rem;
+  color: var(--gold-bright);
+}
+
+.btn-seat-leave {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.btn-seat-leave.hidden {
+  display: none !important;
+}
+
+.seat-betting-area {
+  margin: 10px 0 6px;
+}
+
+.betting-spot {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 2px dashed rgba(212, 175, 55, 0.65);
+  background: radial-gradient(circle, rgba(13, 59, 46, 0.7) 0%, rgba(6, 43, 30, 0.4) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.betting-spot:hover {
+  border-color: var(--gold-bright);
+  border-style: solid;
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.5);
+  transform: scale(1.05);
+}
+
+.bet-spot-label {
+  font-family: var(--font-serif);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: rgba(249, 231, 159, 0.7);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.seat-chips-dock {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.seat-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  min-height: 110px;
+  width: 100%;
+}
+
+.seat-hand-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.seat-hand-block.hidden {
+  display: none !important;
+}
+
+.hand-score-badge {
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid var(--border-gold);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.hand-score-badge.hidden {
+  display: none !important;
+}
+
+.seat-cards-dock {
+  display: flex;
+  align-items: center;
+  min-height: 104px;
+}
+
+/* Blackjack Controls Panel */
+.bj-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px;
+  margin-top: 16px;
+  background: rgba(6, 20, 15, 0.9);
+}
+
+.bj-bet-chips-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.bj-bet-chips-label {
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  color: #a3c4b5;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.bj-action-buttons-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: var(--font-serif);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+  border: 1.5px solid transparent;
+  outline: none;
+}
+
+.btn-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn-hit {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border-color: #34d399;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+
+.btn-hit:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.6);
+}
+
+.btn-stand {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border-color: #f87171;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-stand:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.6);
+}
+
+.btn-double {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  border-color: #fbbf24;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+.btn-double:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.6);
+}
+
+.btn-split {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: #ffffff;
+  border-color: #a78bfa;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+}
+
+.btn-split:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.6);
+}
+

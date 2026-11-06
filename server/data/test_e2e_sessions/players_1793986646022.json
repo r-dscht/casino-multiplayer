@@ -1,0 +1,22 @@
+{
+  "ply_334803e7853d9997": {
+    "id": "ply_334803e7853d9997",
+    "sessionToken": "cst_c31b423aad9a55dc5d810c51c033e91f",
+    "usernameKey": "disksurvivor",
+    "name": "DiskSurvivor",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#10b981",
+    "chips": 25000,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Roulette",
+    "location": "ROULETTE",
+    "seatIndex": null,
+    "createdAt": 1793986646027,
+    "lastSeen": 1793986646040
+  }
+}

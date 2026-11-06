@@ -16,6 +16,28 @@
 </head>
 <body>
 
+  <!-- Pure SVG Suit Vector Defs (Zero Emojis Guardrail) -->
+  <svg style="display: none;" aria-hidden="true">
+    <defs>
+      <g id="suit-spade">
+        <path d="M12 2C9.5 6.5 4 10 4 14.5a4.5 4.5 0 0 0 7.2 3.6c-.4 1.4-1.2 2.9-2.2 3.9h6c-1-1-1.8-2.5-2.2-3.9a4.5 4.5 0 0 0 7.2-3.6C20 10 14.5 6.5 12 2z" fill="currentColor"/>
+      </g>
+      <g id="suit-spades"><use href="#suit-spade"/></g>
+      <g id="suit-heart">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="currentColor"/>
+      </g>
+      <g id="suit-hearts"><use href="#suit-heart"/></g>
+      <g id="suit-diamond">
+        <path d="M12 2L3.5 12 12 22l8.5-10L12 2z" fill="currentColor"/>
+      </g>
+      <g id="suit-diamonds"><use href="#suit-diamond"/></g>
+      <g id="suit-club">
+        <path d="M12 2a4 4 0 0 0-3.6 5.8A4.8 4.8 0 0 0 4 12.5a4.8 4.8 0 0 0 6.6 4.4c-.4 1.6-1.4 3.1-2.6 4.1h8c-1.2-1-2.2-2.5-2.6-4.1a4.8 4.8 0 0 0 6.6-4.4 4.8 4.8 0 0 0-4.4-4.7A4 4 0 0 0 12 2z" fill="currentColor"/>
+      </g>
+      <g id="suit-clubs"><use href="#suit-club"/></g>
+    </defs>
+  </svg>
+
   <!-- Main Application Container -->
   <div id="casino-app">
 
@@ -27,9 +49,9 @@
           <span class="brand-crest">LE GRAND</span>
           <span class="brand-sub">CASINO</span>
         </div>
-        <div class="game-nav-pills">
-          <button class="game-pill active" data-game="roulette">Roulette</button>
-          <button class="game-pill disabled" title="Binnenkort beschikbaar">Blackjack</button>
+        <div class="game-nav-pills game-switcher-pills">
+          <button class="game-pill active" data-game="roulette" id="pill-roulette">Roulette</button>
+          <button class="game-pill" data-game="blackjack" id="pill-blackjack">Blackjack</button>
           <button class="game-pill disabled" title="Binnenkort beschikbaar">Gokkasten</button>
         </div>
       </div>
@@ -68,40 +90,335 @@
       <!-- Primary Play Area -->
       <section class="play-area">
         
-        <!-- 3D Three.js Roulette Wheel Viewport -->
-        <div id="roulette-canvas-container">
-          <!-- Victory Result Overlay Banner -->
-          <div class="result-banner hidden" id="result-banner">
-            <!-- Dynamically populated on PAYOUT -->
+        <!-- 1. European Roulette View -->
+        <div id="roulette-view" class="game-view-pane active">
+          <!-- 3D Three.js Roulette Wheel Viewport -->
+          <div id="roulette-canvas-container">
+            <!-- Victory Result Overlay Banner -->
+            <div class="result-banner hidden" id="result-banner">
+              <!-- Dynamically populated on PAYOUT -->
+            </div>
           </div>
+
+          <!-- Interactive European Betting Board Section -->
+          <section class="board-section">
+            <div class="board-container glass-panel">
+              
+              <!-- Dynamic Grid (0, 1-36, Columns, Dozens, Outside) -->
+              <div id="roulette-betting-grid"></div>
+
+              <!-- Denomination Dock & Controls -->
+              <div class="controls-bar">
+                <div class="chip-selector">
+                  <button class="chip-btn" data-val="10">10</button>
+                  <button class="chip-btn" data-val="50">50</button>
+                  <button class="chip-btn active" data-val="100">100</button>
+                  <button class="chip-btn" data-val="500">500</button>
+                  <button class="chip-btn" data-val="1000">1k</button>
+                </div>
+
+                <div class="action-buttons">
+                  <button class="btn btn-secondary" id="btn-inside-helper">Special Bets</button>
+                  <button class="btn btn-secondary" id="btn-clear-bets">Clear Bets</button>
+                  <button class="btn btn-gold" id="btn-double-bets">Double</button>
+                </div>
+              </div>
+
+            </div>
+          </section>
         </div>
 
-        <!-- Interactive European Betting Board Section -->
-        <section class="board-section">
-          <div class="board-container glass-panel">
-            
-            <!-- Dynamic Grid (0, 1-36, Columns, Dozens, Outside) -->
-            <div id="roulette-betting-grid"></div>
+        <!-- 2. Multiplayer 6-Seat Blackjack Table View -->
+        <div id="blackjack-view" class="game-view-pane hidden">
+          <!-- Golden particle shimmer celebration canvas -->
+          <canvas id="win-shimmer-canvas" class="win-shimmer-canvas"></canvas>
 
-            <!-- Denomination Dock & Controls -->
-            <div class="controls-bar">
-              <div class="chip-selector">
-                <button class="chip-btn" data-val="10">10</button>
-                <button class="chip-btn" data-val="50">50</button>
-                <button class="chip-btn active" data-val="100">100</button>
-                <button class="chip-btn" data-val="500">500</button>
-                <button class="chip-btn" data-val="1000">1k</button>
+          <!-- Outcome banner for high-impact announcements -->
+          <div id="blackjack-result-banner" class="blackjack-result-banner hidden"></div>
+
+          <!-- Table Header: Table Switcher pills (Table 1 / Table 2), Table limits, Shoe penetration -->
+          <div class="bj-table-header glass-panel">
+            <div class="bj-table-switcher">
+              <button type="button" class="bj-table-pill active" data-table-id="table_1" id="bj-table-btn-1">Table 1</button>
+              <button type="button" class="bj-table-pill" data-table-id="table_2" id="bj-table-btn-2">Table 2</button>
+            </div>
+            <div class="bj-table-title-box">
+              <span class="bj-table-name" id="bj-table-name">Monte Carlo Royale 1</span>
+              <span class="bj-table-limits">Limiet: 10 - 2.500 fiches</span>
+            </div>
+            <div class="bj-shoe-indicator" title="Shoe Penetratie">
+              <span class="shoe-label">Shoe:</span>
+              <div class="shoe-bar-track">
+                <div class="shoe-bar-fill" id="bj-shoe-fill" style="width: 100%;"></div>
               </div>
+              <span id="bj-shoe-text" class="shoe-text">312 krt</span>
+            </div>
+          </div>
 
-              <div class="action-buttons">
-                <button class="btn btn-secondary" id="btn-inside-helper">Special Bets</button>
-                <button class="btn btn-secondary" id="btn-clear-bets">Clear Bets</button>
-                <button class="btn btn-gold" id="btn-double-bets">Double</button>
+          <!-- Dealer Area: Dealer shoe graphic, Dealer card dock, Dealer score pill -->
+          <div class="bj-dealer-area">
+            <div class="bj-shoe-graphic" title="Dealer Shoe (6 Decks)">
+              <div class="shoe-slit"></div>
+              <span class="shoe-badge">SHOE</span>
+            </div>
+            <div class="bj-dealer-dock">
+              <div class="dealer-title-row">
+                <span class="dealer-label">DEALER</span>
+                <span class="dealer-score-pill hidden" id="bj-dealer-score">0</span>
+              </div>
+              <div class="dealer-cards-dock" id="bj-dealer-cards">
+                <!-- Dealer cards rendered dynamically -->
               </div>
             </div>
-
           </div>
-        </section>
+
+          <!-- Semicircular 6-Seat Table Arc (Seats 0 through 5) -->
+          <div class="bj-felt-stage">
+            <div class="bj-seats-arc" id="bj-seats-arc">
+              <!-- Seat 0 -->
+              <div class="bj-seat empty" data-seat="0" id="bj-seat-0">
+                <div class="seat-empty-badge" id="seat-empty-0">
+                  <button type="button" class="btn-seat-sit" data-seat="0">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-0">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-0" style="background-color: #c5a059;">
+                      <span class="seat-avatar-mono" id="seat-mono-0">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-0">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-0">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="0" id="btn-leave-0" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="0" id="betting-spot-0">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-0"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-0-0">
+                    <div class="hand-score-badge hidden" id="seat-score-0-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-0-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-0-1">
+                    <div class="hand-score-badge hidden" id="seat-score-0-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-0-1"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seat 1 -->
+              <div class="bj-seat empty" data-seat="1" id="bj-seat-1">
+                <div class="seat-empty-badge" id="seat-empty-1">
+                  <button type="button" class="btn-seat-sit" data-seat="1">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-1">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-1" style="background-color: #0d5c3a;">
+                      <span class="seat-avatar-mono" id="seat-mono-1">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-1">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-1">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="1" id="btn-leave-1" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="1" id="betting-spot-1">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-1"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-1-0">
+                    <div class="hand-score-badge hidden" id="seat-score-1-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-1-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-1-1">
+                    <div class="hand-score-badge hidden" id="seat-score-1-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-1-1"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seat 2 -->
+              <div class="bj-seat empty" data-seat="2" id="bj-seat-2">
+                <div class="seat-empty-badge" id="seat-empty-2">
+                  <button type="button" class="btn-seat-sit" data-seat="2">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-2">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-2" style="background-color: #1e3a8a;">
+                      <span class="seat-avatar-mono" id="seat-mono-2">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-2">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-2">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="2" id="btn-leave-2" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="2" id="betting-spot-2">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-2"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-2-0">
+                    <div class="hand-score-badge hidden" id="seat-score-2-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-2-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-2-1">
+                    <div class="hand-score-badge hidden" id="seat-score-2-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-2-1"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seat 3 -->
+              <div class="bj-seat empty" data-seat="3" id="bj-seat-3">
+                <div class="seat-empty-badge" id="seat-empty-3">
+                  <button type="button" class="btn-seat-sit" data-seat="3">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-3">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-3" style="background-color: #991b1b;">
+                      <span class="seat-avatar-mono" id="seat-mono-3">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-3">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-3">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="3" id="btn-leave-3" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="3" id="betting-spot-3">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-3"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-3-0">
+                    <div class="hand-score-badge hidden" id="seat-score-3-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-3-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-3-1">
+                    <div class="hand-score-badge hidden" id="seat-score-3-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-3-1"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seat 4 -->
+              <div class="bj-seat empty" data-seat="4" id="bj-seat-4">
+                <div class="seat-empty-badge" id="seat-empty-4">
+                  <button type="button" class="btn-seat-sit" data-seat="4">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-4">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-4" style="background-color: #581c87;">
+                      <span class="seat-avatar-mono" id="seat-mono-4">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-4">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-4">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="4" id="btn-leave-4" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="4" id="betting-spot-4">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-4"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-4-0">
+                    <div class="hand-score-badge hidden" id="seat-score-4-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-4-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-4-1">
+                    <div class="hand-score-badge hidden" id="seat-score-4-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-4-1"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seat 5 -->
+              <div class="bj-seat empty" data-seat="5" id="bj-seat-5">
+                <div class="seat-empty-badge" id="seat-empty-5">
+                  <button type="button" class="btn-seat-sit" data-seat="5">+ Neem Plaats</button>
+                </div>
+                <div class="seat-player-box hidden" id="seat-player-5">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="seat-avatar-5" style="background-color: #0f766e;">
+                      <span class="seat-avatar-mono" id="seat-mono-5">?</span>
+                    </div>
+                  </div>
+                  <div class="seat-player-details">
+                    <span class="seat-username" id="seat-user-5">Player</span>
+                    <span class="seat-chips-count" id="seat-chips-5">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="5" id="btn-leave-5" title="Verlaat stoel">&times;</button>
+                </div>
+                <div class="seat-betting-area">
+                  <div class="betting-spot" data-seat="5" id="betting-spot-5">
+                    <span class="bet-spot-label">INZET</span>
+                    <div class="seat-chips-dock" id="seat-chips-dock-5"></div>
+                  </div>
+                </div>
+                <div class="seat-cards-container">
+                  <div class="seat-hand-block" id="seat-hand-5-0">
+                    <div class="hand-score-badge hidden" id="seat-score-5-0">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-5-0"></div>
+                  </div>
+                  <div class="seat-hand-block split-hand hidden" id="seat-hand-5-1">
+                    <div class="hand-score-badge hidden" id="seat-score-5-1">0</div>
+                    <div class="seat-cards-dock" id="seat-cards-dock-5-1"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Action button bar: Hit, Stand, Double Down, Split, Clear Bet -->
+          <div class="bj-controls-panel glass-panel">
+            <div class="bj-bet-chips-row" id="bj-bet-chips-row">
+              <span class="bj-bet-chips-label">Inzet per klik:</span>
+              <div class="chip-selector">
+                <button type="button" class="chip-btn" data-val="10">10</button>
+                <button type="button" class="chip-btn" data-val="50">50</button>
+                <button type="button" class="chip-btn active" data-val="100">100</button>
+                <button type="button" class="chip-btn" data-val="500">500</button>
+                <button type="button" class="chip-btn" data-val="1000">1k</button>
+              </div>
+              <button type="button" class="btn btn-secondary" id="btn-bj-clear" disabled>Inzet Wissen</button>
+            </div>
+
+            <div class="bj-action-buttons-row">
+              <button type="button" class="btn btn-action btn-hit" id="btn-bj-hit" disabled>
+                <span class="action-btn-text">HIT (+1 Krt)</span>
+              </button>
+              <button type="button" class="btn btn-action btn-stand" id="btn-bj-stand" disabled>
+                <span class="action-btn-text">STAND (Pas)</span>
+              </button>
+              <button type="button" class="btn btn-action btn-double" id="btn-bj-double" disabled>
+                <span class="action-btn-text">DOUBLE (Verdubbel)</span>
+              </button>
+              <button type="button" class="btn btn-action btn-split" id="btn-bj-split" disabled>
+                <span class="action-btn-text">SPLIT (Splits)</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
 
       </section>
 
@@ -115,21 +432,41 @@
         </div>
 
         <div class="chat-drawer">
-          <!-- 1. Chat Tab -->
+          <!-- 1. Chat Tab (Tabbed Architecture) -->
           <div class="sidebar-tab-pane active" id="tab-pane-chat">
-            <div class="chat-messages" id="chat-messages-container"></div>
-            
-            <div class="chat-quick-reactions">
-              <button class="reaction-pill" data-msg="Veel geluk!">Succes</button>
-              <button class="reaction-pill" data-msg="Rood!">Rood</button>
-              <button class="reaction-pill" data-msg="Zwart!">Zwart</button>
-              <button class="reaction-pill" data-msg="Proost!">Proost</button>
-            </div>
+            <div id="chat-panel" class="chat-panel">
+              <!-- Tab Bar: Global Casino & Table Chat with gold unread badges -->
+              <div class="chat-tab-bar">
+                <button type="button" class="chat-tab-btn active" id="tab-chat-global" data-scope="global">
+                  <span class="tab-label">Global Casino</span>
+                  <span class="chat-unread-badge hidden" id="badge-unread-global">0</span>
+                </button>
+                <button type="button" class="chat-tab-btn" id="tab-chat-table" data-scope="table">
+                  <span class="tab-label" id="label-chat-table">Table Chat</span>
+                  <span class="chat-unread-badge hidden" id="badge-unread-table">0</span>
+                </button>
+              </div>
 
-            <form class="chat-input-bar" id="chat-form">
-              <input type="text" id="chat-input" placeholder="Typ een bericht..." maxlength="120" autocomplete="off">
-              <button type="submit" class="btn btn-gold-sm">Stuur</button>
-            </form>
+              <!-- Partitioned message containers -->
+              <div class="chat-messages-wrapper">
+                <div class="chat-messages active" id="chat-messages-global"></div>
+                <div class="chat-messages hidden" id="chat-messages-table"></div>
+                <!-- Legacy fallback container for backward compatibility -->
+                <div id="chat-messages-container" style="display: none;"></div>
+              </div>
+              
+              <div class="chat-quick-reactions">
+                <button type="button" class="reaction-pill" data-msg="Veel geluk!">Succes</button>
+                <button type="button" class="reaction-pill" data-msg="Goeie hand!">Goeie hand</button>
+                <button type="button" class="reaction-pill" data-msg="Verdubbelen!">Double</button>
+                <button type="button" class="reaction-pill" data-msg="Proost!">Proost</button>
+              </div>
+
+              <form class="chat-input-bar" id="chat-form">
+                <input type="text" id="chat-input" placeholder="Typ een bericht..." maxlength="120" autocomplete="off">
+                <button type="submit" class="btn btn-gold-sm">Stuur</button>
+              </form>
+            </div>
           </div>
 
           <!-- 2. Leaderboard Tab -->

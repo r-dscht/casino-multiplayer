@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 const PlayerManager = require('./game/playerManager');
 const RouletteEngine = require('./game/rouletteEngine');
 const BankManager = require('./game/bankManager');
+const BlackjackEngine = require('./game/blackjackEngine');
 
 /**
  * Escapes HTML characters to prevent XSS.
@@ -27,10 +28,40 @@ function sanitizeHtml(str) {
 }
 
 /**
+ * Central Navigation Validator Contract.
+ * Blocks table exit or room switching while unresolved bets are active on Roulette or Blackjack.
+ * @param {string} playerId 
+ * @param {Object} [rouletteEngine] 
+ * @param {Object} [blackjackEngine] 
+ * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, message?: string }}
+ */
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine) {
+  if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Roulette',
+      amount: typeof rouletteEngine.getActiveBetTotal === 'function' ? rouletteEngine.getActiveBetTotal(playerId) : 0,
+      message: 'Active bets present on Roulette table.'
+    };
+  }
+  if (blackjackEngine && typeof blackjackEngine.hasActiveBets === 'function' && blackjackEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Blackjack',
+      amount: typeof blackjackEngine.getActiveBetTotal === 'function' ? blackjackEngine.getActiveBetTotal(playerId) : 0,
+      message: 'Active bets present on Blackjack table.'
+    };
+  }
+  return { allowed: true };
+}
+
+/**
  * Initializes Socket.io with the HTTP server.
  * @param {import('http').Server} httpServer 
  * @param {Object} [options]
- * @returns {{ io: Server, playerManager: PlayerManager, engine: RouletteEngine }}
+ * @returns {{ io: Server, playerManager: PlayerManager, engine: RouletteEngine, blackjackEngine: BlackjackEngine }}
  */
 function setupSocket(httpServer, options = {}) {
   const io = new Server(httpServer, {
@@ -45,6 +76,55 @@ function setupSocket(httpServer, options = {}) {
   const bankManager = new BankManager(playerManager);
   const engine = new RouletteEngine(playerManager, { bankManager });
 
+  /** @type {Map<string, BlackjackEngine>} Multi-table registry */
+  const blackjackTables = new Map();
+  const defaultBjEngine = new BlackjackEngine(playerManager, {
+    tableId: 'table_1',
+    tableName: 'Monte Carlo Royale 1',
+    maxSeats: 6,
+    bankManager
+  });
+  blackjackTables.set('table_1', defaultBjEngine);
+
+  const highRollerBjEngine = new BlackjackEngine(playerManager, {
+    tableId: 'table_2',
+    tableName: 'Monte Carlo High Roller 2',
+    maxSeats: 6,
+    bankManager
+  });
+  blackjackTables.set('table_2', highRollerBjEngine);
+
+  function getTable(tableId) {
+    if (tableId && blackjackTables.has(tableId)) {
+      return blackjackTables.get(tableId);
+    }
+    return defaultBjEngine;
+  }
+
+  function checkNavigation(playerId) {
+    if (engine && typeof engine.hasActiveBets === 'function' && engine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Roulette',
+        amount: typeof engine.getActiveBetTotal === 'function' ? engine.getActiveBetTotal(playerId) : 0,
+        message: 'Active bets present on Roulette table.'
+      };
+    }
+    for (const tbl of blackjackTables.values()) {
+      if (typeof tbl.hasActiveBets === 'function' && tbl.hasActiveBets(playerId)) {
+        return {
+          allowed: false,
+          code: 'CANNOT_LEAVE_ACTIVE_BETS',
+          game: 'Blackjack',
+          amount: typeof tbl.getActiveBetTotal === 'function' ? tbl.getActiveBetTotal(playerId) : 0,
+          message: 'Active bets present on Blackjack table.'
+        };
+      }
+    }
+    return { allowed: true };
+  }
+
   /** @type {Array<Object>} In-memory chat buffer (max 50) */
   const chatHistory = [];
 
@@ -57,6 +137,89 @@ function setupSocket(httpServer, options = {}) {
   function broadcastPlayersUpdate() {
     const list = playerManager.getConnectedPlayers().sort((a, b) => b.chips - a.chips);
     io.emit('players_update', list);
+  }
+
+  // Hook blackjack tables events
+  function hookBlackjackEvents(tbl) {
+    tbl.on('phase_tick', (data) => {
+      io.emit('bj_phase_tick', data);
+    });
+    tbl.on('phase_change', (data) => {
+      io.emit('bj_phase_change', data);
+      if (data && data.phase === 'BETTING') {
+        broadcastPlayersUpdate();
+      }
+    });
+    tbl.on('turn_tick', (data) => {
+      io.emit('bj_turn_tick', data);
+    });
+    tbl.on('turn_change', (data) => {
+      io.emit('bj_turn_change', data);
+    });
+    tbl.on('seat_taken', (data) => {
+      io.emit('bj_seat_taken', data);
+      broadcastPlayersUpdate();
+    });
+    tbl.on('seat_left', (data) => {
+      io.emit('bj_seat_left', data);
+      broadcastPlayersUpdate();
+    });
+    tbl.on('bet_placed', (data) => {
+      io.emit('bj_bet_placed', data);
+      broadcastPlayersUpdate();
+    });
+    tbl.on('bet_cleared', (data) => {
+      io.emit('bj_bet_cleared', data);
+      broadcastPlayersUpdate();
+    });
+    tbl.on('action_applied', (data) => {
+      io.emit('bj_action_applied', data);
+      io.emit('bj_action_executed', data);
+    });
+    tbl.on('dealer_reveal', (data) => {
+      io.emit('bj_dealer_reveal', data);
+    });
+    tbl.on('dealer_draw', (data) => {
+      io.emit('bj_dealer_draw', data);
+    });
+    tbl.on('shoe_reshuffle', (data) => {
+      io.emit('bj_shoe_reshuffle', data);
+    });
+    tbl.on('round_result', (data) => {
+      io.emit('bj_round_result', data);
+      io.emit('bj_round_end', data);
+      broadcastPlayersUpdate();
+
+      if (Array.isArray(data.results)) {
+        data.results.forEach((r) => {
+          if (Array.isArray(r.repayments) && r.repayments.length > 0) {
+            r.repayments.forEach((rep) => {
+              broadcastChatMessage({
+                sender: 'BANK',
+                color: '#10b981',
+                text: `${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+                timestamp: Date.now(),
+                isSystem: true
+              });
+              const lender = playerManager.getPlayerById(rep.lenderId);
+              if (lender && lender.socketId) {
+                io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
+                io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+              }
+              const borrower = playerManager.getPlayerById(r.playerId);
+              if (borrower && borrower.socketId) {
+                io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
+                io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  for (const tbl of blackjackTables.values()) {
+    hookBlackjackEvents(tbl);
   }
 
   // Hook engine events to socket broadcasts
@@ -133,19 +296,37 @@ function setupSocket(httpServer, options = {}) {
   io.on('connection', (socket) => {
     let currentSocketPlayerId = null;
 
-    // 1. join_table
-    socket.on('join_table', (payload = {}) => {
+    // 0. auth_session
+    socket.on('auth_session', (payload = {}) => {
       const opts = (payload && typeof payload === 'object') ? payload : {};
-      const result = playerManager.registerPlayer(socket.id, opts);
-      if (result && result.error) {
-        socket.emit('login_error', {
-          code: result.error,
-          message: result.message
+      const authResult = playerManager.authSession(socket.id, opts);
+      if (authResult.error) {
+        socket.emit('auth_error', {
+          code: authResult.error,
+          message: authResult.message
         });
         return;
       }
-      const player = result;
+
+      const { player, sessionToken, isNew } = authResult;
       currentSocketPlayerId = player.id;
+
+      // Send auth_success with bearer session token & player profile
+      socket.emit('auth_success', {
+        sessionToken,
+        isNew: !!isNew,
+        player: {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          color: player.color,
+          chips: player.chips,
+          currentGame: player.currentGame || 'Roulette',
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+          stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 }
+        }
+      });
 
       // Send initial table state to joining player
       const tableState = engine.getTableState(player.id);
@@ -168,7 +349,112 @@ function setupSocket(httpServer, options = {}) {
           avatar: player.avatar,
           color: player.color,
           chips: player.chips,
-          currentGame: player.currentGame || 'Roulette'
+          currentGame: player.currentGame || 'Roulette',
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null
+        }
+      });
+
+      // Broadcast presence_update to all clients
+      io.emit('presence_update', {
+        playerId: player.id,
+        location: player.location || 'ROULETTE',
+        currentGame: player.currentGame || 'Roulette',
+        seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+        player: {
+          id: player.id,
+          name: player.name,
+          color: player.color,
+          avatar: player.avatar,
+          chips: player.chips,
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null
+        }
+      });
+      broadcastPlayersUpdate();
+
+      // Announce in chat
+      broadcastChatMessage({
+        sender: 'CASINO',
+        color: '#d4af37',
+        text: isNew ? `${player.name} joined the table.` : `${player.name} reconnected.`,
+        timestamp: Date.now(),
+        isSystem: true
+      });
+    });
+
+    // 1. join_table
+    socket.on('join_table', (payload = {}) => {
+      const opts = (payload && typeof payload === 'object') ? payload : {};
+      const result = playerManager.registerPlayer(socket.id, opts);
+      if (result && result.error) {
+        socket.emit('login_error', {
+          code: result.error,
+          message: result.message
+        });
+        return;
+      }
+      const player = result;
+      currentSocketPlayerId = player.id;
+
+      // Emit auth_success so client network can retain bearer sessionToken
+      socket.emit('auth_success', {
+        sessionToken: player.sessionToken,
+        isNew: true,
+        player: {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          color: player.color,
+          chips: player.chips,
+          currentGame: player.currentGame || 'Roulette',
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+          stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 }
+        }
+      });
+
+      // Send initial table state to joining player
+      const tableState = engine.getTableState(player.id);
+      socket.emit('table_state', {
+        ...tableState,
+        chatHistory: [...chatHistory]
+      });
+
+      // Send initial banking & debt state to player
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+
+      // Send initial player profile to client
+      socket.emit('profile_data', playerManager.getPlayerProfile(player.id));
+
+      // Broadcast join event to everyone else
+      socket.broadcast.emit('player_joined', {
+        player: {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          color: player.color,
+          chips: player.chips,
+          currentGame: player.currentGame || 'Roulette',
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null
+        }
+      });
+
+      // Broadcast presence_update to all clients
+      io.emit('presence_update', {
+        playerId: player.id,
+        location: player.location || 'ROULETTE',
+        currentGame: player.currentGame || 'Roulette',
+        seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+        player: {
+          id: player.id,
+          name: player.name,
+          color: player.color,
+          avatar: player.avatar,
+          chips: player.chips,
+          location: player.location || 'ROULETTE',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null
         }
       });
       broadcastPlayersUpdate();
@@ -537,18 +823,260 @@ function setupSocket(httpServer, options = {}) {
     socket.on('player_set_game', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
-      const game = payload.game || 'Roulette';
-      playerManager.setPlayerGame(player.id, game);
+
+      const navCheck = checkNavigation(player.id);
+      if (!navCheck.allowed) {
+        socket.emit('navigation_blocked', {
+          code: navCheck.code,
+          reason: navCheck.message,
+          game: navCheck.game,
+          amount: navCheck.amount,
+          activeBetsTotal: navCheck.amount
+        });
+        return;
+      }
+
+      const game = payload.game || payload.location || 'Roulette';
+      const seatIndex = payload.seatIndex !== undefined ? payload.seatIndex : null;
+      playerManager.setPlayerPresence(player.id, game, seatIndex);
+
+      socket.emit('game_switched', {
+        game: player.currentGame,
+        location: player.location,
+        seatIndex: player.seatIndex
+      });
+
+      io.emit('presence_update', {
+        playerId: player.id,
+        location: player.location,
+        currentGame: player.currentGame,
+        seatIndex: player.seatIndex,
+        player: {
+          id: player.id,
+          name: player.name,
+          color: player.color,
+          chips: player.chips,
+          location: player.location,
+          seatIndex: player.seatIndex
+        }
+      });
       broadcastPlayersUpdate();
     });
 
-    // 7. disconnect
+    socket.on('player_set_location', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const navCheck = checkNavigation(player.id);
+      if (!navCheck.allowed) {
+        socket.emit('navigation_blocked', {
+          code: navCheck.code,
+          reason: navCheck.message,
+          game: navCheck.game,
+          amount: navCheck.amount,
+          activeBetsTotal: navCheck.amount
+        });
+        return;
+      }
+
+      const location = payload.location || payload.game || 'ROULETTE';
+      const seatIndex = payload.seatIndex !== undefined ? payload.seatIndex : null;
+      playerManager.setPlayerPresence(player.id, location, seatIndex);
+
+      socket.emit('game_switched', {
+        game: player.currentGame,
+        location: player.location,
+        seatIndex: player.seatIndex
+      });
+
+      io.emit('presence_update', {
+        playerId: player.id,
+        location: player.location,
+        currentGame: player.currentGame,
+        seatIndex: player.seatIndex,
+        player: {
+          id: player.id,
+          name: player.name,
+          color: player.color,
+          chips: player.chips,
+          location: player.location,
+          seatIndex: player.seatIndex
+        }
+      });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('leave_table', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const navCheck = checkNavigation(player.id);
+      if (!navCheck.allowed) {
+        socket.emit('navigation_blocked', {
+          code: navCheck.code,
+          reason: navCheck.message,
+          game: navCheck.game,
+          amount: navCheck.amount,
+          activeBetsTotal: navCheck.amount
+        });
+        return;
+      }
+
+      playerManager.setPlayerPresence(player.id, 'LOBBY', null);
+      socket.emit('game_switched', {
+        game: 'Lobby',
+        location: 'LOBBY',
+        seatIndex: null
+      });
+
+      io.emit('presence_update', {
+        playerId: player.id,
+        location: 'LOBBY',
+        currentGame: 'Lobby',
+        seatIndex: null,
+        player: {
+          id: player.id,
+          name: player.name,
+          color: player.color,
+          chips: player.chips,
+          location: 'LOBBY',
+          seatIndex: null
+        }
+      });
+      broadcastPlayersUpdate();
+    });
+
+    // 7. Multiplayer Blackjack Socket Protocol (6 Seats & Multi-Table)
+
+    socket.on('bj_join_table', (payload = {}) => {
+      const table = getTable(payload && payload.tableId);
+      const player = playerManager.getPlayerBySocket(socket.id);
+      const state = table.getTableState(player ? player.id : null);
+      socket.emit('bj_table_state', state);
+    });
+
+    socket.on('bj_take_seat', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('bj_seat_error', { code: 'PLAYER_NOT_FOUND', reason: 'Must be authenticated before taking a seat' });
+        return;
+      }
+      const table = getTable(payload && payload.tableId);
+      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : -1;
+      const res = table.takeSeat(seatIndex, player.id);
+      if (!res.success) {
+        socket.emit('bj_seat_error', res);
+        return;
+      }
+      socket.emit('bj_seat_accepted', {
+        tableId: table.tableId,
+        seatIndex,
+        player: res.seat.player
+      });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('bj_leave_seat', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const navCheck = checkNavigation(player.id);
+      if (!navCheck.allowed) {
+        socket.emit('navigation_blocked', {
+          code: navCheck.code,
+          reason: navCheck.message,
+          game: navCheck.game,
+          amount: navCheck.amount,
+          activeBetsTotal: navCheck.amount
+        });
+        socket.emit('bj_seat_error', { code: navCheck.code, reason: navCheck.message });
+        return;
+      }
+
+      const table = getTable(payload && payload.tableId);
+      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : player.seatIndex;
+      const res = table.leaveSeat(seatIndex, player.id);
+      if (!res.success) {
+        socket.emit('bj_seat_error', res);
+        return;
+      }
+      socket.emit('bj_seat_vacated', { tableId: table.tableId, seatIndex });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('bj_place_bet', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('bj_bet_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Player profile not found' });
+        return;
+      }
+      const table = getTable(payload && payload.tableId);
+      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : player.seatIndex;
+      const amount = payload ? payload.amount : 0;
+      const res = table.placeBet(seatIndex, player.id, amount);
+      if (!res.success) {
+        socket.emit('bj_bet_rejected', res);
+        return;
+      }
+      socket.emit('bj_bet_accepted', {
+        tableId: table.tableId,
+        seatIndex,
+        amount,
+        totalBet: res.totalBet,
+        chipsRemaining: res.chips,
+        remainingChips: res.chips,
+        playerChips: res.chips
+      });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('bj_clear_bet', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const table = getTable(payload && payload.tableId);
+      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : player.seatIndex;
+      const res = table.clearBet(seatIndex, player.id);
+      if (!res.success) {
+        socket.emit('bj_bet_rejected', res);
+        return;
+      }
+      socket.emit('chips_update', { chips: res.chips });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('bj_action', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('bj_action_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Player profile not found' });
+        return;
+      }
+      const table = getTable(payload && payload.tableId);
+      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : -1;
+      const handIndex = (payload && typeof payload.handIndex === 'number') ? payload.handIndex : 0;
+      const action = payload ? payload.action : '';
+      const res = table.handleAction(seatIndex, handIndex, player.id, action);
+      if (!res.success) {
+        socket.emit('bj_action_rejected', res);
+        return;
+      }
+      socket.emit('bj_action_success', { action, hand: res.hand });
+      broadcastPlayersUpdate();
+    });
+
+    // 8. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
         io.emit('player_left', {
           id: player.id,
           name: player.name
+        });
+        io.emit('presence_update', {
+          playerId: player.id,
+          connected: false,
+          location: player.location || 'ROULETTE',
+          currentGame: player.currentGame || 'Roulette',
+          seatIndex: player.seatIndex !== undefined ? player.seatIndex : null
         });
         broadcastPlayersUpdate();
 
@@ -563,10 +1091,27 @@ function setupSocket(httpServer, options = {}) {
     });
   });
 
-  return { io, playerManager, bankManager, engine, broadcastChatMessage };
+  return {
+    io,
+    playerManager,
+    bankManager,
+    engine,
+    rouletteEngine: engine,
+    blackjackEngine: defaultBjEngine,
+    blackjackTables,
+    canPlayerNavigate: checkNavigation,
+    broadcastChatMessage,
+    stop: () => {
+      engine.stop();
+      for (const tbl of blackjackTables.values()) {
+        tbl.stop();
+      }
+    }
+  };
 }
 
 module.exports = {
   setupSocket,
-  sanitizeHtml
+  sanitizeHtml,
+  canPlayerNavigate
 };

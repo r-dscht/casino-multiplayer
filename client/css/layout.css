@@ -27,6 +27,126 @@
   padding-bottom: 24px;
 }
 
+/* Game Viewport Panes */
+.game-view-pane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+}
+
+.game-view-pane.hidden {
+  display: none !important;
+}
+
+/* Blackjack Table Viewport Layout */
+#blackjack-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 16px 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.bj-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.bj-felt-stage {
+  position: relative;
+  width: 100%;
+  min-height: 480px;
+  background: radial-gradient(ellipse at 50% 20%, #0d3b2e 0%, #062b1e 65%, #03140e 100%);
+  border: 2px solid var(--border-gold);
+  border-radius: 24px;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8), 0 16px 40px rgba(0, 0, 0, 0.6);
+  padding: 24px 20px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Semicircular 6-Seat Arc Layout */
+.bj-seats-arc {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  max-width: 1140px;
+  margin: 30px auto 10px;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.bj-seat {
+  flex: 1;
+  max-width: 175px;
+  min-width: 145px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
+}
+
+/* Graceful Desktop Semicircle Curve */
+@media (min-width: 1025px) {
+  #bj-seat-0 { transform: translateY(32px) rotate(-10deg); }
+  #bj-seat-1 { transform: translateY(10px) rotate(-5deg); }
+  #bj-seat-2 { transform: translateY(0px) rotate(-1deg); }
+  #bj-seat-3 { transform: translateY(0px) rotate(1deg); }
+  #bj-seat-4 { transform: translateY(10px) rotate(5deg); }
+  #bj-seat-5 { transform: translateY(32px) rotate(10deg); }
+
+  #bj-seat-0:hover, #bj-seat-0.is-active-turn { transform: translateY(24px) rotate(-10deg) scale(1.04); }
+  #bj-seat-1:hover, #bj-seat-1.is-active-turn { transform: translateY(2px) rotate(-5deg) scale(1.04); }
+  #bj-seat-2:hover, #bj-seat-2.is-active-turn { transform: translateY(-8px) rotate(-1deg) scale(1.04); }
+  #bj-seat-3:hover, #bj-seat-3.is-active-turn { transform: translateY(-8px) rotate(1deg) scale(1.04); }
+  #bj-seat-4:hover, #bj-seat-4.is-active-turn { transform: translateY(2px) rotate(5deg) scale(1.04); }
+  #bj-seat-5:hover, #bj-seat-5.is-active-turn { transform: translateY(24px) rotate(10deg) scale(1.04); }
+}
+
+@media (max-width: 1024px) and (min-width: 681px) {
+  .bj-seats-arc {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 20px auto 10px;
+  }
+  .bj-seat {
+    max-width: 100%;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .bj-seats-arc {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 16px auto 10px;
+  }
+  .bj-seat {
+    max-width: 100%;
+    transform: none !important;
+  }
+  .bj-felt-stage {
+    min-height: auto;
+    padding: 16px 10px;
+  }
+}
+
 /* Betting Board Section */
 .board-section {
   padding: 16px 24px;

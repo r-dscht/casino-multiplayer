@@ -19,7 +19,38 @@
       this.socket = null;
       this.isConnected = false;
       this.myPlayerId = null;
+      this.sessionToken = this.getStoredToken();
       this.handlers = new Map();
+    }
+
+    /**
+     * Reads stored bearer session token from localStorage.
+     * @returns {string|null}
+     */
+    getStoredToken() {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          return localStorage.getItem('casino_session_token');
+        }
+      } catch (e) {}
+      return this.sessionToken || null;
+    }
+
+    /**
+     * Persists or clears bearer session token in localStorage.
+     * @param {string|null} token 
+     */
+    setStoredToken(token) {
+      this.sessionToken = token || null;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          if (token) {
+            localStorage.setItem('casino_session_token', token);
+          } else {
+            localStorage.removeItem('casino_session_token');
+          }
+        }
+      } catch (e) {}
     }
 
     /**
@@ -73,6 +104,18 @@
       this.socket.on('connect', () => {
         this.isConnected = true;
         this.emitInternal('connection_change', { connected: true, id: this.socket.id });
+
+        // Auto authenticate session on socket connect if stored bearer token exists
+        const token = this.getStoredToken();
+        if (token) {
+          const storedName = (typeof localStorage !== 'undefined')
+            ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
+            : null;
+          const storedColor = (typeof localStorage !== 'undefined')
+            ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
+            : null;
+          this.authSession({ sessionToken: token, name: storedName, color: storedColor });
+        }
       });
 
       this.socket.on('disconnect', (reason) => {
@@ -165,6 +208,32 @@
         this.emitInternal('bank_bailout_claimed', data);
       });
 
+      // Session Auth & Presence events
+      this.socket.on('auth_success', (data) => {
+        if (data && data.sessionToken) {
+          this.setStoredToken(data.sessionToken);
+        }
+        if (data && data.player && data.player.id) {
+          this.myPlayerId = data.player.id;
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('casino_player_id', data.player.id);
+              if (data.player.name) localStorage.setItem('casino_player_name', data.player.name);
+              if (data.player.color) localStorage.setItem('casino_player_color', data.player.color);
+            }
+          } catch (e) {}
+        }
+        this.emitInternal('auth_success', data);
+      });
+
+      this.socket.on('auth_error', (data) => {
+        this.emitInternal('auth_error', data);
+      });
+
+      this.socket.on('presence_update', (data) => {
+        this.emitInternal('presence_update', data);
+      });
+
       // Player Profile & Presence events
       this.socket.on('profile_data', (data) => {
         this.emitInternal('profile_data', data);
@@ -173,15 +242,143 @@
       this.socket.on('profile_updated', (data) => {
         this.emitInternal('profile_updated', data);
       });
+
+      this.socket.on('navigation_blocked', (data) => {
+        this.emitInternal('navigation_blocked', data);
+      });
+
+      this.socket.on('game_switched', (data) => {
+        this.emitInternal('game_switched', data);
+      });
+
+      // Multiplayer 6-Seat Blackjack Protocol Events
+      this.socket.on('bj_table_state', (data) => {
+        this.emitInternal('bj_table_state', data);
+      });
+
+      this.socket.on('bj_seat_taken', (data) => {
+        this.emitInternal('bj_seat_taken', data);
+      });
+
+      this.socket.on('bj_seat_left', (data) => {
+        this.emitInternal('bj_seat_left', data);
+      });
+
+      this.socket.on('bj_seat_accepted', (data) => {
+        this.emitInternal('bj_seat_accepted', data);
+      });
+
+      this.socket.on('bj_seat_vacated', (data) => {
+        this.emitInternal('bj_seat_vacated', data);
+      });
+
+      this.socket.on('bj_seat_error', (data) => {
+        this.emitInternal('bj_seat_error', data);
+      });
+
+      this.socket.on('bj_bet_placed', (data) => {
+        this.emitInternal('bj_bet_placed', data);
+      });
+
+      this.socket.on('bj_bet_accepted', (data) => {
+        this.emitInternal('bj_bet_accepted', data);
+      });
+
+      this.socket.on('bj_bet_cleared', (data) => {
+        this.emitInternal('bj_bet_cleared', data);
+      });
+
+      this.socket.on('bj_bet_rejected', (data) => {
+        this.emitInternal('bj_bet_rejected', data);
+      });
+
+      this.socket.on('bj_action_applied', (data) => {
+        this.emitInternal('bj_action_applied', data);
+      });
+
+      this.socket.on('bj_action_executed', (data) => {
+        this.emitInternal('bj_action_executed', data);
+      });
+
+      this.socket.on('bj_action_success', (data) => {
+        this.emitInternal('bj_action_success', data);
+      });
+
+      this.socket.on('bj_action_rejected', (data) => {
+        this.emitInternal('bj_action_rejected', data);
+      });
+
+      this.socket.on('bj_phase_tick', (data) => {
+        this.emitInternal('bj_phase_tick', data);
+      });
+
+      this.socket.on('bj_phase_change', (data) => {
+        this.emitInternal('bj_phase_change', data);
+      });
+
+      this.socket.on('bj_turn_tick', (data) => {
+        this.emitInternal('bj_turn_tick', data);
+      });
+
+      this.socket.on('bj_turn_change', (data) => {
+        this.emitInternal('bj_turn_change', data);
+      });
+
+      this.socket.on('dealer_reveal', (data) => {
+        this.emitInternal('bj_dealer_reveal', data);
+      });
+
+      this.socket.on('bj_dealer_reveal', (data) => {
+        this.emitInternal('bj_dealer_reveal', data);
+      });
+
+      this.socket.on('dealer_draw', (data) => {
+        this.emitInternal('bj_dealer_draw', data);
+      });
+
+      this.socket.on('bj_dealer_draw', (data) => {
+        this.emitInternal('bj_dealer_draw', data);
+      });
+
+      this.socket.on('bj_shoe_reshuffle', (data) => {
+        this.emitInternal('bj_shoe_reshuffle', data);
+      });
+
+      this.socket.on('bj_round_result', (data) => {
+        this.emitInternal('bj_round_result', data);
+      });
+
+      this.socket.on('bj_round_end', (data) => {
+        this.emitInternal('bj_round_end', data);
+      });
     }
 
     /**
-     * Sends join_table event.
-     * @param {{ name: string, avatar?: string, color?: string }} playerProfile 
+     * Authenticates or resumes a session with the bearer sessionToken.
+     * @param {{ sessionToken?: string, name?: string, color?: string, password?: string }} [payload]
      */
-    joinTable(playerProfile) {
+    authSession(payload = {}) {
       if (!this.socket) return;
-      this.socket.emit('join_table', playerProfile);
+      const token = payload.sessionToken || this.getStoredToken();
+      this.socket.emit('auth_session', {
+        sessionToken: token,
+        name: payload.name,
+        color: payload.color,
+        password: payload.password
+      });
+    }
+
+    /**
+     * Sends join_table event with bearer session token.
+     * @param {{ name?: string, avatar?: string, color?: string, sessionToken?: string }} playerProfile 
+     */
+    joinTable(playerProfile = {}) {
+      if (!this.socket) return;
+      const token = playerProfile.sessionToken || this.getStoredToken();
+      this.socket.emit('join_table', {
+        ...playerProfile,
+        sessionToken: token
+      });
     }
 
     /**
@@ -202,12 +399,14 @@
     }
 
     /**
-     * Sends chat_message event.
+     * Sends chat_message event with scope support.
      * @param {string} text 
+     * @param {'global'|'table'} [scope='global']
+     * @param {string} [table='blackjack']
      */
-    sendChat(text) {
+    sendChat(text, scope = 'global', table = 'blackjack') {
       if (!this.socket) return;
-      this.socket.emit('chat_message', { text });
+      this.socket.emit('chat_message', { text, scope, table });
     }
 
     /**
@@ -298,7 +497,82 @@
      */
     setGamePresence(game) {
       if (!this.socket) return;
-      this.socket.emit('player_set_game', { game });
+      this.socket.emit('player_set_game', { game, location: (game || '').toUpperCase() });
+    }
+
+    /**
+     * Updates player location and table seat presence.
+     * @param {'LOBBY'|'ROULETTE'|'BLACKJACK'} location 
+     * @param {number|null} [seatIndex=null] 
+     */
+    setPlayerPresence(location, seatIndex = null) {
+      if (!this.socket) return;
+      this.socket.emit('player_set_location', {
+        location,
+        seatIndex
+      });
+    }
+
+    /**
+     * Joins or switches to a Blackjack table.
+     * @param {string} [tableId='table_1']
+     */
+    bjJoinTable(tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_join_table', { tableId });
+    }
+
+    /**
+     * Claims an open seat at the Blackjack table.
+     * @param {number} seatIndex 
+     * @param {string} [tableId='table_1']
+     */
+    bjTakeSeat(seatIndex, tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_take_seat', { seatIndex, tableId });
+    }
+
+    /**
+     * Vacates a seat at the Blackjack table.
+     * @param {number} [seatIndex] 
+     * @param {string} [tableId='table_1']
+     */
+    bjLeaveSeat(seatIndex, tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_leave_seat', { seatIndex, tableId });
+    }
+
+    /**
+     * Places or increases bet on a seat during BETTING phase.
+     * @param {number} seatIndex 
+     * @param {number} amount 
+     * @param {string} [tableId='table_1']
+     */
+    bjPlaceBet(seatIndex, amount, tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_place_bet', { seatIndex, amount, tableId });
+    }
+
+    /**
+     * Clears all bets on a seat during BETTING phase.
+     * @param {number} seatIndex 
+     * @param {string} [tableId='table_1']
+     */
+    bjClearBet(seatIndex, tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_clear_bet', { seatIndex, tableId });
+    }
+
+    /**
+     * Submits a player decision action on the active hand.
+     * @param {'hit'|'stand'|'double'|'split'} action 
+     * @param {number} seatIndex 
+     * @param {number} [handIndex=0] 
+     * @param {string} [tableId='table_1']
+     */
+    bjAction(action, seatIndex, handIndex = 0, tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_action', { action, seatIndex, handIndex, tableId });
     }
   }
 

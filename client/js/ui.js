@@ -27,25 +27,42 @@
   ]);
 
   const LUXURY_SWATCHES = [
-    { name: 'Gold', color: '#D4AF37' },
-    { name: 'Emerald', color: '#10B981' },
-    { name: 'Sapphire', color: '#3B82F6' },
-    { name: 'Ruby', color: '#EF4444' },
-    { name: 'Amethyst', color: '#8B5CF6' },
-    { name: 'Amber', color: '#F59E0B' },
-    { name: 'Turquoise', color: '#14B8A6' },
-    { name: 'Coral', color: '#F97316' }
+    { name: 'Imperial Gold', color: '#c5a059' },
+    { name: 'Monte Carlo Emerald', color: '#0d5c3a' },
+    { name: 'Royal Sapphire', color: '#1e3a8a' },
+    { name: 'Crimson Ruby', color: '#991b1b' },
+    { name: 'Smoked Obsidian', color: '#18181b' },
+    { name: 'Polished Platinum', color: '#475569' },
+    { name: 'Monaco Amethyst', color: '#581c87' },
+    { name: 'Antique Bronze', color: '#78350f' },
+    { name: 'Riviera Turquoise', color: '#0f766e' },
+    { name: 'Champagne Rose', color: '#831843' },
+    { name: 'Cognac Amber', color: '#92400e' },
+    { name: 'Brushed Titanium', color: '#334155' }
   ];
 
   function getMonogram(name) {
     if (!name || typeof name !== 'string') return '?';
-    const clean = name.trim();
+    // Strip special symbols, HTML artifacts, and excess spaces
+    const clean = name.replace(/<[^>]*>/g, '').trim();
     if (!clean) return '?';
-    const parts = clean.split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+
+    // Split on whitespace, underscores, or hyphens
+    const tokens = clean.split(/[\s_\-]+/).filter(t => t.length > 0);
+    
+    if (tokens.length >= 2) {
+      // First character of first token + first character of second token
+      const firstChar = Array.from(tokens[0])[0];
+      const secondChar = Array.from(tokens[1])[0];
+      return (firstChar + secondChar).toUpperCase();
     }
-    return clean.slice(0, 2).toUpperCase();
+    
+    // Single token: take first 2 characters if available, else 1
+    const chars = Array.from(tokens[0]);
+    if (chars.length === 1) {
+      return chars[0].toUpperCase();
+    }
+    return (chars[0] + chars[1]).toUpperCase();
   }
 
   class CasinoUI {
@@ -73,6 +90,16 @@
       this.currentPhase = 'BETTING';
       this.myBets = [];
       this.allBetsBySpot = new Map(); // spotKey -> Array<{ playerId, playerName, playerColor, amount }>
+
+      // Tabbed Chat State (R5)
+      this.activeChatScope = 'global';
+      this.unreadCounts = { global: 0, table: 0 };
+
+      // Navigation Bet Lock State (R2)
+      this.isNavigationLocked = false;
+
+      // Payout Counter Ticker Previous Balance (R6)
+      this._prevChips = 10000;
 
       // DOM Elements cache
       this.elements = {};
@@ -110,7 +137,14 @@
         phaseTimer: document.getElementById('phase-timer'),
         historyStrip: document.getElementById('hud-history-strip'),
 
-        // Board & Controls
+        // View Panes & Game Switcher
+        viewRoulette: document.getElementById('roulette-view'),
+        viewBlackjack: document.getElementById('blackjack-view'),
+        pillRoulette: document.getElementById('pill-roulette'),
+        pillBlackjack: document.getElementById('pill-blackjack'),
+        gamePills: document.querySelectorAll('.game-pill'),
+
+        // Board & Controls (Roulette)
         gridContainer: document.getElementById('roulette-betting-grid'),
         chipButtons: document.querySelectorAll('.chip-btn'),
         btnClearBets: document.getElementById('btn-clear-bets'),
@@ -118,6 +152,23 @@
         btnInsideHelper: document.getElementById('btn-inside-helper'),
         insideModal: document.getElementById('inside-bets-modal'),
         btnCloseInsideModal: document.getElementById('btn-close-inside-modal'),
+
+        // Blackjack Table Elements
+        bjTableBtn1: document.getElementById('bj-table-btn-1'),
+        bjTableBtn2: document.getElementById('bj-table-btn-2'),
+        bjTableName: document.getElementById('bj-table-name'),
+        bjShoeFill: document.getElementById('bj-shoe-fill'),
+        bjShoeText: document.getElementById('bj-shoe-text'),
+        bjDealerCards: document.getElementById('bj-dealer-cards'),
+        bjDealerScore: document.getElementById('bj-dealer-score'),
+        bjSeatsArc: document.getElementById('bj-seats-arc'),
+        btnBjHit: document.getElementById('btn-bj-hit'),
+        btnBjStand: document.getElementById('btn-bj-stand'),
+        btnBjDouble: document.getElementById('btn-bj-double'),
+        btnBjSplit: document.getElementById('btn-bj-split'),
+        btnBjClear: document.getElementById('btn-bj-clear'),
+        bjResultBanner: document.getElementById('blackjack-result-banner'),
+        winShimmerCanvas: document.getElementById('win-shimmer-canvas'),
 
         // Sidebar Tabs, Leaderboard & Bets
         sidebarTabs: document.querySelectorAll('.sidebar-tab'),
@@ -156,13 +207,21 @@
         inspectorMemberDate: document.getElementById('inspector-member-date'),
         btnInspectorTransfer: document.getElementById('btn-inspector-transfer'),
 
-        // Chat
+        // Tabbed Chat Elements
+        chatPanel: document.getElementById('chat-panel'),
+        tabChatGlobal: document.getElementById('tab-chat-global'),
+        tabChatTable: document.getElementById('tab-chat-table'),
+        badgeUnreadGlobal: document.getElementById('badge-unread-global'),
+        badgeUnreadTable: document.getElementById('badge-unread-table'),
+        chatMessagesGlobal: document.getElementById('chat-messages-global'),
+        chatMessagesTable: document.getElementById('chat-messages-table'),
+        labelChatTable: document.getElementById('label-chat-table'),
         chatContainer: document.getElementById('chat-messages-container'),
         chatForm: document.getElementById('chat-form'),
         chatInput: document.getElementById('chat-input'),
         reactionPills: document.querySelectorAll('.reaction-pill'),
 
-        // Result banner
+        // Result banner & toasts
         resultBanner: document.getElementById('result-banner'),
         toastContainer: document.getElementById('toast-container')
       };
@@ -305,7 +364,12 @@
       }
     }
 
-    updatePlayerHUD() {
+    /**
+     * Updates player HUD with avatar, monogram, name, and balance.
+     * Supports smooth rolling ticker animation for dopamine feedback.
+     * @param {boolean} [animated=true]
+     */
+    updatePlayerHUD(animated = true) {
       if (this.elements.avatarDisc) {
         this.elements.avatarDisc.style.backgroundColor = this.myPlayer.color;
         this.elements.avatarDisc.classList.add('avatar-monogram');
@@ -317,9 +381,51 @@
         this.elements.playerName.textContent = this.myPlayer.name;
       }
       if (this.elements.playerChips) {
-        this.elements.playerChips.textContent = `${this.myPlayer.chips.toLocaleString()} CHIPS`;
+        const targetChips = this.myPlayer.chips || 0;
+        if (animated && this._prevChips !== undefined && this._prevChips !== targetChips) {
+          this.animateBalanceChange(this.elements.playerChips, this._prevChips, targetChips);
+        } else {
+          this.elements.playerChips.textContent = `${targetChips.toLocaleString()} CHIPS`;
+        }
+        this._prevChips = targetChips;
       }
       this.renderMyProfile();
+    }
+
+    /**
+     * Smoothly rolls a number counter with ease-out cubic interpolation.
+     * Highlights element with gold glow during transit. Zero audio.
+     * @param {HTMLElement} element 
+     * @param {number} startVal 
+     * @param {number} endVal 
+     * @param {number} [duration=800] 
+     * @param {string} [suffix=' CHIPS']
+     */
+    animateBalanceChange(element, startVal, endVal, duration = 800, suffix = ' CHIPS') {
+      if (!element || startVal === endVal) {
+        if (element) element.textContent = `${(endVal || 0).toLocaleString()}${suffix}`;
+        return;
+      }
+      const startTime = performance.now();
+      const diff = endVal - startVal;
+      element.classList.add('ticker-active-glow');
+
+      const update = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease-out cubic: 1 - (1 - t)^3
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(startVal + diff * ease);
+        element.textContent = `${current.toLocaleString()}${suffix}`;
+
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        } else {
+          element.textContent = `${endVal.toLocaleString()}${suffix}`;
+          element.classList.remove('ticker-active-glow');
+        }
+      };
+      requestAnimationFrame(update);
     }
 
     setupProfileTab() {
@@ -902,10 +1008,22 @@
     }
 
     /* =========================================================================
-     * Multiplayer Chatbox (XSS Protected)
+     * Multiplayer Tabbed Chatbox (R5 - Global Casino & Table Scopes)
      * ========================================================================= */
 
     setupChat() {
+      if (this.elements.tabChatGlobal) {
+        this.elements.tabChatGlobal.addEventListener('click', () => {
+          this.switchChatScope('global');
+        });
+      }
+
+      if (this.elements.tabChatTable) {
+        this.elements.tabChatTable.addEventListener('click', () => {
+          this.switchChatScope('table');
+        });
+      }
+
       if (this.elements.chatForm) {
         this.elements.chatForm.addEventListener('submit', (e) => {
           e.preventDefault();
@@ -913,7 +1031,7 @@
           if (!text) return;
 
           if (this.options.onSendChat) {
-            this.options.onSendChat(text);
+            this.options.onSendChat(text, this.activeChatScope);
           }
           if (this.elements.chatInput) {
             this.elements.chatInput.value = '';
@@ -926,7 +1044,7 @@
           pill.addEventListener('click', () => {
             const msg = pill.dataset.msg;
             if (msg && this.options.onSendChat) {
-              this.options.onSendChat(msg);
+              this.options.onSendChat(msg, this.activeChatScope);
             }
           });
         });
@@ -934,12 +1052,49 @@
     }
 
     /**
-     * Appends a chat message to the activity drawer.
-     * Guaranteed XSS safe by using textContent and DOM text nodes.
-     * @param {{ sender: string, color?: string, text: string, timestamp: number, isSystem: boolean }} msg 
+     * Switches active chat tab between 'global' and 'table'.
+     * @param {'global'|'table'} scope 
+     */
+    switchChatScope(scope) {
+      this.activeChatScope = scope;
+
+      if (this.elements.tabChatGlobal && this.elements.tabChatTable) {
+        this.elements.tabChatGlobal.classList.toggle('active', scope === 'global');
+        this.elements.tabChatTable.classList.toggle('active', scope === 'table');
+      }
+
+      if (this.elements.chatMessagesGlobal && this.elements.chatMessagesTable) {
+        this.elements.chatMessagesGlobal.classList.toggle('active', scope === 'global');
+        this.elements.chatMessagesGlobal.classList.toggle('hidden', scope !== 'global');
+        this.elements.chatMessagesTable.classList.toggle('active', scope === 'table');
+        this.elements.chatMessagesTable.classList.toggle('hidden', scope !== 'table');
+      }
+
+      // Reset unread counter for current active scope
+      this.unreadCounts[scope] = 0;
+      const badge = scope === 'global' ? this.elements.badgeUnreadGlobal : this.elements.badgeUnreadTable;
+      if (badge) {
+        badge.textContent = '0';
+        badge.classList.add('hidden');
+      }
+
+      // Scroll to bottom of active feed
+      const activeFeed = scope === 'global' ? this.elements.chatMessagesGlobal : this.elements.chatMessagesTable;
+      if (activeFeed) {
+        activeFeed.scrollTop = activeFeed.scrollHeight;
+      }
+    }
+
+    /**
+     * Appends a chat message to the partitioned activity drawer.
+     * Guaranteed XSS safe by using textContent and DOM text nodes. Zero emojis.
+     * @param {{ sender: string, color?: string, text: string, timestamp: number, isSystem: boolean, scope?: string, category?: string }} msg 
      */
     addChatMessage(msg) {
-      if (!this.elements.chatContainer || !msg) return;
+      if (!msg) return;
+
+      const scope = (msg.scope === 'table') ? 'table' : 'global';
+      const targetFeed = scope === 'table' ? this.elements.chatMessagesTable : this.elements.chatMessagesGlobal;
 
       const item = document.createElement('div');
       item.className = 'chat-item' + (msg.isSystem ? ' chat-system' : '');
@@ -947,7 +1102,38 @@
       if (msg.isSystem) {
         const content = document.createElement('span');
         content.className = 'system-text';
-        content.textContent = msg.text;
+
+        // Clean typography categories formatting (Strict Zero Emojis)
+        const text = String(msg.text || '');
+        const categories = [
+          { prefix: '[BLACKJACK]', className: 'tag-blackjack' },
+          { prefix: '[GRAND WIN]', className: 'tag-grand-win' },
+          { prefix: '[DEALER]', className: 'tag-dealer' },
+          { prefix: '[CASINO]', className: 'tag-casino' },
+          { prefix: '[BANK]', className: 'tag-grand-win' }
+        ];
+
+        let matched = false;
+        for (const cat of categories) {
+          if (text.startsWith(cat.prefix)) {
+            const tagSpan = document.createElement('span');
+            tagSpan.className = `msg-category-tag ${cat.className}`;
+            tagSpan.textContent = cat.prefix;
+
+            const textSpan = document.createElement('span');
+            textSpan.textContent = ' ' + text.slice(cat.prefix.length).trim();
+
+            content.appendChild(tagSpan);
+            content.appendChild(textSpan);
+            matched = true;
+            break;
+          }
+        }
+
+        if (!matched) {
+          content.textContent = text;
+        }
+
         item.appendChild(content);
       } else {
         const sender = document.createElement('span');
@@ -957,15 +1143,34 @@
 
         const body = document.createElement('span');
         body.className = 'chat-body';
-        body.textContent = msg.text; // TextContent strictly escapes HTML
+        body.textContent = msg.text;
 
         item.appendChild(sender);
         item.appendChild(body);
       }
 
-      this.elements.chatContainer.appendChild(item);
-      // Auto scroll to latest
-      this.elements.chatContainer.scrollTop = this.elements.chatContainer.scrollHeight;
+      if (targetFeed) {
+        targetFeed.appendChild(item);
+        // Auto scroll if user is viewing this feed
+        if (scope === this.activeChatScope) {
+          targetFeed.scrollTop = targetFeed.scrollHeight;
+        } else {
+          // Increment unread count for inactive scope
+          this.unreadCounts[scope] = (this.unreadCounts[scope] || 0) + 1;
+          const badge = scope === 'global' ? this.elements.badgeUnreadGlobal : this.elements.badgeUnreadTable;
+          if (badge) {
+            badge.textContent = this.unreadCounts[scope];
+            badge.classList.remove('hidden');
+          }
+        }
+      }
+
+      // Also append clone to legacy fallback container if present
+      if (this.elements.chatContainer && this.elements.chatContainer !== targetFeed) {
+        const clone = item.cloneNode(true);
+        this.elements.chatContainer.appendChild(clone);
+        this.elements.chatContainer.scrollTop = this.elements.chatContainer.scrollHeight;
+      }
     }
 
     /* =========================================================================
@@ -1113,6 +1318,388 @@
           if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 300);
       }, 3500);
+    }
+
+    /* =========================================================================
+     * Milestone 3: Multiplayer 6-Seat Blackjack & Visual Game Feel UI
+     * ========================================================================= */
+
+    /**
+     * Renders a 3D perspective playing card with luxury vector graphics. Zero emojis.
+     * @param {{ suit: string, rank: string, value: number, hidden?: boolean, isBlackjack?: boolean }} card 
+     * @param {boolean} [isDealerHole=false] 
+     * @returns {string} HTML string
+     */
+    renderBlackjackCardHtml(card, isDealerHole = false) {
+      if (!card || card.hidden || isDealerHole) {
+        return `
+          <div class="bj-card face-down">
+            <div class="bj-card-inner">
+              <div class="bj-card-back"></div>
+              <div class="bj-card-front"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      const rawSuit = (card.suit || 'spades').toLowerCase();
+      const suitKey = rawSuit.endsWith('s') ? rawSuit.slice(0, -1) : rawSuit;
+      const rank = card.rank || 'A';
+      const isRed = suitKey === 'heart' || suitKey === 'diamond';
+      const colorClass = isRed ? 'card-red' : 'card-black';
+      const highlightClass = card.isBlackjack ? ' card-highlight-gold' : '';
+
+      return `
+        <div class="bj-card face-up ${colorClass}${highlightClass}">
+          <div class="bj-card-inner">
+            <div class="bj-card-back"></div>
+            <div class="bj-card-front">
+              <div class="card-corner-top">
+                <span class="card-rank">${rank}</span>
+                <svg class="card-suit-svg"><use href="#suit-${suitKey}"></use></svg>
+              </div>
+              <svg class="card-center-suit"><use href="#suit-${suitKey}"></use></svg>
+              <div class="card-corner-bottom">
+                <span class="card-rank">${rank}</span>
+                <svg class="card-suit-svg"><use href="#suit-${suitKey}"></use></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * Renders dealer area cards and score pill.
+     * @param {Array<Object>} [cards=[]]
+     * @param {number} [score=0]
+     * @param {string} [phase='BETTING']
+     */
+    renderBlackjackDealer(cards = [], score = 0, phase = 'BETTING') {
+      if (!this.elements.bjDealerCards) return;
+
+      if (!cards || cards.length === 0) {
+        this.elements.bjDealerCards.innerHTML = '';
+        if (this.elements.bjDealerScore) {
+          this.elements.bjDealerScore.classList.add('hidden');
+        }
+        return;
+      }
+
+      let cardsHtml = '';
+      let isHoleMasked = false;
+
+      cards.forEach((c, idx) => {
+        if (c.hidden || (idx === 1 && c.hidden)) {
+          isHoleMasked = true;
+          cardsHtml += this.renderBlackjackCardHtml(c, true);
+        } else {
+          cardsHtml += this.renderBlackjackCardHtml(c, false);
+        }
+      });
+
+      this.elements.bjDealerCards.innerHTML = cardsHtml;
+
+      if (this.elements.bjDealerScore) {
+        if (isHoleMasked) {
+          // Show only upcard rank
+          const upcardRank = cards[0] ? cards[0].rank : '';
+          this.elements.bjDealerScore.textContent = upcardRank ? `${upcardRank}` : '?';
+        } else {
+          let scoreText = `${score}`;
+          if (score > 21) scoreText = `BUST ${score}`;
+          else if (score === 21 && cards.length === 2) scoreText = 'BJ 21';
+          this.elements.bjDealerScore.textContent = scoreText;
+        }
+        this.elements.bjDealerScore.classList.remove('hidden');
+      }
+    }
+
+    /**
+     * Renders all 6 seats in the semicircular Blackjack table arc.
+     * @param {Array<Object>} [seats=[]]
+     * @param {{ seatIndex: number, handIndex: number }|null} [activeTurn=null]
+     * @param {string|null} [myPlayerId=null]
+     * @param {string} [currentPhase='BETTING']
+     */
+    renderBlackjackSeats(seats = [], activeTurn = null, myPlayerId = null, currentPhase = 'BETTING') {
+      for (let i = 0; i < 6; i++) {
+        const seat = seats && seats[i] ? seats[i] : null;
+        const seatEl = document.getElementById(`bj-seat-${i}`);
+        const emptyBadge = document.getElementById(`seat-empty-${i}`);
+        const playerBox = document.getElementById(`seat-player-${i}`);
+        const userEl = document.getElementById(`seat-user-${i}`);
+        const chipsEl = document.getElementById(`seat-chips-${i}`);
+        const avatarDisc = document.getElementById(`seat-avatar-${i}`);
+        const avatarMono = document.getElementById(`seat-mono-${i}`);
+        const leaveBtn = document.getElementById(`btn-leave-${i}`);
+        const chipsDock = document.getElementById(`seat-chips-dock-${i}`);
+        const dock0 = document.getElementById(`seat-cards-dock-${i}-0`);
+        const score0 = document.getElementById(`seat-score-${i}-0`);
+        const handBlock1 = document.getElementById(`seat-hand-${i}-1`);
+        const dock1 = document.getElementById(`seat-cards-dock-${i}-1`);
+        const score1 = document.getElementById(`seat-score-${i}-1`);
+
+        if (!seatEl) continue;
+
+        if (seat && seat.player) {
+          if (emptyBadge) emptyBadge.classList.add('hidden');
+          if (playerBox) playerBox.classList.remove('hidden');
+
+          if (userEl) userEl.textContent = seat.player.name || `Player ${i + 1}`;
+          if (chipsEl) chipsEl.textContent = `${(seat.player.chips || 0).toLocaleString()} fiches`;
+
+          const color = seat.player.color || '#c5a059';
+          if (avatarDisc) {
+            avatarDisc.style.backgroundColor = color;
+          }
+          if (avatarMono) {
+            avatarMono.textContent = getMonogram(seat.player.name);
+          }
+
+          // Leave button only for seated player on their own seat
+          const isMe = seat.player.id === myPlayerId;
+          if (leaveBtn) {
+            leaveBtn.classList.toggle('hidden', !isMe);
+            leaveBtn.classList.toggle('navigation-locked', this.isNavigationLocked);
+          }
+
+          // Active turn thinking pulse animation
+          const isTurn = activeTurn && activeTurn.seatIndex === i;
+          seatEl.classList.toggle('is-active-turn', !!isTurn);
+          if (avatarDisc) {
+            avatarDisc.classList.toggle('is-active-turn', !!isTurn);
+          }
+
+          // Betting spot chips
+          if (chipsDock) {
+            if (seat.bet > 0) {
+              chipsDock.innerHTML = `
+                <div class="chip-btn active" style="width: 38px; height: 38px; font-size: 0.72rem; background: ${color}; color: #ffffff; border: 1.5px solid var(--gold-bright);">
+                  ${seat.bet >= 1000 ? `${seat.bet / 1000}k` : seat.bet}
+                </div>
+              `;
+            } else {
+              chipsDock.innerHTML = '';
+            }
+          }
+
+          // Hand 0 cards & score
+          const hand0 = seat.hands && seat.hands[0];
+          if (dock0 && hand0) {
+            if (Array.isArray(hand0.cards) && hand0.cards.length > 0) {
+              let h0Html = '';
+              hand0.cards.forEach(c => {
+                h0Html += this.renderBlackjackCardHtml(c, false);
+              });
+              dock0.innerHTML = h0Html;
+
+              if (score0) {
+                let scoreText = `${hand0.value || 0}`;
+                if (hand0.value > 21) scoreText = `BUST ${hand0.value}`;
+                else if (hand0.value === 21 && hand0.cards.length === 2 && !hand0.isSplitHand) scoreText = 'BJ 21';
+                else if (hand0.isSoft) scoreText = `Soft ${hand0.value}`;
+                score0.textContent = scoreText;
+                score0.classList.remove('hidden');
+              }
+            } else {
+              dock0.innerHTML = '';
+              if (score0) score0.classList.add('hidden');
+            }
+          }
+
+          // Hand 1 (Split hand) cards & score
+          const hand1 = seat.hands && seat.hands[1];
+          if (handBlock1 && dock1) {
+            if (hand1 && Array.isArray(hand1.cards) && hand1.cards.length > 0) {
+              handBlock1.classList.remove('hidden');
+              let h1Html = '';
+              hand1.cards.forEach(c => {
+                h1Html += this.renderBlackjackCardHtml(c, false);
+              });
+              dock1.innerHTML = h1Html;
+
+              if (score1) {
+                let scoreText = `${hand1.value || 0}`;
+                if (hand1.value > 21) scoreText = `BUST ${hand1.value}`;
+                else if (hand1.isSoft) scoreText = `Soft ${hand1.value}`;
+                score1.textContent = scoreText;
+                score1.classList.remove('hidden');
+              }
+            } else {
+              handBlock1.classList.add('hidden');
+              dock1.innerHTML = '';
+              if (score1) score1.classList.add('hidden');
+            }
+          }
+
+        } else {
+          // Empty seat
+          if (emptyBadge) emptyBadge.classList.remove('hidden');
+          if (playerBox) playerBox.classList.add('hidden');
+          seatEl.classList.remove('is-active-turn');
+          if (avatarDisc) avatarDisc.classList.remove('is-active-turn');
+          if (chipsDock) chipsDock.innerHTML = '';
+          if (dock0) dock0.innerHTML = '';
+          if (score0) score0.classList.add('hidden');
+          if (handBlock1) handBlock1.classList.add('hidden');
+          if (dock1) dock1.innerHTML = '';
+          if (score1) score1.classList.add('hidden');
+        }
+      }
+    }
+
+    /**
+     * Updates shoe penetration bar and card count.
+     * @param {number} [cardsRemaining=312]
+     * @param {number} [totalCards=312]
+     */
+    updateShoePenetration(cardsRemaining = 312, totalCards = 312) {
+      if (this.elements.bjShoeText) {
+        this.elements.bjShoeText.textContent = `${cardsRemaining} krt`;
+      }
+      if (this.elements.bjShoeFill) {
+        const pct = Math.max(0, Math.min(100, Math.round((cardsRemaining / totalCards) * 100)));
+        this.elements.bjShoeFill.style.width = `${pct}%`;
+      }
+    }
+
+    /**
+     * Controls enabled/disabled states of Blackjack action buttons.
+     * @param {{ canHit?: boolean, canStand?: boolean, canDouble?: boolean, canSplit?: boolean, canClearBet?: boolean }} [opts={}]
+     */
+    setBlackjackActionsState(opts = {}) {
+      if (this.elements.btnBjHit) this.elements.btnBjHit.disabled = !opts.canHit;
+      if (this.elements.btnBjStand) this.elements.btnBjStand.disabled = !opts.canStand;
+      if (this.elements.btnBjDouble) this.elements.btnBjDouble.disabled = !opts.canDouble;
+      if (this.elements.btnBjSplit) this.elements.btnBjSplit.disabled = !opts.canSplit;
+      if (this.elements.btnBjClear) this.elements.btnBjClear.disabled = !opts.canClearBet;
+    }
+
+    /**
+     * Displays grand luxury result announcement banner for Blackjack. Zero emojis.
+     * @param {string} title 
+     * @param {string} [payoutText=''] 
+     * @param {string} [subText=''] 
+     * @param {number} [duration=4000] 
+     */
+    showBlackjackBanner(title, payoutText = '', subText = '', duration = 4000) {
+      const banner = this.elements.bjResultBanner;
+      if (!banner) return;
+
+      banner.innerHTML = `
+        <div class="banner-crest-text">LE GRAND CASINO</div>
+        <div class="banner-main-title">${title}</div>
+        ${payoutText ? `<div class="banner-payout-text">${payoutText}</div>` : ''}
+        ${subText ? `<div class="banner-sub-text">${subText}</div>` : ''}
+      `;
+      banner.classList.remove('hidden');
+
+      if (this._bjBannerTimer) clearTimeout(this._bjBannerTimer);
+      this._bjBannerTimer = setTimeout(() => {
+        banner.classList.add('hidden');
+      }, duration);
+    }
+
+    /**
+     * Triggers golden celebratory shimmer particle explosion on win canvas. Zero audio.
+     * @param {number} [duration=2000] 
+     */
+    triggerWinShimmer(duration = 2000) {
+      const canvas = this.elements.winShimmerCanvas;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const parent = canvas.parentElement || document.body;
+      canvas.width = parent.clientWidth || 800;
+      canvas.height = parent.clientHeight || 500;
+
+      const colors = ['#f9e79f', '#d4af37', '#c5a059', '#ffffff'];
+      const particles = [];
+      const count = 45;
+
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: canvas.height * 0.65 + Math.random() * (canvas.height * 0.35),
+          vx: (Math.random() - 0.5) * 3,
+          vy: -Math.random() * 3.5 - 1.5,
+          radius: Math.random() * 3 + 1.5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          decay: Math.random() * 0.015 + 0.008
+        });
+      }
+
+      const startTime = performance.now();
+      const animate = (now) => {
+        const elapsed = now - startTime;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let alive = false;
+        for (const p of particles) {
+          p.x += p.vx + Math.sin(elapsed / 200) * 0.5;
+          p.y += p.vy;
+          p.alpha -= p.decay;
+
+          if (p.alpha > 0) {
+            alive = true;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, p.alpha);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        if (alive && elapsed < duration) {
+          requestAnimationFrame(animate);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      };
+      requestAnimationFrame(animate);
+    }
+
+    /**
+     * Toggles navigation lock visual state on navigation pills and seat exit buttons.
+     * @param {boolean} [isLocked=true]
+     */
+    setNavigationLocked(isLocked = true) {
+      this.isNavigationLocked = !!isLocked;
+      if (this.elements.gamePills) {
+        this.elements.gamePills.forEach(pill => {
+          pill.classList.toggle('navigation-locked', !!isLocked);
+        });
+      }
+      const leaveBtns = document.querySelectorAll('.btn-seat-leave');
+      leaveBtns.forEach(btn => {
+        btn.classList.toggle('navigation-locked', !!isLocked);
+      });
+    }
+
+    /**
+     * Switches between Roulette and Blackjack table viewports.
+     * @param {'roulette'|'blackjack'} [gameName='roulette']
+     */
+    switchGameView(gameName = 'roulette') {
+      const isRoulette = (gameName || '').toLowerCase() === 'roulette';
+      if (this.elements.viewRoulette && this.elements.viewBlackjack) {
+        this.elements.viewRoulette.classList.toggle('active', isRoulette);
+        this.elements.viewRoulette.classList.toggle('hidden', !isRoulette);
+        this.elements.viewBlackjack.classList.toggle('active', !isRoulette);
+        this.elements.viewBlackjack.classList.toggle('hidden', isRoulette);
+      }
+      if (this.elements.pillRoulette && this.elements.pillBlackjack) {
+        this.elements.pillRoulette.classList.toggle('active', isRoulette);
+        this.elements.pillBlackjack.classList.toggle('active', !isRoulette);
+      }
+      if (this.elements.labelChatTable) {
+        this.elements.labelChatTable.textContent = isRoulette ? 'Roulette Chat' : 'Blackjack Chat';
+      }
     }
   }
 

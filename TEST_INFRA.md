@@ -1,112 +1,210 @@
-# European Roulette Multiplayer Casino — Test Infrastructure Specification
+# Monte Carlo Royale Multiplayer Casino — Test Infrastructure Specification
 
-## 1. Overview
-This document outlines the testing architecture, harness design, execution protocol, and verification standards for the Modern 3D Multiplayer European Roulette Casino web application.
+## 1. Overview & Test Philosophy
+This document outlines the testing architecture, harness design, execution protocol, and verification standards for the **Monte Carlo Royale Luxury Multiplayer Casino** web application (`casino-multiplayer`), encompassing **European Roulette**, **Multiplayer Blackjack**, **Persistent Session Management**, **Navigation Bet Lock**, **Tabbed Chat**, and **100% Silent Luxury Aesthetics**.
 
-The test infrastructure is built entirely on Node.js's native test runner (`node:test`) and assertion library (`node:assert/strict`), eliminating bloated external test frameworks while delivering microsecond test execution speeds and native asynchronous event handling.
+### Core Test Principles:
+1. **Opaque-Box & Requirement-Driven**: Tests interact with the casino application strictly from the outside—via HTTP/REST endpoints, typed Socket.io WebSocket connections, public interface contracts, and filesystem audits.
+2. **Zero Facade / No Cheating**: All tests execute genuine mathematical and state machine logic. No trivial assertions (`assert.ok(true)`), no hardcoded passes, and no bypassed business logic.
+3. **Progressive Testability**: Tests are designed to be self-contained and independently verifiable across parallel development tracks. Tests can dynamically verify newly landing modules while validating interface contracts and mathematical invariants without stalling or failing.
+4. **Strict Guardrails Enforcement**: Automated forensic scanners enforce 100% silent design (zero audio files, zero Web Audio API), zero unicode emojis, and complete brand sanitization (zero GTA references).
+5. **Zero External Test Dependencies**: Built entirely on Node.js's native test runner (`node:test`) and assertion library (`node:assert/strict`), executing hundreds of tests in milliseconds without heavy third-party framework overhead.
 
 ---
 
 ## 2. Test Architecture
 
-The testing suite is structured across two complementary tiers:
-1. **Unit Verification Layer** (`tests/unit/`): Validates pure mathematical calculation, 37-pocket geometry, bet odds/multipliers, 2.7027% house edge invariance, and atomic balance mutations.
-2. **Opaque-Box E2E Verification Layer** (`tests/e2e/`): Requirement-driven, opaque-box tests interacting with the application strictly from the outside over real HTTP/REST endpoints and typed Socket.io WebSocket connections.
+The testing architecture is organized into unit, integration, and opaque-box end-to-end layers:
 
 ```
 casino-multiplayer/
-└── tests/
-    ├── unit/
-    │   ├── rouletteMath.test.js        # Pure betting math, odds, 2.7027% house edge, 60 splits, 23 corners
-    │   └── playerManager.test.js       # Player registry, 10,000 chips starting bankroll, atomic ledger
-    └── e2e/
-        ├── harness.js                  # Ephemeral in-process test server & instrumented Socket client
-        ├── e2e_tier1_features.test.js  # Tier 1: Feature Coverage (>=5 tests per core feature)
-        ├── e2e_tier2_boundaries.test.js# Tier 2: Boundary & Corner Cases (>=5 tests per area)
-        ├── e2e_tier3_combinations.test.js # Tier 3: Cross-Feature Interactions & Multi-Player Concurrency
-        └── e2e_tier4_scenarios.test.js # Tier 4: Real-World Application Scenarios (Full Player Journeys)
+├── tests/
+│   ├── unit/
+│   │   ├── rouletteMath.test.js          # Pure Roulette math, 37 pockets, 2.7027% house edge
+│   │   ├── rouletteEngine.test.js        # Roulette state transitions (BETTING, SPINNING, PAYOUT)
+│   │   ├── playerManager.test.js         # Player registry, 10,000 chip bankroll, atomic ledger
+│   │   ├── bankManager.test.js           # P2P transfers, loan agreements, win deduction amortizations
+│   │   ├── accountPersistence.test.js    # Disk storage, password authentication
+│   │   ├── socketDefense.test.js         # Malformed payloads, rate-limiting, crash defense
+│   │   └── tunnel.test.js                # Cloudflare Quick Tunnel extraction & bypass logic
+│   ├── integration/
+│   │   ├── serverRoute.test.js           # HTTP endpoints, static delivery, silent & brand audit
+│   │   ├── socketEvents.test.js          # Socket connection, betting, payouts, chat broadcasts
+│   │   ├── playerProfileSockets.test.js  # Profile fetching, avatar/color customization
+│   │   └── bankSockets.test.js           # P2P loan socket events & notifications
+│   └── e2e/
+│       ├── harness.js                    # Ephemeral test server & instrumented Socket client
+│       ├── e2e_tier1_features.test.js    # Roulette Tier 1: Feature Coverage (38 tests)
+│       ├── e2e_tier2_boundaries.test.js  # Roulette Tier 2: Boundary & Corner Cases (30 tests)
+│       ├── e2e_tier3_combinations.test.js# Roulette Tier 3: Cross-Feature Interactions (9 tests)
+│       ├── e2e_tier4_scenarios.test.js   # Roulette Tier 4: Real-World Scenarios (5 tests)
+│       └── e2eCasinoBlackjackSuite.test.js # Comprehensive 4-Tier Blackjack & Casino Suite (58 tests)
 ```
 
 ---
 
-## 3. Systematic 4-Tier Opaque-Box Methodology
+## 3. Feature Inventory Coverage Matrix
 
-The E2E suite follows a rigid 4-tier opaque-box testing hierarchy:
+The matrix below maps all 44 features from `PROJECT.md` to their corresponding automated test suites:
 
-### Tier 1: Feature Coverage (`e2e_tier1_features.test.js`)
-Validates every core feature in isolation across all primary happy paths (>= 5 tests per feature):
-- **Feature 1: HTTP Server, Static Delivery & Luxury Theme Sanitization**: Healthcheck endpoint (`GET /health`), Express trust proxy (`trust proxy: 1`), brand sanitization (zero GTA or Diamond Casino references), 100% silent design ("geen audio"), and WebSocket upgrade handshakes.
-- **Feature 2: Player Onboarding & Bankroll Initialization**: `join_table` protocol, 10,000 chips starting bankroll, initial `table_state` delivery, `player_joined` room broadcasts, and system chat greeting.
-- **Feature 3: Standard Inside & Outside Bet Placement**: Straight (0-36), Split (60 pairs), Street (14 rows/trios), Corner (23 squares/basket), Six Line (11 lines), Columns (1-3), Dozens (1-3), Red/Black, Even/Odd, Low/High, atomic chip deduction, and `bet_placed` broadcasts.
-- **Feature 4: Clear Bets & Chip Restoration**: Single bet refund, multi-bet aggregate sum refund, `chips_update` event delivery, `bets_cleared` room broadcast with updated table totals, and immediate subsequent bet placement.
-- **Feature 5: Real-Time Chat & System Logging**: Multi-player chat broadcasting, metadata integrity (sender, color, timestamp, `isSystem: false`), chat history buffer preservation for newcomers, CASINO system announcements, and HTML entity XSS sanitization.
-- **Feature 6: Authoritative State Machine & Clock Synchronization**: Periodic 1s countdown ticks (`phase_tick`), BETTING -> SPINNING -> PAYOUT transitions, single-zero European pocket constraints ($N \in [0, 36]$), `round_result` evaluation, and 15-entry round history buffer.
-- **Feature 7: Disconnection & Session Persistence**: `player_left` room notification, system chat leaver log, mid-round bet retention across disconnects, automatic payout credit for disconnected players, and memory bankroll persistence.
-
-### Tier 2: Boundary & Corner Cases (`e2e_tier2_boundaries.test.js`)
-Validates limits, boundary coordinates, zero-pocket geometry, phase locking, and adversarial inputs (>= 5 tests per area):
-- **Area 1: Financial & Chip Balance Boundaries**: `INSUFFICIENT_FUNDS` rejection when bet > chips, 10,000 chips all-in bet acceptance, 0 chip balance rejection, cumulative over-budget rejection, zero/negative chip rejection (`INVALID_AMOUNT`), and fractional/float/string rejection (`INVALID_AMOUNT`).
-- **Area 2: Bet Coordinates & Zero-Adjacent Combinations**: Pocket 0 straight bet, zero-adjacent splits ([0,1], [0,2], [0,3]), zero-trio streets ([0,1,2], [0,2,3]), First Four basket corner ([0,1,2,3]), out-of-range straight bets (-1, 37, 100 rejected with `OUT_OF_RANGE`), non-adjacent split rejection (`INVALID_SELECTION`), invalid dozen/column rejection, and max coordinate boundaries ([35, 36], [32, 33, 35, 36], six-line [31..36]).
-- **Area 3: Phase Locking & Transition Boundaries**: `BETS_CLOSED` error when betting in `SPINNING` phase, `BETS_CLOSED` error in `PAYOUT` phase, `clear_bets` lock in `SPINNING` and `PAYOUT`, and countdown expiration lock at $t \le 0$.
-- **Area 4: Chat Input & Sanitization Boundaries**: Empty string `""` and whitespace `"    "` suppression, 150-character message truncation, adversarial XSS injection escaping (`<script>alert(document.cookie)</script>` -> `&lt;script&gt;...`), nested HTML tag sanitization, 16-character display name truncation, and display name HTML tag stripping.
-- **Area 5: Zero (0) Green Pocket Sweep Outcome**: 0 payout for all outside even-money bets, 0 payout for all columns and dozens, 36x gross payout (35:1 profit) for straight 0, 18x payout for split covering 0 vs 0 for non-zero split, and 9x payout for First Four corner covering 0 vs 0 for non-zero corner.
-
-### Tier 3: Cross-Feature Combinations (`e2e_tier3_combinations.test.js`)
-Validates concurrent pairwise interactions, race condition prevention, and multi-player dynamics:
-- Simultaneous bets by multiple players on the exact same straight number cell.
-- Interleaved real-time chat messages and bet placement without socket event starvation.
-- Chatting permitted during `SPINNING` and `PAYOUT` phases while betting remains securely locked.
-- Player disconnect during mid-spin, authoritative payout resolution, and balance recovery upon reconnect.
-- Multi-player conflicting bets (Red vs Black vs Green 0 vs Even) resolved in a single atomic transaction.
-- Independent `clear_bets` by one player while concurrent players' bets remain intact on the table.
-- Admin `/spin` command interrupting BETTING countdown and locking incoming bets.
-- Rapid-fire concurrent bets (10 in parallel) processed atomically without ledger corruption.
-- In-game bankroll replenishment via `/chips <amount>` admin command.
-
-### Tier 4: Real-World Application Scenarios (`e2e_tier4_scenarios.test.js`)
-Validates complete end-to-end player journeys:
-- **Scenario 1: Complete High-Roller Journey**: VIP onboarding, placing an 8-bet layout (Straight, Split, Street, Corner, Red, Odd, Column, Dozen totaling 5,500 chips), timer countdown, spin landing on 23, winning 62,500 chips, system chat announcement, player victory chat, and round reset.
-- **Scenario 2: Multi-Player Competitive Session Across 3 Full Rounds**: 3 distinct players (Alice, Bob, Charlie) competing over 3 consecutive rounds with changing strategies, bet clearing, hedged columns, and verified FIFO history accumulation `[32, 12, 7]`.
-- **Scenario 3: Zero-Pocket House Sweep & Recovery**: Diverse outside bets swept by pocket 0, balance depletion, `/chips 8000` recovery, heavy wagering on 0-inside bets, hitting 0, and recovering with 55,500 chips.
-- **Scenario 4: Mid-Spin Spectator Onboarding & Next-Round Transition**: Spectator connects mid-spin, receives `SPINNING` table state, gets rejected when betting mid-spin, spectates and chats, and participates in next BETTING phase.
-- **Scenario 5: Disconnect Resilience & Balance Synchronization Under Table Load**: 3 active players, mid-spin disconnect of Player 2, round completes with Player 2 winning straight 14, Player 2 reconnects in next round and balance reflects exact 36,000 payout.
-
----
-
-## 4. Test Harness Design (`tests/e2e/harness.js`)
-
-The harness provides an isolated, reliable execution environment:
-- **Ephemeral Port Allocation (`startTestServer`)**: Binds HTTP server and Socket.io to port 0 (`server.listen(0, '127.0.0.1')`). Guarantees zero port collisions, enabling parallel test execution.
-- **Clean Lifecycle Teardown (`close`)**: Automatically stops the game engine timer, forcibly disconnects all connected sockets, and closes the HTTP server cleanly.
-- **Instrumented Client Simulation (`createTestClient`)**: Wraps `socket.io-client` with typed, promise-based helpers:
-  - `connect(timeoutMs)`
-  - `joinTable({ id, name, avatar, color })`
-  - `placeBet({ type, value, amount }, timeoutMs)`
-  - `clearBets(timeoutMs)`
-  - `sendChat(text)`
-  - `waitFor(eventName, predicate, timeoutMs)`: Resolves with existing or future matching event.
-  - `waitForNext(eventName, predicate, timeoutMs)`: Strictly resolves with a future matching event.
-- **HTTP Inspector (`httpGet`)**: Performs native `fetch` requests with automatic JSON parsing.
+| # | Feature Name | Primary Scope | Test Suite Location | Coverage Type |
+|---|---|---|---|---|
+| 1 | Dedicated Project Directory | Root layout | `tests/integration/serverRoute.test.js` | Integration |
+| 2 | Brand Sanitization & Luxury Styling | Theme/Copy | `tests/integration/serverRoute.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Audit |
+| 3 | 100% Silent Client ("geen audio") | Audio removal | `tests/integration/serverRoute.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Forensic |
+| 4 | Low-Poly Procedural 3D Wheel | Three.js geometry | `tests/integration/serverRoute.test.js` | Integration |
+| 5 | Single-Texture Pocket Atlas | Canvas atlas | `tests/integration/serverRoute.test.js` | Integration |
+| 6 | Dual-Rate Thermal Throttling | 30/60 FPS clamp | `tests/integration/serverRoute.test.js` | Integration |
+| 7 | Synchronized Animation Physics | Ball trajectory | `tests/e2e/e2e_tier1_features.test.js` | E2E |
+| 8 | Responsive Viewport & Camera | CSS/DOM | `tests/integration/serverRoute.test.js` | Integration |
+| 9 | European Betting Grid | 37 pockets | `tests/unit/rouletteMath.test.js` | Unit |
+| 10 | Multi-Player Chip Placement | Live board | `tests/e2e/e2e_tier1_features.test.js` | E2E |
+| 11 | Player Onboarding Modal | Registration | `tests/unit/playerManager.test.js`, `tests/e2e/e2e_tier1_features.test.js` | Unit/E2E |
+| 12 | 10,000 Chip Starting Balance | Bankroll | `tests/unit/playerManager.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Unit/E2E |
+| 13 | Real-Time Chat & Event Feed | Multiplayer chat | `tests/e2e/e2e_tier1_features.test.js` | E2E |
+| 14 | European Roulette Math Engine | Odds & payouts | `tests/unit/rouletteMath.test.js` | Unit |
+| 15 | Authoritative State Machine | Roulette phases | `tests/unit/rouletteEngine.test.js` | Unit |
+| 16 | Server Clock Synchronization | Timestamps | `tests/e2e/e2e_tier1_features.test.js` | E2E |
+| 17 | Real-Time Socket Protocol | Sockets | `tests/integration/socketEvents.test.js` | Integration |
+| 18 | Disconnection & Edge Handling | Active bets | `tests/e2e/e2e_tier1_features.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E |
+| 19 | Windows Cloudflare Quick Tunnel | `cloudflared` | `tests/unit/tunnel.test.js` | Unit |
+| 20 | 1-Click Cloud Deployment | Docker/Render | `tests/integration/serverRoute.test.js` | Integration |
+| 21 | Automated Unit & Integration Tests| Core engine | `tests/unit/*.test.js`, `tests/integration/*.test.js` | Full Suite |
+| 22 | Requirement-Driven E2E Suite | 4-Tier E2E | `tests/e2e/*.test.js` | E2E |
+| 23 | Persistent Session Authentication | Bearer tokens | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/unit/sessionPersistence.test.js` | Unit/E2E |
+| 24 | Resilient Atomic Disk Storage | `players.json` | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/unit/sessionPersistence.test.js` | Unit/E2E |
+| 25 | Refresh Session Auto-Recovery | Browser reload | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
+| 26 | Multi-Game Player Presence | Lobby/Roulette/BJ | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 27 | Server Navigation Bet Lock | Active bets | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
+| 28 | 6-Deck Cryptographic Shoe | 312 cards | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 29 | Pure Blackjack Math & Scoring | Dynamic Ace/S17 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
+| 30 | Standard Blackjack Player Actions | Hit/Stand/Dbl/Splt | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
+| 31 | Authoritative S17 Dealer AI | Dealer hits <=16 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
+| 32 | 5-Seat State Machine & Turn Timers| Clockwise turns | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
+| 33 | Dealer Hole Card Masking | Anti-cheat | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 34 | Enhanced Avatar & Monogram System| Monograms | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 35 | Active Turn & Seated Status Badges| Turn pulses | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 36 | Semicircular 5-Seat Blackjack Arc | Table seats | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 4 |
+| 37 | Tabbed Casino Chat System | Global/Table | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
+| 38 | Zero Emoji & Pure SVG Card Suits | Vector suits | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 39 | 3D Card Dealing Micro-animations | Perspective flip | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 40 | Win Shimmers & Chip Balance Ticker| Ticker animation | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 4 |
+| 41 | Regal Outcome Banners | Victory banners | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 42 | Client Navigation Lock Interceptor | Lock toasts | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
+| 43 | Comprehensive E2E Testing Suite | Tiers 1-4 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Complete E2E |
+| 44 | Forensic Integrity Audit | Security/Brand | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Forensic E2E |
 
 ---
 
-## 5. How to Run the Test Suite
+## 4. Systematic 4-Tier Opaque-Box Methodology
 
-All tests run via standard Node commands from the project root or the `casino-multiplayer` directory:
+The E2E suite follows a rigorous 4-tier testing hierarchy in `tests/e2e/e2eCasinoBlackjackSuite.test.js`:
+
+### Tier 1: Feature Coverage (>=5 tests per core feature)
+1. **F1: Multiplayer Blackjack Table (9 tests)**:
+   - Seat claiming on 5-seat table (`take_seat`), rejecting occupied seats (`SEAT_OCCUPIED`).
+   - Placing bets with chip balance deductions, rejecting bets exceeding balance (`INSUFFICIENT_FUNDS`).
+   - 2-card initial deal, dealer hole card masking (`{ hidden: true }`) in public payloads.
+   - Hit action: card dealing from shoe, dynamic Ace calculation, bust detection (>21).
+   - Stand action: hand status freezing, turn advancement.
+   - Double down action: doubling bet, deducting stake, dealing exactly 1 card, automatic stand.
+   - Split pairs: splitting identical ranks into two hands with matching wagers.
+   - Dealer AI S17: dealer draws to 16, stands on Soft 17 [A, 6].
+   - 15-second turn timeout: automatic stand anti-stall advancing clockwise.
+2. **F2: Session & Persistence (5 tests)**:
+   - Initial starting balance of exactly 10,000 chips.
+   - Cryptographic bearer session token generation (`cst_...`).
+   - Reconnecting with token restores exact account without resetting chips or re-granting 10k chips.
+   - Preservation of stats (`roundsPlayed`, `totalWon`, `biggestWin`) and customizations.
+   - Resilient atomic disk storage write-through and process restart survival.
+3. **F3: Navigation Bet Lock (5 tests)**:
+   - Detection of active unresolved bets on Roulette table (`hasActiveBets === true`).
+   - Detection of active unresolved bets on Blackjack table.
+   - Rejection of room navigation with typed error `CANNOT_LEAVE_ACTIVE_BETS`.
+   - Bet lock immediate release upon `clear_bets` in betting phase.
+   - Bet lock release upon round settlement and payout.
+4. **F4: Tabbed Casino Chat (5 tests)**:
+   - Global channel broadcasting to all connected sockets (`casino:global`).
+   - Table channel scoping to active game room (`table:blackjack`, `table:roulette`).
+   - Room isolation: Roulette players do not receive Blackjack table chat.
+   - Circular buffer memory safety: 50-message cap with FIFO order.
+   - Non-emoji system announcements (`[BLACKJACK]`, `[CASINO]`, `[GRAND WIN]`).
+5. **F5: Guardrails (0 Audio, 0 Emojis, Luxury Theme) (5 tests)**:
+   - Zero audio files anywhere in the repository (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`).
+   - Zero Web Audio API usage in client JavaScript (`AudioContext`, `createOscillator`, `<audio>`).
+   - Zero unicode emoji characters in client code (HTML, JS, CSS).
+   - Card suits authored strictly as SVG vector symbols (`#suit-spade`, `#suit-heart`, etc.).
+   - Brand sanitization: zero references to GTA / Grand Theft Auto across client and server.
+
+### Tier 2: Boundary & Corner Cases (>=5 tests per area)
+1. **B1: Natural Blackjack (Ace + 10) 3:2 Payouts (5 tests)**:
+   - 3:2 payout evaluation (+1.5x profit, 2.5x gross return).
+   - Multi-card 21 (e.g. 7-7-7) pays 1:1, strictly beaten by dealer Natural Blackjack.
+   - Split hand reaching 21 is marked `isSplitHand = true` and pays 1:1, NOT 3:2.
+   - Natural Blackjack vs Natural Blackjack resolves to PUSH (stake returned).
+   - Natural Blackjack strictly beats dealer 3-card 21.
+2. **B2: Soft 17 vs Hard 17 Dealer Behavior (5 tests)**:
+   - Dealer Soft 17 [A, 6] stands immediately under S17 rules.
+   - Dealer Hard 17 [10, 7] stands immediately.
+   - Dealer Soft 16 [A, 5] must draw additional cards.
+   - Multi-Ace dealer hand [A, A, 5] evaluates as Soft 17 and stands.
+   - Dealer bust (e.g. 24) awards all unbusted players 1:1 win regardless of total.
+3. **B3: Split Aces Restricted to 1 Card & Auto-Stand (5 tests)**:
+   - Splitting pair of Aces deducts equal secondary wager.
+   - Split Ace Hand 0 receives exactly 1 card and automatically stands.
+   - Split Ace Hand 1 receives exactly 1 card and automatically stands.
+   - Additional hit on split Ace is rejected (`ACTION_NOT_ALLOWED`).
+   - Double down on split Ace is rejected (`ACTION_NOT_ALLOWED`).
+4. **B4: Turn Timer Expiration Anti-Stall (5 tests)**:
+   - Countdown to 0s triggers `autoStand` without table stall.
+   - Auto-stand advances active turn clockwise to next seated player.
+   - Last seated player auto-stand advances round to `DEALER_TURN`.
+   - AFK player standing on 12 still wins if dealer busts.
+   - Auto-stand on split Hand 0 advances to split Hand 1.
+5. **B5: Disconnection During Active Bet (5 tests)**:
+   - Active bet remains locked and active on table when player socket drops.
+   - Engine authoritatively completes round and resolves payouts for disconnected player.
+   - Winnings are credited directly to persistent account ledger.
+   - Reconnecting with session token retrieves updated bankroll with credited winnings.
+   - Losses during disconnect forfeit stake and write through accurately to disk.
+
+### Tier 3: Cross-Feature Combinations (3 tests)
+- **C1: Blackjack Bet Blocks Roulette Navigation**: Active bet blocks `player_set_game('Roulette')` with `CANNOT_LEAVE_ACTIVE_BETS`; allowed once round concludes.
+- **C2: Table Chat Room Isolation**: Table messages restricted to active table room; global messages delivered to all connected players across rooms.
+- **C3: Session Reload While Seated**: Browser refresh with session token preserves seat occupancy, active stake, and chip balance.
+
+### Tier 4: Real-World Application Workloads (1 comprehensive scenario)
+- **W1: 3-Player Concurrent Multiplayer Round**:
+  - Alice (Seat 0, bets 500), Bob (Seat 2, bets 1000), Charlie (Seat 4, bets 250) seated concurrently.
+  - Alice dealt [8, 3] = 11, doubles down (bet becomes 1000), draws 10 -> stands on 21.
+  - Bob dealt [10, 6] = 16, hits, draws 3 -> stands on 19.
+  - Charlie dealt [9, 9] = 18, stands on 18.
+  - Dealer reveals [10, 6] = 16, draws 8 -> 24 (Busts!).
+  - Payouts: Alice wins 2,000 chips (doubled bet), Bob wins 2,000 chips, Charlie wins 500 chips.
+  - Atomic disk persistence: All 3 accounts updated and verified on disk (`players.json`).
+
+---
+
+## 5. Test Harness Design (`tests/e2e/harness.js`)
+The test harness provides ephemeral in-process server management on port 0 (`127.0.0.1:0`), guaranteeing zero port collisions and instant socket teardown. It provides typed, promise-based client wrappers (`createTestClient`) with `waitFor(event)`, `waitForNext(event)`, `placeBet`, `clearBets`, and `sendChat`.
+
+---
+
+## 6. How to Run the Tests
 
 ```bash
-# 1. Run Unit Tests Only
-node --test casino-multiplayer/tests/unit/**/*.test.js
+# 1. Run the new E2E Casino Blackjack & Persistence Suite (Tiers 1–4):
+node --test tests/e2e/e2eCasinoBlackjackSuite.test.js
 
-# 2. Run All E2E Tests (Tiers 1-4)
-node --test casino-multiplayer/tests/e2e/*.test.js
+# 2. Run existing Roulette E2E Suites:
+node --test tests/e2e/e2e_tier1_features.test.js
+node --test tests/e2e/e2e_tier2_boundaries.test.js
+node --test tests/e2e/e2e_tier3_combinations.test.js
+node --test tests/e2e/e2e_tier4_scenarios.test.js
 
-# 3. Run Individual Tiers
-node --test casino-multiplayer/tests/e2e/e2e_tier1_features.test.js
-node --test casino-multiplayer/tests/e2e/e2e_tier2_boundaries.test.js
-node --test casino-multiplayer/tests/e2e/e2e_tier3_combinations.test.js
-node --test casino-multiplayer/tests/e2e/e2e_tier4_scenarios.test.js
+# 3. Run all E2E Tests:
+node --test tests/e2e/*.test.js
 
-# 4. Run Entire Combined Test Suite
-node --test casino-multiplayer/tests/**/*.test.js
+# 4. Run entire project test suite:
+npm test
 ```

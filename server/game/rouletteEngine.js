@@ -390,6 +390,32 @@ class RouletteEngine extends EventEmitter {
       tableChipsTotal: this.tableChipsTotal
     };
   }
+
+  /**
+   * Returns true if player has active, unresolved bets on the Roulette table.
+   * Lock is active during BETTING and SPINNING phases when bets exist.
+   * @param {string} playerId 
+   * @returns {boolean}
+   */
+  hasActiveBets(playerId) {
+    if (!playerId) return false;
+    if (this.currentPhase !== PHASES.BETTING && this.currentPhase !== PHASES.SPINNING) {
+      return false;
+    }
+    const playerBets = this.bets.get(playerId);
+    return Array.isArray(playerBets) && playerBets.length > 0;
+  }
+
+  /**
+   * Returns the total amount of active bets placed by this player on the Roulette table.
+   * @param {string} playerId 
+   * @returns {number}
+   */
+  getActiveBetTotal(playerId) {
+    if (!this.hasActiveBets(playerId)) return 0;
+    const playerBets = this.bets.get(playerId) || [];
+    return playerBets.reduce((sum, b) => sum + (b.amount || 0), 0);
+  }
 }
 
 module.exports = RouletteEngine;
