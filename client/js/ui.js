@@ -386,11 +386,20 @@
         this.elements.playerName.textContent = this.myPlayer.name;
       }
       if (this.elements.playerChips) {
-        const targetChips = this.myPlayer.chips || 0;
-        if (animated && this._prevChips !== undefined && this._prevChips !== targetChips) {
-          this.animateBalanceChange(this.elements.playerChips, this._prevChips, targetChips);
+        const targetChips = typeof this.myPlayer.chips === 'number' ? this.myPlayer.chips : 0;
+        const startFrom = (this._displayedChips !== undefined)
+          ? this._displayedChips
+          : (this._prevChips !== undefined ? this._prevChips : targetChips);
+        if (animated && startFrom !== targetChips) {
+          this.animateBalanceChange(this.elements.playerChips, startFrom, targetChips);
         } else {
+          if (this._chipAnimFrameId && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(this._chipAnimFrameId);
+            this._chipAnimFrameId = null;
+          }
+          this._displayedChips = targetChips;
           this.elements.playerChips.textContent = `${targetChips.toLocaleString()} CHIPS`;
+          this.elements.playerChips.classList.remove('ticker-active-glow');
         }
         this._prevChips = targetChips;
       }
@@ -403,34 +412,43 @@
      * @param {HTMLElement} element 
      * @param {number} startVal 
      * @param {number} endVal 
-     * @param {number} [duration=800] 
+     * @param {number} [duration=600] 
      * @param {string} [suffix=' CHIPS']
      */
-    animateBalanceChange(element, startVal, endVal, duration = 800, suffix = ' CHIPS') {
-      if (!element || startVal === endVal) {
+    animateBalanceChange(element, startVal, endVal, duration = 600, suffix = ' CHIPS') {
+      if (this._chipAnimFrameId && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this._chipAnimFrameId);
+        this._chipAnimFrameId = null;
+      }
+      if (!element || startVal === endVal || typeof requestAnimationFrame !== 'function') {
+        this._displayedChips = endVal || 0;
         if (element) element.textContent = `${(endVal || 0).toLocaleString()}${suffix}`;
         return;
       }
-      const startTime = performance.now();
+      const startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       const diff = endVal - startVal;
       element.classList.add('ticker-active-glow');
 
       const update = (now) => {
-        const elapsed = now - startTime;
+        const currentNow = typeof now === 'number' ? now : Date.now();
+        const elapsed = Math.max(0, currentNow - startTime);
         const progress = Math.min(elapsed / duration, 1);
         // Ease-out cubic: 1 - (1 - t)^3
         const ease = 1 - Math.pow(1 - progress, 3);
         const current = Math.round(startVal + diff * ease);
+        this._displayedChips = current;
         element.textContent = `${current.toLocaleString()}${suffix}`;
 
         if (progress < 1) {
-          requestAnimationFrame(update);
+          this._chipAnimFrameId = requestAnimationFrame(update);
         } else {
+          this._chipAnimFrameId = null;
+          this._displayedChips = endVal;
           element.textContent = `${endVal.toLocaleString()}${suffix}`;
           element.classList.remove('ticker-active-glow');
         }
       };
-      requestAnimationFrame(update);
+      this._chipAnimFrameId = requestAnimationFrame(update);
     }
 
     setupProfileTab() {
@@ -1174,11 +1192,53 @@
     }
 
     /**
+     * Safely decodes server-escaped HTML entities for use with .textContent.
+     * @param {string} str
+     * @returns {string}
+     */
+    decodeHtmlEntities(str) {
+      if (typeof str !== 'string') return '';
+      return str
+        .replace(/&#x27;/g, "'")
+        .replace(/&#x2F;/g, '/')
+        .replace(/&quot;/g, '"')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&');
+    }
+
+    /**
+     * Replaces chat feeds with history snapshot without duplicating messages or triggering unread badges.
+     * @param {Array<Object>} [history=[]]
+     */
+    loadChatHistory(history = []) {
+      if (this.elements.chatMessagesGlobal) {
+        this.elements.chatMessagesGlobal.innerHTML = '';
+      }
+      if (this.elements.chatMessagesTable) {
+        this.elements.chatMessagesTable.innerHTML = '';
+      }
+      this.unreadCounts = { global: 0, table: 0 };
+      if (this.elements.badgeUnreadGlobal) {
+        this.elements.badgeUnreadGlobal.textContent = '0';
+        this.elements.badgeUnreadGlobal.classList.add('hidden');
+      }
+      if (this.elements.badgeUnreadTable) {
+        this.elements.badgeUnreadTable.textContent = '0';
+        this.elements.badgeUnreadTable.classList.add('hidden');
+      }
+      if (Array.isArray(history)) {
+        history.forEach(msg => this.addChatMessage(msg, { isHistory: true }));
+      }
+    }
+
+    /**
      * Appends a chat message to the partitioned activity drawer.
      * Guaranteed XSS safe by using textContent and DOM text nodes. Zero emojis.
      * @param {{ sender: string, color?: string, text: string, timestamp: number, isSystem: boolean, scope?: string, table?: string, category?: string }} msg 
+     * @param {{ isHistory?: boolean }} [options={}]
      */
-    addChatMessage(msg) {
+    addChatMessage(msg, options = {}) {
       if (!msg) return;
 
       const scope = (msg.scope === 'table') ? 'table' : 'global';
@@ -1208,7 +1268,7 @@
         content.className = 'system-text';
 
         // Clean typography categories formatting (Strict Zero Emojis)
-        const text = String(msg.text || '');
+        const text = this.decodeHtmlEntities(String(msg.text || ''));
         const categories = [
           { prefix: '[BLACKJACK]', className: 'tag-blackjack' },
           { prefix: '[GRAND WIN]', className: 'tag-grand-win' },
@@ -1243,11 +1303,11 @@
         const sender = document.createElement('span');
         sender.className = 'chat-sender';
         sender.style.color = msg.color || '#D4AF37';
-        sender.textContent = `${msg.sender}: `;
+        sender.textContent = `${this.decodeHtmlEntities(String(msg.sender || 'Speler'))}: `;
 
         const body = document.createElement('span');
         body.className = 'chat-body';
-        body.textContent = msg.text;
+        body.textContent = this.decodeHtmlEntities(String(msg.text || ''));
 
         item.appendChild(sender);
         item.appendChild(body);
@@ -1260,7 +1320,7 @@
           if (isVisibleInCurrentTable) {
             targetFeed.scrollTop = targetFeed.scrollHeight;
           }
-        } else {
+        } else if (!options.isHistory) {
           // Increment unread count for inactive scope only if visible to this table
           if (scope === 'global' || isVisibleInCurrentTable) {
             this.unreadCounts[scope] = (this.unreadCounts[scope] || 0) + 1;
@@ -1492,12 +1552,12 @@
             <div class="bj-card-front">
               <div class="card-corner-top">
                 <span class="card-rank">${rank}</span>
-                <svg class="card-suit-svg"><use href="#suit-${suitKey}"></use></svg>
+                <svg class="card-suit-svg" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
               </div>
-              <svg class="card-center-suit"><use href="#suit-${suitKey}"></use></svg>
+              <svg class="card-center-suit" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
               <div class="card-corner-bottom">
                 <span class="card-rank">${rank}</span>
-                <svg class="card-suit-svg"><use href="#suit-${suitKey}"></use></svg>
+                <svg class="card-suit-svg" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
               </div>
             </div>
           </div>
@@ -1508,7 +1568,7 @@
     /**
      * Renders dealer area cards and score pill.
      * @param {Array<Object>} [cards=[]]
-     * @param {number} [score=0]
+     * @param {number|Object} [score=0]
      * @param {string} [phase='BETTING']
      */
     renderBlackjackDealer(cards = [], score = 0, phase = 'BETTING') {
@@ -1543,7 +1603,10 @@
           const upcardRank = upcard ? (upcard.rank || upcard.value || '') : '';
           this.elements.bjDealerScore.textContent = upcardRank ? `${upcardRank}` : '?';
         } else {
-          const effectiveScore = (typeof score === 'number' && score > 0) ? score : this.computeCardsScore(cards);
+          const numericScore = (score && typeof score === 'object' && typeof score.value === 'number')
+            ? score.value
+            : (typeof score === 'number' ? score : 0);
+          const effectiveScore = numericScore > 0 ? numericScore : this.computeCardsScore(cards);
           let scoreText = `${effectiveScore}`;
           if (effectiveScore > 21) scoreText = `BUST ${effectiveScore}`;
           else if (effectiveScore === 21 && cards.length === 2) scoreText = 'BJ 21';
@@ -1557,7 +1620,7 @@
      * Renders all 6 seats in the semicircular Blackjack table arc.
      * @param {Array<Object>} [seats=[]]
      * @param {{ seatIndex: number, handIndex: number }|null} [activeTurn=null]
-     * @param {string|null} [myPlayerId=null]
+     * @param {string|number|null} [myPlayerId=null]
      * @param {string} [currentPhase='BETTING']
      */
     renderBlackjackSeats(seats = [], activeTurn = null, myPlayerId = null, currentPhase = 'BETTING') {
@@ -1571,6 +1634,7 @@
         const avatarDisc = document.getElementById(`seat-avatar-${i}`);
         const avatarMono = document.getElementById(`seat-mono-${i}`);
         const leaveBtn = document.getElementById(`btn-leave-${i}`);
+        const betSpot = document.getElementById(`seat-bet-spot-${i}`);
         const chipsDock = document.getElementById(`seat-chips-dock-${i}`);
         const dock0 = document.getElementById(`seat-cards-dock-${i}-0`);
         const score0 = document.getElementById(`seat-score-${i}-0`);
@@ -1582,6 +1646,7 @@
 
         const seatPlayer = (seat && (seat.player || (seat.playerId ? seat : null))) || null;
         if (seat && seatPlayer) {
+          seatEl.classList.remove('empty');
           if (emptyBadge) emptyBadge.classList.add('hidden');
           if (playerBox) playerBox.classList.remove('hidden');
 
@@ -1597,8 +1662,8 @@
           }
 
           // Leave button only for seated player on their own seat
-          const myId = myPlayerId || (this.myPlayer && this.myPlayer.id);
-          const isMe = (seatPlayer.id === myId) || (typeof myPlayerId === 'number' && i === myPlayerId);
+          const myId = (typeof myPlayerId === 'string' && myPlayerId) ? myPlayerId : (this.myPlayer && this.myPlayer.id);
+          const isMe = (myId && seatPlayer.id === myId) || (typeof myPlayerId === 'number' && myPlayerId >= 0 && i === myPlayerId);
           if (leaveBtn) {
             leaveBtn.classList.toggle('hidden', !isMe);
             leaveBtn.classList.toggle('navigation-locked', this.isNavigationLocked);
@@ -1611,16 +1676,22 @@
             avatarDisc.classList.toggle('is-active-turn', !!isTurn);
           }
 
-          // Betting spot chips
+          // Betting spot chips & label
+          const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
           if (chipsDock) {
             if (seat.bet > 0) {
+              const formattedBet = (seat.bet >= 1000 && seat.bet % 1000 === 0)
+                ? `${seat.bet / 1000}k`
+                : seat.bet.toLocaleString();
               chipsDock.innerHTML = `
                 <div class="chip-btn active" style="width: 38px; height: 38px; font-size: 0.72rem; background: ${color}; color: #ffffff; border: 1.5px solid var(--gold-bright);">
-                  ${seat.bet >= 1000 ? `${seat.bet / 1000}k` : seat.bet}
+                  ${formattedBet}
                 </div>
               `;
+              if (betLabel) betLabel.textContent = `${seat.bet.toLocaleString()}`;
             } else {
               chipsDock.innerHTML = '';
+              if (betLabel) betLabel.textContent = isMe ? 'KLIK OM IN TE ZETTEN' : 'INZET';
             }
           }
 
@@ -1686,11 +1757,14 @@
 
         } else {
           // Empty seat
+          seatEl.classList.add('empty');
           if (emptyBadge) emptyBadge.classList.remove('hidden');
           if (playerBox) playerBox.classList.add('hidden');
           seatEl.classList.remove('is-active-turn');
           if (avatarDisc) avatarDisc.classList.remove('is-active-turn');
           if (chipsDock) chipsDock.innerHTML = '';
+          const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
+          if (betLabel) betLabel.textContent = 'INZET';
           if (dock0) dock0.innerHTML = '';
           if (score0) score0.classList.add('hidden');
           if (handBlock1) handBlock1.classList.add('hidden');

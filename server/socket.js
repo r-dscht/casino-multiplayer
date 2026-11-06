@@ -686,6 +686,14 @@ function setupSocket(httpServer, options = {}) {
       const rawText = typeof payload.text === 'string' ? payload.text.trim() : '';
       if (!rawText) return;
 
+      const scope = (payload && payload.scope === 'table') ? 'table' : 'global';
+      let table = 'roulette';
+      if (payload && typeof payload.table === 'string' && payload.table.trim()) {
+        table = payload.table.trim();
+      } else if (player.currentGame === 'Blackjack') {
+        table = (player.location && player.location.startsWith('table_')) ? player.location : 'table_1';
+      }
+
       // Handle admin / testing commands
       if (rawText === '/spin') {
         const forced = engine.forceSpin();
@@ -695,7 +703,9 @@ function setupSocket(httpServer, options = {}) {
             color: '#d4af37',
             text: 'Spin manually triggered.',
             timestamp: Date.now(),
-            isSystem: true
+            isSystem: true,
+            scope,
+            table
           });
         }
         return;
@@ -713,7 +723,9 @@ function setupSocket(httpServer, options = {}) {
             color: '#d4af37',
             text: `Added ${amount.toLocaleString()} chips to your balance.`,
             timestamp: Date.now(),
-            isSystem: true
+            isSystem: true,
+            scope,
+            table
           });
         }
         return;
@@ -722,14 +734,6 @@ function setupSocket(httpServer, options = {}) {
       // Standard chat message: sanitize HTML and cap length
       const capped = rawText.slice(0, 150);
       const sanitized = sanitizeHtml(capped);
-
-      const scope = (payload && payload.scope === 'table') ? 'table' : 'global';
-      let table = 'roulette';
-      if (payload && typeof payload.table === 'string' && payload.table.trim()) {
-        table = payload.table.trim();
-      } else if (player.currentGame === 'Blackjack') {
-        table = (player.location && player.location.startsWith('table_')) ? player.location : 'table_1';
-      }
 
       broadcastChatMessage({
         sender: sanitizeHtml(player.name),
@@ -1123,6 +1127,7 @@ function setupSocket(httpServer, options = {}) {
       const res = table.takeSeat(seatIndex, player.id);
       if (!res.success) {
         socket.emit('bj_seat_error', res);
+        socket.emit('bj_table_state', table.getTableState(player.id));
         return;
       }
       socket.emit('bj_seat_accepted', {
@@ -1217,14 +1222,36 @@ function setupSocket(httpServer, options = {}) {
         socket.emit('bj_action_rejected', res);
         return;
       }
-      socket.emit('bj_action_success', { action, hand: res.hand });
+      socket.emit('bj_action_success', { action, hand: res.hand, remainingChips: player.chips });
+      socket.emit('chips_update', { chips: player.chips });
       broadcastPlayersUpdate();
+    });
+
+    socket.on('bj_deal_now', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const table = getTable(payload && payload.tableId);
+      const res = table.dealNow(player.id);
+      if (!res.success) {
+        socket.emit('bj_bet_rejected', res);
+      }
     });
 
     // 8. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
+        // Vacate any Blackjack seats where the player has no active bets
+        for (const tbl of blackjackTables.values()) {
+          if (!tbl.hasActiveBets(player.id)) {
+            for (const seat of tbl.seats) {
+              if (seat.player && seat.player.id === player.id) {
+                tbl.leaveSeat(seat.seatIndex, player.id);
+              }
+            }
+          }
+        }
+
         io.emit('player_left', {
           id: player.id,
           name: player.name

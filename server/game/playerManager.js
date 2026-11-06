@@ -339,24 +339,42 @@ class PlayerManager {
         }
       }
       if (player) {
-        // Unmap previous socket if assigned
-        if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
-          this.socketToPlayer.delete(player.socketId);
-        }
+        // If an explicit account name was provided (e.g. via login modal) that differs
+        // from the token's account AND matches an existing account, skip the stale token
+        // so the user logs into the account they explicitly typed!
+        const explicitCleanName = sanitizeName(opts.name);
+        const explicitNormKey = explicitCleanName ? explicitCleanName.toLowerCase() : '';
+        const shouldSwitchAccount = explicitNormKey &&
+          player.usernameKey &&
+          explicitNormKey !== player.usernameKey &&
+          this.accounts.has(explicitNormKey);
 
-        if (socketId) {
-          player.socketId = socketId;
-          this.socketToPlayer.set(socketId, player.id);
-        }
-        player.connected = true;
-        player.lastSeen = Date.now();
+        if (!shouldSwitchAccount) {
+          // Unmap previous socket if assigned
+          if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
+            this.socketToPlayer.delete(player.socketId);
+          }
 
-        this.scheduleSave();
-        return {
-          player,
-          sessionToken: player.sessionToken,
-          isNew: false
-        };
+          if (socketId) {
+            player.socketId = socketId;
+            this.socketToPlayer.set(socketId, player.id);
+          }
+          player.connected = true;
+          player.lastSeen = Date.now();
+          if (opts.color && typeof opts.color === 'string' && opts.color.startsWith('#')) {
+            player.color = opts.color;
+          }
+          if (opts.avatar && typeof opts.avatar === 'string') {
+            player.avatar = opts.avatar;
+          }
+
+          this.scheduleSave();
+          return {
+            player,
+            sessionToken: player.sessionToken,
+            isNew: false
+          };
+        }
       }
     }
 
@@ -443,41 +461,64 @@ class PlayerManager {
       };
     }
 
-    // 3. New player registration with starting 10,000 chips and bearer token
-    const id = `ply_${crypto.randomBytes(8).toString('hex')}`;
-    const sessionToken = `cst_${crypto.randomBytes(16).toString('hex')}`;
+    // 3. New player registration (or restoration from clientBackup if cloud container restarted)
+    const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
+    const restoredId = (backup && typeof backup.id === 'string' && backup.id.startsWith('ply_')) ? backup.id : null;
+    const restoredToken = (backup && typeof backup.sessionToken === 'string' && backup.sessionToken.startsWith('cst_'))
+      ? backup.sessionToken
+      : null;
+    const restoredChips = (backup && Number.isInteger(backup.chips) && backup.chips >= 0 && backup.chips <= 1000000000)
+      ? backup.chips
+      : STARTING_CHIPS;
+    const restoredStats = (backup && backup.stats && typeof backup.stats === 'object')
+      ? {
+          roundsPlayed: Number(backup.stats.roundsPlayed) || 0,
+          totalWon: Number(backup.stats.totalWon) || 0,
+          biggestWin: Number(backup.stats.biggestWin) || 0
+        }
+      : {
+          roundsPlayed: 0,
+          totalWon: 0,
+          biggestWin: 0
+        };
+    const restoredName = (!opts.name && backup && typeof backup.name === 'string')
+      ? sanitizeName(backup.name)
+      : '';
+    const finalName = restoredName || cleanName;
+    const finalNormKey = finalName.toLowerCase();
+
+    const id = restoredId || `ply_${crypto.randomBytes(8).toString('hex')}`;
+    const sessionToken = restoredToken || `cst_${crypto.randomBytes(16).toString('hex')}`;
     const colorIndex = this.players.size % DEFAULT_COLORS.length;
+    const backupColor = (backup && typeof backup.color === 'string' && backup.color.startsWith('#')) ? backup.color : null;
     const chosenColor = (typeof opts.color === 'string' && opts.color.startsWith('#'))
       ? opts.color
-      : DEFAULT_COLORS[colorIndex];
+      : (backupColor || DEFAULT_COLORS[colorIndex]);
+    const chosenAvatar = opts.avatar || (backup && typeof backup.avatar === 'string' ? backup.avatar : 'avatar_1');
 
     const newPlayer = {
       id,
       sessionToken,
       socketId: socketId || null,
-      usernameKey: normKey,
-      name: cleanName,
+      usernameKey: finalNormKey,
+      name: finalName,
       passwordHash: providedPassword ? this.hashPassword(providedPassword) : '',
-      avatar: opts.avatar || 'avatar_1',
+      avatar: chosenAvatar,
       color: chosenColor,
-      chips: STARTING_CHIPS, // exactly 10,000 chips
-      stats: {
-        roundsPlayed: 0,
-        totalWon: 0,
-        biggestWin: 0
-      },
+      chips: restoredChips,
+      stats: restoredStats,
       currentGame: 'Roulette',
       location: 'ROULETTE',
       seatIndex: null,
       connected: true,
       isHost: this.players.size === 0,
-      createdAt: Date.now(),
+      createdAt: (backup && Number.isInteger(backup.createdAt)) ? backup.createdAt : Date.now(),
       lastSeen: Date.now()
     };
 
     this.players.set(id, newPlayer);
     this.tokenToPlayerId.set(sessionToken, id);
-    this.accounts.set(normKey, newPlayer);
+    this.accounts.set(finalNormKey, newPlayer);
     if (socketId) {
       this.socketToPlayer.set(socketId, id);
     }
@@ -487,7 +528,7 @@ class PlayerManager {
     return {
       player: newPlayer,
       sessionToken,
-      isNew: true
+      isNew: !backup
     };
   }
 
@@ -561,13 +602,31 @@ class PlayerManager {
       if (opts.color) savedAccount.color = opts.color;
       this.scheduleSave();
     } else {
+      const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
       const colorIndex = this.players.size % DEFAULT_COLORS.length;
+      const backupColor = (backup && typeof backup.color === 'string' && backup.color.startsWith('#')) ? backup.color : null;
       const chosenColor = (typeof opts.color === 'string' && opts.color.startsWith('#'))
         ? opts.color
-        : DEFAULT_COLORS[colorIndex];
+        : (backupColor || DEFAULT_COLORS[colorIndex]);
 
-      const generatedId = opts.id || `ply_${crypto.randomBytes(8).toString('hex')}`;
-      const generatedToken = `cst_${crypto.randomBytes(16).toString('hex')}`;
+      const generatedId = opts.id || (backup && typeof backup.id === 'string' && backup.id.startsWith('ply_') ? backup.id : `ply_${crypto.randomBytes(8).toString('hex')}`);
+      const generatedToken = (backup && typeof backup.sessionToken === 'string' && backup.sessionToken.startsWith('cst_'))
+        ? backup.sessionToken
+        : `cst_${crypto.randomBytes(16).toString('hex')}`;
+      const restoredChips = (backup && Number.isInteger(backup.chips) && backup.chips >= 0 && backup.chips <= 1000000000)
+        ? backup.chips
+        : STARTING_CHIPS;
+      const restoredStats = (backup && backup.stats && typeof backup.stats === 'object')
+        ? {
+            roundsPlayed: Number(backup.stats.roundsPlayed) || 0,
+            totalWon: Number(backup.stats.totalWon) || 0,
+            biggestWin: Number(backup.stats.biggestWin) || 0
+          }
+        : {
+            roundsPlayed: 0,
+            totalWon: 0,
+            biggestWin: 0
+          };
 
       savedAccount = {
         id: generatedId,
@@ -575,18 +634,14 @@ class PlayerManager {
         usernameKey: normKey,
         name: cleanName,
         passwordHash: providedPassword ? this.hashPassword(providedPassword) : '',
-        chips: STARTING_CHIPS,
+        chips: restoredChips,
         color: chosenColor,
-        avatar: opts.avatar || 'avatar_1',
-        stats: {
-          roundsPlayed: 0,
-          totalWon: 0,
-          biggestWin: 0
-        },
+        avatar: opts.avatar || (backup && typeof backup.avatar === 'string' ? backup.avatar : 'avatar_1'),
+        stats: restoredStats,
         currentGame: 'Roulette',
         location: 'ROULETTE',
         seatIndex: null,
-        createdAt: Date.now(),
+        createdAt: (backup && Number.isInteger(backup.createdAt)) ? backup.createdAt : Date.now(),
         lastLogin: Date.now(),
         lastSeen: Date.now()
       };

@@ -2174,7 +2174,8 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   perspective: 1200px;
   display: inline-block;
   margin-right: -24px;
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.65));
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.65);
+  border-radius: 6px;
   animation: cardDealSlide 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
   user-select: none;
 }
@@ -2187,19 +2188,37 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   position: relative;
   width: 100%;
   height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1);
   border-radius: 6px;
+}
+
+.bj-card-flip-3d {
+  transform: rotateY(180deg);
 }
 
 /* Face Down (Initial State) */
 .bj-card.face-down .bj-card-inner {
-  transform: rotateY(0deg);
+  transform: none;
+}
+
+.bj-card.face-down .bj-card-back {
+  display: flex;
+}
+
+.bj-card.face-down .bj-card-front {
+  display: none;
 }
 
 /* Face Up (Flipped State) */
 .bj-card.face-up .bj-card-inner {
-  transform: rotateY(180deg);
+  transform: none;
+}
+
+.bj-card.face-up .bj-card-front {
+  display: flex;
+}
+
+.bj-card.face-up .bj-card-back {
+  display: none;
 }
 
 /* Luxury Card Back */
@@ -2208,7 +2227,6 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   top: 0; left: 0;
   width: 100%;
   height: 100%;
-  backface-visibility: hidden;
   border-radius: 6px;
   border: 2px solid #c5a059;
   background: radial-gradient(circle at 50% 50%, #0a261c 0%, #04120d 100%);
@@ -2236,8 +2254,6 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   top: 0; left: 0;
   width: 100%;
   height: 100%;
-  backface-visibility: hidden;
-  transform: rotateY(180deg);
   background: #fdfbf7;
   border: 1px solid #dcd7cc;
   border-radius: 6px;

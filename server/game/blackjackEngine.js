@@ -214,7 +214,15 @@ class BlackjackEngine extends EventEmitter {
     // Check if seat is already occupied
     const targetSeat = this.seats[seatIndex];
     if (targetSeat.player !== null) {
-      return { success: false, code: 'SEAT_OCCUPIED', reason: 'Seat is already occupied' };
+      const occPlayer = this.playerManager.getPlayerById(targetSeat.player.id);
+      if ((!occPlayer || !occPlayer.connected) && !this.hasActiveBets(targetSeat.player.id)) {
+        // Auto-vacate disconnected player with no active bets
+        targetSeat.player = null;
+        targetSeat.status = SEAT_STATUS.EMPTY;
+        targetSeat.bet = 0;
+      } else {
+        return { success: false, code: 'SEAT_OCCUPIED', reason: 'Seat is already occupied' };
+      }
     }
 
     if (player.chips < MIN_BET) {
@@ -895,14 +903,33 @@ class BlackjackEngine extends EventEmitter {
     this.timeLeft = PHASE_DURATIONS[PHASES.DEALER_TURN] || 2;
     this.dealerHoleCardHidden = false; // Reveal hole card
 
+    const dScore = calculateHandValue(this.dealerCards);
     this.emit('dealer_reveal', {
       tableId: this.tableId,
       dealerHand: this.dealerCards,
-      score: calculateHandValue(this.dealerCards)
+      score: dScore,
+      dealerScore: dScore.value
     });
 
     this.dealerPlay();
     this.emitPhaseChange();
+  }
+
+  /**
+   * Immediately starts dealing if in BETTING phase and at least one seated player has placed a bet.
+   * @param {string} playerId
+   * @returns {{ success: boolean, code?: string, reason?: string }}
+   */
+  dealNow(playerId) {
+    if (this.currentPhase !== PHASES.BETTING) {
+      return { success: false, code: 'INVALID_PHASE', reason: 'Table is not in BETTING phase' };
+    }
+    const hasBet = this.seats.some(s => s.player && s.bet >= MIN_BET);
+    if (!hasBet) {
+      return { success: false, code: 'NO_BETS', reason: 'Place a bet first before dealing' };
+    }
+    this.transitionToDealing();
+    return { success: true };
   }
 
   /**
@@ -934,11 +961,13 @@ class BlackjackEngine extends EventEmitter {
     while (shouldDealerHit(this.dealerCards)) {
       const card = this.deck.draw();
       this.dealerCards.push(card);
+      const dScore = calculateHandValue(this.dealerCards);
       this.emit('dealer_draw', {
         tableId: this.tableId,
         card,
         dealerHand: this.dealerCards,
-        score: calculateHandValue(this.dealerCards)
+        score: dScore,
+        dealerScore: dScore.value
       });
     }
   }
@@ -996,11 +1025,24 @@ class BlackjackEngine extends EventEmitter {
       const currentChips = updatedPlayer ? updatedPlayer.chips : 0;
       seat.player.chips = currentChips;
 
+      let primaryOutcome = 'LOSE';
+      if (handResults.some(h => h.outcome === 'BLACKJACK' || h.result === 'BLACKJACK')) {
+        primaryOutcome = 'BLACKJACK';
+      } else if (netProfit > 0) {
+        primaryOutcome = 'WIN';
+      } else if (totalWon > 0 && netProfit === 0) {
+        primaryOutcome = 'PUSH';
+      } else if (handResults.every(h => h.outcome === 'BUST' || h.result === 'BUST')) {
+        primaryOutcome = 'BUST';
+      }
+
       results.push({
         seatIndex: seat.seatIndex,
         playerId: seat.player.id,
         playerName: seat.player.name,
         hands: handResults,
+        outcome: primaryOutcome,
+        payout: totalWon,
         totalBet,
         totalWon,
         net: netProfit,
@@ -1029,6 +1071,37 @@ class BlackjackEngine extends EventEmitter {
   }
 
   prepareNextRound() {
+    // Auto-vacate any disconnected players before starting next round
+    for (const seat of this.seats) {
+      if (seat.player) {
+        const p = this.playerManager.getPlayerById(seat.player.id);
+        if (!p || !p.connected) {
+          const vacatedId = seat.player.id;
+          seat.player = null;
+          seat.status = SEAT_STATUS.EMPTY;
+          seat.bet = 0;
+          seat.hands = [
+            {
+              id: `h_${seat.seatIndex}_0`,
+              cards: [],
+              bet: 0,
+              status: HAND_STATUS.BETTING,
+              value: 0,
+              isSoft: false,
+              isSplitHand: false,
+              isSplitAces: false,
+              doubled: false
+            }
+          ];
+          this.emit('seat_vacated', {
+            tableId: this.tableId,
+            seatIndex: seat.seatIndex,
+            playerId: vacatedId
+          });
+        }
+      }
+    }
+
     // Check if shoe penetration threshold was reached
     if (this.deck.needsReshuffle()) {
       this.deck.initShoe();
@@ -1132,6 +1205,9 @@ class BlackjackEngine extends EventEmitter {
       player: s.player ? { ...s.player } : null,
       bet: s.bet,
       status: s.status,
+      activeHandIndex: (this.activeTurn && this.activeTurn.seatIndex === s.seatIndex)
+        ? this.activeTurn.handIndex
+        : 0,
       hands: s.hands.map(h => ({
         id: h.id,
         cards: [...h.cards],

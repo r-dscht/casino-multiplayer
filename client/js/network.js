@@ -54,6 +54,42 @@
     }
 
     /**
+     * Reads local player state backup from localStorage (prevents data loss if cloud server sleeps).
+     * @returns {Object|null}
+     */
+    getClientBackup() {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_player_backup');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') return parsed;
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    /**
+     * Updates local player state backup in localStorage.
+     * @param {Object} patch
+     */
+    saveClientBackup(patch = {}) {
+      if (!patch || typeof patch !== 'object') return;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const existing = this.getClientBackup() || {};
+          const merged = {
+            ...existing,
+            ...patch,
+            updatedAt: Date.now()
+          };
+          localStorage.setItem('casino_player_backup', JSON.stringify(merged));
+        }
+      } catch (e) {}
+    }
+
+    /**
      * Subscribes a callback to an event.
      * @param {string} event 
      * @param {Function} callback 
@@ -135,6 +171,19 @@
         if (data && data.playerId) {
           this.myPlayerId = data.playerId;
         }
+        if (data && Array.isArray(data.players) && this.myPlayerId) {
+          const me = data.players.find(p => p.id === this.myPlayerId);
+          if (me) {
+            this.saveClientBackup({
+              id: me.id,
+              name: me.name,
+              color: me.color,
+              avatar: me.avatar,
+              chips: me.chips,
+              stats: me.stats
+            });
+          }
+        }
         this.emitInternal('table_state', data);
       });
 
@@ -147,10 +196,19 @@
       });
 
       this.socket.on('round_result', (data) => {
+        if (data && data.playerResults && this.myPlayerId && data.playerResults[this.myPlayerId]) {
+          const myRes = data.playerResults[this.myPlayerId];
+          if (typeof myRes.chips === 'number') {
+            this.saveClientBackup({ chips: myRes.chips });
+          }
+        }
         this.emitInternal('round_result', data);
       });
 
       this.socket.on('bet_accepted', (data) => {
+        if (data && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips });
+        }
         this.emitInternal('bet_accepted', data);
       });
 
@@ -163,10 +221,16 @@
       });
 
       this.socket.on('bets_cleared', (data) => {
+        if (data && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips });
+        }
         this.emitInternal('bets_cleared', data);
       });
 
       this.socket.on('chips_update', (data) => {
+        if (data && typeof data.chips === 'number') {
+          this.saveClientBackup({ chips: data.chips });
+        }
         this.emitInternal('chips_update', data);
       });
 
@@ -218,6 +282,16 @@
         }
         if (data && data.player && data.player.id) {
           this.myPlayerId = data.player.id;
+          this.saveClientBackup({
+            id: data.player.id,
+            sessionToken: data.sessionToken || this.sessionToken,
+            name: data.player.name,
+            color: data.player.color,
+            avatar: data.player.avatar,
+            chips: data.player.chips,
+            stats: data.player.stats,
+            createdAt: data.player.createdAt
+          });
           try {
             if (typeof localStorage !== 'undefined') {
               localStorage.setItem('casino_player_id', data.player.id);
@@ -290,6 +364,10 @@
       });
 
       this.socket.on('bj_bet_accepted', (data) => {
+        const rem = data && (typeof data.remainingChips === 'number' ? data.remainingChips : data.chipsRemaining);
+        if (typeof rem === 'number') {
+          this.saveClientBackup({ chips: rem });
+        }
         this.emitInternal('bj_bet_accepted', data);
       });
 
@@ -354,6 +432,13 @@
       });
 
       this.socket.on('bj_round_result', (data) => {
+        const resultsList = data && (data.results || data.seatResults);
+        if (Array.isArray(resultsList) && this.myPlayerId) {
+          const myRes = resultsList.find(r => r.playerId === this.myPlayerId);
+          if (myRes && typeof myRes.chips === 'number') {
+            this.saveClientBackup({ chips: myRes.chips });
+          }
+        }
         this.emitInternal('bj_round_result', data);
       });
 
@@ -373,7 +458,8 @@
         sessionToken: token,
         name: payload.name,
         color: payload.color,
-        password: payload.password
+        password: payload.password,
+        clientBackup: this.getClientBackup()
       });
     }
 
@@ -384,9 +470,14 @@
     joinTable(playerProfile = {}) {
       if (!this.socket) return;
       const token = playerProfile.sessionToken || this.getStoredToken();
+      const backup = this.getClientBackup();
+      // Only attach clientBackup if it belongs to the same username (or no username is in backup)
+      const sameUser = !backup || !backup.name || !playerProfile.name ||
+        backup.name.trim().toLowerCase() === playerProfile.name.trim().toLowerCase();
       this.socket.emit('join_table', {
         ...playerProfile,
-        sessionToken: token
+        sessionToken: token,
+        clientBackup: sameUser ? backup : null
       });
     }
 
@@ -608,6 +699,15 @@
         seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
       }
       this.socket.emit('bj_clear_bet', { seatIndex, tableId });
+    }
+
+    /**
+     * Immediately triggers card dealing on the Blackjack table during BETTING phase.
+     * @param {string} [tableId='table_1']
+     */
+    bjDealNow(tableId = 'table_1') {
+      if (!this.socket) return;
+      this.socket.emit('bj_deal_now', { tableId });
     }
 
     /**

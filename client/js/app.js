@@ -185,9 +185,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.updateHistoryStrip(state.recentHistory);
     }
 
-    // Populate existing chat history
+    // Populate existing chat history without duplicating on reconnect
     if (Array.isArray(state.chatHistory)) {
-      state.chatHistory.forEach(msg => ui.addChatMessage(msg));
+      if (typeof ui.loadChatHistory === 'function') {
+        ui.loadChatHistory(state.chatHistory);
+      } else {
+        state.chatHistory.forEach(msg => ui.addChatMessage(msg));
+      }
     }
 
     // Render active bets across all players
@@ -462,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.elements.bjTableBtn2.addEventListener('click', () => handleBjTableSwitch('table_2'));
   }
 
-  // Blackjack Chip Selection
+  // Blackjack Chip Selection & Immediate Bet Placement when Seated
   const bjChipBtns = document.querySelectorAll('#blackjack-view .chip-btn');
   bjChipBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -471,9 +475,27 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = parseInt(btn.dataset.val || btn.dataset.value || btn.textContent.trim(), 10);
       if (!isNaN(val) && val > 0) {
         selectedBjChip = val;
+        if (myBjSeatIndex !== -1 && currentBjTableState && currentBjTableState.phase === 'BETTING') {
+          if (ui.myPlayer.chips < val) {
+            ui.showToast('Onvoldoende fiches voor deze inzet', 'error');
+            return;
+          }
+          network.bjPlaceBet(myBjSeatIndex, val, currentBjTableId);
+        }
       }
     });
   });
+
+  const btnBjDeal = document.getElementById('btn-bj-deal');
+  if (btnBjDeal) {
+    btnBjDeal.addEventListener('click', () => {
+      if (myBjSeatIndex === -1) {
+        ui.showToast('Neem eerst plaats aan tafel', 'info');
+        return;
+      }
+      network.bjDealNow(currentBjTableId);
+    });
+  }
 
   // Blackjack Seats Arc interactions (Sit, Leave, Bet)
   if (ui.elements.bjSeatsArc) {
@@ -535,40 +557,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Helper to get active hand index for my seat
+  function getMyActiveHandIndex() {
+    if (currentBjTableState && currentBjTableState.activeTurn && currentBjTableState.activeTurn.seatIndex === myBjSeatIndex) {
+      return currentBjTableState.activeTurn.handIndex || 0;
+    }
+    const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+    return mySeat ? (mySeat.activeHandIndex || 0) : 0;
+  }
+
   // Blackjack Action Buttons
   if (ui.elements.btnBjHit) {
     ui.elements.btnBjHit.addEventListener('click', () => {
       if (myBjSeatIndex !== -1) {
-        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
-        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
-        network.bjAction('hit', myBjSeatIndex, handIndex, currentBjTableId);
+        network.bjAction('hit', myBjSeatIndex, getMyActiveHandIndex(), currentBjTableId);
       }
     });
   }
   if (ui.elements.btnBjStand) {
     ui.elements.btnBjStand.addEventListener('click', () => {
       if (myBjSeatIndex !== -1) {
-        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
-        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
-        network.bjAction('stand', myBjSeatIndex, handIndex, currentBjTableId);
+        network.bjAction('stand', myBjSeatIndex, getMyActiveHandIndex(), currentBjTableId);
       }
     });
   }
   if (ui.elements.btnBjDouble) {
     ui.elements.btnBjDouble.addEventListener('click', () => {
       if (myBjSeatIndex !== -1) {
-        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
-        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
-        network.bjAction('double', myBjSeatIndex, handIndex, currentBjTableId);
+        network.bjAction('double', myBjSeatIndex, getMyActiveHandIndex(), currentBjTableId);
       }
     });
   }
   if (ui.elements.btnBjSplit) {
     ui.elements.btnBjSplit.addEventListener('click', () => {
       if (myBjSeatIndex !== -1) {
-        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
-        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
-        network.bjAction('split', myBjSeatIndex, handIndex, currentBjTableId);
+        network.bjAction('split', myBjSeatIndex, getMyActiveHandIndex(), currentBjTableId);
       }
     });
   }
@@ -649,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isMyTurn && mySeat) {
       const hands = mySeat.hands || mySeat.splitHands || [];
-      const activeHandIdx = mySeat.activeHandIndex || 0;
+      const activeHandIdx = getMyActiveHandIndex();
       const activeHand = hands[activeHandIdx] || (mySeat.cards ? mySeat : null);
 
       if (activeHand && activeHand.cards && activeHand.cards.length === 2) {
@@ -662,8 +685,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
-    const hasBet = mySeat && (mySeat.bet > 0 || (mySeat.hands && mySeat.hands[0] && mySeat.hands[0].bet > 0));
+    const hasBet = Boolean(mySeat && (mySeat.bet > 0 || (mySeat.hands && mySeat.hands[0] && mySeat.hands[0].bet > 0)));
     const canClearBet = (currentBjTableState.phase === 'BETTING' && hasBet);
+    if (btnBjDeal) {
+      btnBjDeal.disabled = !canClearBet;
+    }
     ui.setBlackjackActionsState({ canHit, canStand, canDouble, canSplit, canClearBet });
   }
 
@@ -789,15 +815,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('bj_bet_accepted', (data) => {
-    if (typeof data.chipsRemaining === 'number') {
-      ui.myPlayer.chips = data.chipsRemaining;
+    const newChips = typeof data.remainingChips === 'number' ? data.remainingChips : data.chipsRemaining;
+    if (typeof newChips === 'number') {
+      ui.myPlayer.chips = newChips;
       ui.updatePlayerHUD();
     }
     if (currentBjTableState && Array.isArray(currentBjTableState.seats) && data.seatIndex !== undefined) {
+      const totalSeatBet = typeof data.totalBet === 'number' ? data.totalBet : data.amount;
       if (!currentBjTableState.seats[data.seatIndex]) {
-        currentBjTableState.seats[data.seatIndex] = { bet: data.amount };
+        currentBjTableState.seats[data.seatIndex] = { bet: totalSeatBet };
       } else {
-        currentBjTableState.seats[data.seatIndex].bet = data.amount;
+        currentBjTableState.seats[data.seatIndex].bet = totalSeatBet;
+        if (currentBjTableState.seats[data.seatIndex].player && typeof newChips === 'number') {
+          currentBjTableState.seats[data.seatIndex].player.chips = newChips;
+        }
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
@@ -808,43 +839,73 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('bj_bet_placed', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
     if (currentBjTableState && Array.isArray(currentBjTableState.seats) && data.seatIndex !== undefined) {
-      if (currentBjTableState.seats[data.seatIndex]) {
-        currentBjTableState.seats[data.seatIndex].bet = data.amount;
+      const seat = currentBjTableState.seats[data.seatIndex];
+      if (seat) {
+        seat.bet = typeof data.totalBet === 'number' ? data.totalBet : data.amount;
+        if (seat.player && typeof data.remainingChips === 'number') {
+          seat.player.chips = data.remainingChips;
+        }
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
+    updateBjActionButtons();
   });
 
   network.on('bj_bet_cleared', (data) => {
-    if (typeof data.chipsRemaining === 'number') {
-      ui.myPlayer.chips = data.chipsRemaining;
+    const newChips = typeof data.remainingChips === 'number' ? data.remainingChips : data.chipsRemaining;
+    if (typeof newChips === 'number' && (data.playerId === ui.myPlayer.id || data.seatIndex === myBjSeatIndex)) {
+      ui.myPlayer.chips = newChips;
       ui.updatePlayerHUD();
     }
     if (currentBjTableState && Array.isArray(currentBjTableState.seats) && data.seatIndex !== undefined) {
-      if (currentBjTableState.seats[data.seatIndex]) {
-        currentBjTableState.seats[data.seatIndex].bet = 0;
+      const seat = currentBjTableState.seats[data.seatIndex];
+      if (seat) {
+        seat.bet = 0;
+        if (seat.player && typeof newChips === 'number') {
+          seat.player.chips = newChips;
+        }
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
-    ui.showToast('Inzet gewist', 'info');
+    if (data.seatIndex === myBjSeatIndex) {
+      ui.showToast('Inzet gewist', 'info');
+    }
     ui.setNavigationLocked(hasUnsettledBets());
     updateBjActionButtons();
   });
 
   network.on('bj_bet_rejected', (data) => {
-    ui.showToast((data && data.message) || 'Inzet geweigerd', 'error');
+    ui.showToast((data && (data.reason || data.message)) || 'Inzet geweigerd', 'error');
   });
 
   network.on('bj_action_applied', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
+    if (data.playerId === ui.myPlayer.id && typeof data.remainingChips === 'number') {
+      ui.myPlayer.chips = data.remainingChips;
+      ui.updatePlayerHUD();
+    }
     if (currentBjTableState && Array.isArray(currentBjTableState.seats) && data.seatIndex !== undefined) {
       const seat = currentBjTableState.seats[data.seatIndex];
-      if (seat && data.card) {
-        if (!seat.cards) seat.cards = [];
-        seat.cards.push(data.card);
-        if (seat.hands && seat.hands[0]) {
-          if (!seat.hands[0].cards) seat.hands[0].cards = [];
-          seat.hands[0].cards.push(data.card);
+      if (seat) {
+        if (typeof data.totalSeatBet === 'number') {
+          seat.bet = data.totalSeatBet;
+        }
+        if (seat.player && typeof data.remainingChips === 'number') {
+          seat.player.chips = data.remainingChips;
+        }
+        if (Array.isArray(data.hands)) {
+          seat.hands = data.hands;
+        } else if (data.hand && typeof data.handIndex === 'number') {
+          if (!Array.isArray(seat.hands)) seat.hands = [];
+          seat.hands[data.handIndex] = data.hand;
+        } else if (data.card) {
+          if (!seat.cards) seat.cards = [];
+          seat.cards.push(data.card);
+          const hIdx = typeof data.handIndex === 'number' ? data.handIndex : 0;
+          if (seat.hands && seat.hands[hIdx]) {
+            if (!seat.hands[hIdx].cards) seat.hands[hIdx].cards = [];
+            seat.hands[hIdx].cards.push(data.card);
+          }
         }
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
@@ -858,17 +919,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('bj_action_rejected', (data) => {
-    ui.showToast((data && data.message) || 'Actie niet toegestaan', 'error');
+    ui.showToast((data && (data.reason || data.message)) || 'Actie niet toegestaan', 'error');
   });
 
   network.on('bj_turn_change', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
     if (currentBjTableState) {
       currentBjTableState.activeSeatIndex = data.seatIndex;
+      currentBjTableState.activeTurn = { seatIndex: data.seatIndex, handIndex: data.handIndex || 0 };
       if (data.seats) currentBjTableState.seats = data.seats;
       if (data.dealerHand) currentBjTableState.dealerHand = data.dealerHand;
       if (data.dealerScore !== undefined) currentBjTableState.dealerScore = data.dealerScore;
-      ui.renderBlackjackSeats(currentBjTableState.seats, data.seatIndex, myBjSeatIndex, currentBjTableState.phase);
+      ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeTurn, myBjSeatIndex, currentBjTableState.phase);
       ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
     }
     if (currentActiveGame === 'Blackjack') {
@@ -893,6 +955,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_phase_change', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
+    if (data.phase === 'BETTING' || data.phase === 'WAITING_FOR_PLAYERS') {
+      ui.hideBlackjackBanner();
+    }
     if (currentBjTableState) {
       currentBjTableState.phase = data.phase;
       currentBjTableState.activeSeatIndex = data.activeSeatIndex !== undefined ? data.activeSeatIndex : currentBjTableState.activeSeatIndex;
@@ -918,7 +983,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_dealer_reveal', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
+    const rawScore = (data.dealerScore !== undefined) ? data.dealerScore : data.score;
+    const score = (rawScore && typeof rawScore === 'object' && typeof rawScore.value === 'number')
+      ? rawScore.value
+      : (typeof rawScore === 'number' ? rawScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0));
     if (currentBjTableState) {
       currentBjTableState.dealerHand = data.dealerHand;
       currentBjTableState.dealerScore = score;
@@ -928,7 +996,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_dealer_draw', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
+    const rawScore = (data.dealerScore !== undefined) ? data.dealerScore : data.score;
+    const score = (rawScore && typeof rawScore === 'object' && typeof rawScore.value === 'number')
+      ? rawScore.value
+      : (typeof rawScore === 'number' ? rawScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0));
     if (currentBjTableState) {
       currentBjTableState.dealerHand = data.dealerHand;
       currentBjTableState.dealerScore = score;
@@ -946,7 +1017,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_round_result', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
+    const rawScore = (data.dealerScore !== undefined) ? data.dealerScore : data.score;
+    const score = (rawScore && typeof rawScore === 'object' && typeof rawScore.value === 'number')
+      ? rawScore.value
+      : (typeof rawScore === 'number' ? rawScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0));
     if (currentBjTableState) {
       currentBjTableState.phase = 'ROUND_OVER';
       currentBjTableState.dealerScore = score;
@@ -956,24 +1030,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Inspect outcome for my seat
-    if (myBjSeatIndex !== -1 && Array.isArray(data.results)) {
-      const myRes = data.results.find(r => r.seatIndex === myBjSeatIndex || r.playerId === ui.myPlayer.id);
+    const resultsList = data.results || data.seatResults;
+    if (myBjSeatIndex !== -1 && Array.isArray(resultsList)) {
+      const myRes = resultsList.find(r => r.seatIndex === myBjSeatIndex || r.playerId === ui.myPlayer.id);
       if (myRes) {
         if (typeof myRes.chips === 'number') {
           ui.myPlayer.chips = myRes.chips;
           ui.updatePlayerHUD();
         }
-        if (myRes.outcome === 'BLACKJACK') {
-          ui.showBlackjackBanner('BLACKJACK!', `Winst: +${myRes.payout || 0} fiches`, '3:2 Monte Carlo Royale');
+        const payoutVal = (typeof myRes.payout === 'number')
+          ? myRes.payout
+          : (typeof myRes.totalWon === 'number' ? myRes.totalWon : 0);
+        const outcome = myRes.outcome || (myRes.hands && myRes.hands[0] && (myRes.hands[0].outcome || myRes.hands[0].result)) || (myRes.net > 0 ? 'WIN' : 'LOSE');
+
+        if (outcome === 'BLACKJACK') {
+          ui.showBlackjackBanner('BLACKJACK!', `Uitbetaling: +${payoutVal.toLocaleString()} fiches`, '3:2 Monte Carlo Royale');
           ui.triggerWinShimmer(2500);
-        } else if (myRes.outcome === 'WIN') {
-          ui.showBlackjackBanner('GEWONNEN!', `Winst: +${myRes.payout || 0} fiches`, 'Hand wint van de bank');
+        } else if (outcome === 'WIN') {
+          ui.showBlackjackBanner('GEWONNEN!', `Uitbetaling: +${payoutVal.toLocaleString()} fiches`, 'Hand wint van de bank');
           ui.triggerWinShimmer(2000);
-        } else if (myRes.outcome === 'PUSH') {
-          ui.showBlackjackBanner('STAND-OFF', 'Inzet geretourneerd', 'Gelijkspel met de bank');
-        } else if (myRes.outcome === 'BUST') {
+        } else if (outcome === 'PUSH') {
+          ui.showBlackjackBanner('STAND-OFF', `Inzet terug: ${payoutVal.toLocaleString()} fiches`, 'Gelijkspel met de bank');
+        } else if (outcome === 'BUST') {
           ui.showBlackjackBanner('BUST', 'Boven 21 punten', 'Inzet verloren');
-        } else if (myRes.outcome === 'LOSE') {
+        } else {
           ui.showBlackjackBanner('VERLOREN', 'Bank wint ronde');
         }
       }
