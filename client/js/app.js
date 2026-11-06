@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.showToast('Je speelt nu Roulette', 'info');
       } else if (game === 'blackjack') {
         currentActiveGame = 'Blackjack';
-        ui.switchGameView('blackjack');
+        ui.switchGameView('blackjack', currentBjTableId);
         network.setGamePresence('Blackjack');
         network.bjJoinTable(currentBjTableId);
         ui.showToast('Je speelt nu Blackjack', 'info');
@@ -397,6 +397,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (ui.elements.bjTableName) {
       ui.elements.bjTableName.textContent = (targetTableId === 'table_1' ? 'Tafel 1 (Standaard)' : 'Tafel 2 (VIP High-Roller)');
+    }
+
+    if (typeof ui.updateChatTableFilter === 'function') {
+      ui.updateChatTableFilter(targetTableId);
+    }
+    if (typeof ui.updateChatTableTabLabel === 'function') {
+      ui.updateChatTableTabLabel();
     }
 
     network.bjJoinTable(targetTableId);
@@ -839,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data && data.game) {
       if (data.game === 'Blackjack') {
         currentActiveGame = 'Blackjack';
-        ui.switchGameView('blackjack');
+        ui.switchGameView('blackjack', currentBjTableId);
       } else if (data.game === 'Roulette') {
         currentActiveGame = 'Roulette';
         ui.switchGameView('roulette');

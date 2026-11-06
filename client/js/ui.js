@@ -94,6 +94,7 @@
       // Tabbed Chat State (R5)
       this.activeChatScope = 'global';
       this.unreadCounts = { global: 0, table: 0 };
+      this.currentTableId = 'roulette';
 
       // Navigation Bet Lock State (R2)
       this.isNavigationLocked = false;
@@ -1049,6 +1050,72 @@
           });
         });
       }
+
+      this.updateChatTableTabLabel();
+      this.updateChatInputPlaceholder();
+    }
+
+    /**
+     * Updates the Table Chat tab text based on active game table.
+     */
+    updateChatTableTabLabel() {
+      if (!this.elements.labelChatTable) return;
+      const curTable = this.currentTableId || 'roulette';
+      if (curTable === 'roulette') {
+        this.elements.labelChatTable.textContent = 'Roulette Chat';
+      } else if (curTable === 'table_2') {
+        this.elements.labelChatTable.textContent = 'Blackjack Tafel 2';
+      } else {
+        this.elements.labelChatTable.textContent = 'Blackjack Tafel 1';
+      }
+    }
+
+    /**
+     * Updates the chat input placeholder to match active scope and table.
+     */
+    updateChatInputPlaceholder() {
+      if (!this.elements.chatInput) return;
+      if (this.activeChatScope === 'global') {
+        this.elements.chatInput.placeholder = 'Typ een bericht in Global Casino...';
+      } else {
+        const curTable = this.currentTableId || 'roulette';
+        if (curTable === 'roulette') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Roulette Chat...';
+        } else if (curTable === 'table_2') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Blackjack Tafel 2...';
+        } else {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Blackjack Tafel 1...';
+        }
+      }
+    }
+
+    /**
+     * Updates table filter on table chat items.
+     * @param {string} [tableId]
+     */
+    updateChatTableFilter(tableId) {
+      if (tableId) {
+        this.currentTableId = tableId;
+      }
+      const curTable = this.currentTableId || 'roulette';
+      if (this.elements.chatMessagesTable) {
+        const items = this.elements.chatMessagesTable.querySelectorAll('.chat-item');
+        items.forEach(item => {
+          const itemTable = item.dataset.table || 'all';
+          const matches = (
+            itemTable === 'all' ||
+            itemTable === curTable ||
+            (curTable.startsWith('table_') && itemTable === 'blackjack') ||
+            (curTable === 'roulette' && itemTable === 'roulette')
+          );
+          item.style.display = matches ? '' : 'none';
+        });
+        if (this.activeChatScope === 'table') {
+          this.elements.chatMessagesTable.scrollTop = this.elements.chatMessagesTable.scrollHeight;
+        }
+      }
+      this.updateChatTableTabLabel();
+      this.updateChatInputPlaceholder();
     }
 
     /**
@@ -1070,6 +1137,8 @@
         this.elements.chatMessagesTable.classList.toggle('hidden', scope !== 'table');
       }
 
+      this.updateChatInputPlaceholder();
+
       // Reset unread counter for current active scope
       this.unreadCounts[scope] = 0;
       const badge = scope === 'global' ? this.elements.badgeUnreadGlobal : this.elements.badgeUnreadTable;
@@ -1088,7 +1157,7 @@
     /**
      * Appends a chat message to the partitioned activity drawer.
      * Guaranteed XSS safe by using textContent and DOM text nodes. Zero emojis.
-     * @param {{ sender: string, color?: string, text: string, timestamp: number, isSystem: boolean, scope?: string, category?: string }} msg 
+     * @param {{ sender: string, color?: string, text: string, timestamp: number, isSystem: boolean, scope?: string, table?: string, category?: string }} msg 
      */
     addChatMessage(msg) {
       if (!msg) return;
@@ -1098,6 +1167,22 @@
 
       const item = document.createElement('div');
       item.className = 'chat-item' + (msg.isSystem ? ' chat-system' : '');
+
+      let isVisibleInCurrentTable = true;
+      if (scope === 'table') {
+        const itemTable = msg.table || 'all';
+        item.dataset.table = itemTable;
+        const curTable = this.currentTableId || 'roulette';
+        isVisibleInCurrentTable = (
+          itemTable === 'all' ||
+          itemTable === curTable ||
+          (curTable.startsWith('table_') && itemTable === 'blackjack') ||
+          (curTable === 'roulette' && itemTable === 'roulette')
+        );
+        if (!isVisibleInCurrentTable) {
+          item.style.display = 'none';
+        }
+      }
 
       if (msg.isSystem) {
         const content = document.createElement('span');
@@ -1153,14 +1238,18 @@
         targetFeed.appendChild(item);
         // Auto scroll if user is viewing this feed
         if (scope === this.activeChatScope) {
-          targetFeed.scrollTop = targetFeed.scrollHeight;
+          if (isVisibleInCurrentTable) {
+            targetFeed.scrollTop = targetFeed.scrollHeight;
+          }
         } else {
-          // Increment unread count for inactive scope
-          this.unreadCounts[scope] = (this.unreadCounts[scope] || 0) + 1;
-          const badge = scope === 'global' ? this.elements.badgeUnreadGlobal : this.elements.badgeUnreadTable;
-          if (badge) {
-            badge.textContent = this.unreadCounts[scope];
-            badge.classList.remove('hidden');
+          // Increment unread count for inactive scope only if visible to this table
+          if (scope === 'global' || isVisibleInCurrentTable) {
+            this.unreadCounts[scope] = (this.unreadCounts[scope] || 0) + 1;
+            const badge = scope === 'global' ? this.elements.badgeUnreadGlobal : this.elements.badgeUnreadTable;
+            if (badge) {
+              badge.textContent = this.unreadCounts[scope];
+              badge.classList.remove('hidden');
+            }
           }
         }
       }
@@ -1686,9 +1775,16 @@
     /**
      * Switches between Roulette and Blackjack table viewports.
      * @param {'roulette'|'blackjack'} [gameName='roulette']
+     * @param {string} [subTableId=null]
      */
-    switchGameView(gameName = 'roulette') {
+    switchGameView(gameName = 'roulette', subTableId = null) {
       const isRoulette = (gameName || '').toLowerCase() === 'roulette';
+      if (isRoulette) {
+        this.currentTableId = 'roulette';
+      } else {
+        this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('table_') ? this.currentTableId : 'table_1');
+      }
+
       if (this.elements.viewRoulette && this.elements.viewBlackjack) {
         this.elements.viewRoulette.classList.toggle('active', isRoulette);
         this.elements.viewRoulette.classList.toggle('hidden', !isRoulette);
@@ -1699,9 +1795,8 @@
         this.elements.pillRoulette.classList.toggle('active', isRoulette);
         this.elements.pillBlackjack.classList.toggle('active', !isRoulette);
       }
-      if (this.elements.labelChatTable) {
-        this.elements.labelChatTable.textContent = isRoulette ? 'Roulette Chat' : 'Blackjack Chat';
-      }
+
+      this.updateChatTableFilter(this.currentTableId);
     }
   }
 

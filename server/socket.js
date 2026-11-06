@@ -129,6 +129,8 @@ function setupSocket(httpServer, options = {}) {
   const chatHistory = [];
 
   function broadcastChatMessage(msg) {
+    if (!msg.scope) msg.scope = 'global';
+    if (!msg.table) msg.table = 'all';
     chatHistory.push(msg);
     if (chatHistory.length > 50) chatHistory.shift();
     io.emit('chat_message', msg);
@@ -190,16 +192,92 @@ function setupSocket(httpServer, options = {}) {
       io.emit('bj_round_end', data);
       broadcastPlayersUpdate();
 
+      const tableLabel = (tbl.tableId === 'table_2') ? 'Blackjack VIP Tafel 2' : 'Blackjack Tafel 1';
+
+      // 1. Announce Dealer Bust if applicable
+      if (data && data.dealerScore && data.dealerScore.isBust) {
+        broadcastChatMessage({
+          sender: 'CASINO',
+          color: '#d4af37',
+          text: `[DEALER] Dealer is bust met ${data.dealerScore.value}! Alle actieve spelers winnen.`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'table',
+          table: tbl.tableId
+        });
+      }
+
+      // 2. Announce round results & wins for each player
       if (Array.isArray(data.results)) {
         data.results.forEach((r) => {
+          const hasBJ = Array.isArray(r.hands) && r.hands.some(h => h.outcome === 'BLACKJACK' || h.result === 'BLACKJACK');
+          if (hasBJ) {
+            // Table Chat announcement
+            broadcastChatMessage({
+              sender: 'CASINO',
+              color: '#d4af37',
+              text: `[BLACKJACK] ${r.playerName} heeft Natural Blackjack en wint ${r.totalWon.toLocaleString()} fiches (3:2)!`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'table',
+              table: tbl.tableId
+            });
+            // Global Casino Chat announcement
+            broadcastChatMessage({
+              sender: 'CASINO',
+              color: '#d4af37',
+              text: `[BLACKJACK] ${r.playerName} heeft Natural Blackjack aan ${tableLabel} (+${Math.max(0, r.net || r.totalWon).toLocaleString()} fiches)!`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'global',
+              table: 'all'
+            });
+          } else if (r.net > 0) {
+            // Table Chat announcement
+            broadcastChatMessage({
+              sender: 'CASINO',
+              color: '#d4af37',
+              text: `[CASINO] ${r.playerName} verslaat de dealer en wint ${r.totalWon.toLocaleString()} fiches (Netto: +${r.net.toLocaleString()})!`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'table',
+              table: tbl.tableId
+            });
+            // If significant win, announce to Global Casino Chat
+            if (r.net >= 1000) {
+              broadcastChatMessage({
+                sender: 'CASINO',
+                color: '#d4af37',
+                text: `[GRAND WIN] ${r.playerName} wint ${r.net.toLocaleString()} fiches aan ${tableLabel}!`,
+                timestamp: Date.now(),
+                isSystem: true,
+                scope: 'global',
+                table: 'all'
+              });
+            }
+          } else if (r.totalWon > 0 && r.net === 0) {
+            // Push announcement in Table Chat
+            broadcastChatMessage({
+              sender: 'CASINO',
+              color: '#d4af37',
+              text: `[CASINO] ${r.playerName} speelt gelijk met de dealer — inzet geretourneerd.`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'table',
+              table: tbl.tableId
+            });
+          }
+
           if (Array.isArray(r.repayments) && r.repayments.length > 0) {
             r.repayments.forEach((rep) => {
               broadcastChatMessage({
                 sender: 'BANK',
                 color: '#10b981',
-                text: `${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+                text: `[BANK] ${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
                 timestamp: Date.now(),
-                isSystem: true
+                isSystem: true,
+                scope: 'table',
+                table: tbl.tableId
               });
               const lender = playerManager.getPlayerById(rep.lenderId);
               if (lender && lender.socketId) {
@@ -242,23 +320,42 @@ function setupSocket(httpServer, options = {}) {
     const colorCap = data.winningColor
       ? data.winningColor.charAt(0).toUpperCase() + data.winningColor.slice(1)
       : '';
-    const winAnnouncement = `Round result: ${data.winningNumber} ${colorCap}`;
     
     // Find winners
-    const winners = data.results.filter(r => r.totalWon > 0);
+    const winners = Array.isArray(data.results) ? data.results.filter(r => r.totalWon > 0) : [];
     let details = '';
+    let topWinner = null;
     if (winners.length > 0) {
-      const topWinner = winners.sort((a, b) => b.totalWon - a.totalWon)[0];
+      topWinner = winners.sort((a, b) => b.totalWon - a.totalWon)[0];
       details = ` — ${topWinner.playerName} won ${topWinner.totalWon.toLocaleString()} chips!`;
     }
 
+    // 1. Announce to Roulette Table Chat
     broadcastChatMessage({
       sender: 'CASINO',
       color: '#d4af37', // Gold
-      text: winAnnouncement + details,
+      text: `[CASINO] Round result: ${data.winningNumber} ${colorCap}${details ? details : ' — Geen winnaars deze ronde.'}`,
       timestamp: Date.now(),
-      isSystem: true
+      isSystem: true,
+      scope: 'table',
+      table: 'roulette'
     });
+
+    // 2. If there are winners, broadcast to Global Casino Chat
+    if (topWinner && topWinner.totalWon > 0) {
+      const isGrand = topWinner.totalWon >= 1000;
+      broadcastChatMessage({
+        sender: 'CASINO',
+        color: '#d4af37',
+        text: isGrand
+          ? `[GRAND WIN] ${topWinner.playerName} wint ${topWinner.totalWon.toLocaleString()} fiches op Roulette (${data.winningNumber} ${colorCap})!`
+          : `[CASINO] ${topWinner.playerName} wint ${topWinner.totalWon.toLocaleString()} fiches op Roulette (${data.winningNumber} ${colorCap})!`,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'global',
+        table: 'all'
+      });
+    }
 
     // Check if any win repayments occurred on active debts
     if (Array.isArray(data.results)) {
@@ -268,9 +365,11 @@ function setupSocket(httpServer, options = {}) {
             broadcastChatMessage({
               sender: 'BANK',
               color: '#10b981',
-              text: `${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+              text: `[BANK] ${r.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
               timestamp: Date.now(),
-              isSystem: true
+              isSystem: true,
+              scope: 'table',
+              table: 'roulette'
             });
 
             // Update lender socket
@@ -591,12 +690,22 @@ function setupSocket(httpServer, options = {}) {
       const capped = rawText.slice(0, 150);
       const sanitized = sanitizeHtml(capped);
 
+      const scope = (payload && payload.scope === 'table') ? 'table' : 'global';
+      let table = 'roulette';
+      if (payload && typeof payload.table === 'string' && payload.table.trim()) {
+        table = payload.table.trim();
+      } else if (player.currentGame === 'Blackjack') {
+        table = (player.location && player.location.startsWith('table_')) ? player.location : 'table_1';
+      }
+
       broadcastChatMessage({
         sender: sanitizeHtml(player.name),
         color: player.color,
         text: sanitized,
         timestamp: Date.now(),
-        isSystem: false
+        isSystem: false,
+        scope,
+        table
       });
     });
 
@@ -635,7 +744,7 @@ function setupSocket(httpServer, options = {}) {
       broadcastChatMessage({
         sender: 'BANK',
         color: '#10b981',
-        text: `${player.name} heeft ${res.transaction.amount.toLocaleString()} fiches geschonken aan ${res.toPlayer.name}.`,
+        text: `[BANK] ${player.name} heeft ${res.transaction.amount.toLocaleString()} fiches geschonken aan ${res.toPlayer.name}.`,
         timestamp: Date.now(),
         isSystem: true
       });
@@ -699,7 +808,7 @@ function setupSocket(httpServer, options = {}) {
         broadcastChatMessage({
           sender: 'BANK',
           color: '#10b981',
-          text: `Deal gesloten: ${res.lender.name} verstrekt ${res.loan.amount.toLocaleString()} fiches aan ${res.borrower.name} (${res.loan.interestPct}% rente, ${res.loan.winDeductionPct}% winstinhouding).`,
+          text: `[BANK] Deal gesloten: ${res.lender.name} verstrekt ${res.loan.amount.toLocaleString()} fiches aan ${res.borrower.name} (${res.loan.interestPct}% rente, ${res.loan.winDeductionPct}% winstinhouding).`,
           timestamp: Date.now(),
           isSystem: true
         });
@@ -789,7 +898,7 @@ function setupSocket(httpServer, options = {}) {
       broadcastChatMessage({
         sender: 'CASINO',
         color: '#d4af37',
-        text: `${player.name} ontving 100 noodfiches van het casinofonds.`,
+        text: `[CASINO] ${player.name} ontving 100 noodfiches van het casinofonds.`,
         timestamp: Date.now(),
         isSystem: true
       });
