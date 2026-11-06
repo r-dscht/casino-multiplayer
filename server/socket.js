@@ -157,6 +157,9 @@ function setupSocket(httpServer, options = {}) {
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
 
+      // Send initial player profile to client
+      socket.emit('profile_data', playerManager.getPlayerProfile(player.id));
+
       // Broadcast join event to everyone else
       socket.broadcast.emit('player_joined', {
         player: {
@@ -164,7 +167,8 @@ function setupSocket(httpServer, options = {}) {
           name: player.name,
           avatar: player.avatar,
           color: player.color,
-          chips: player.chips
+          chips: player.chips,
+          currentGame: player.currentGame || 'Roulette'
         }
       });
       broadcastPlayersUpdate();
@@ -505,7 +509,40 @@ function setupSocket(httpServer, options = {}) {
       });
     });
 
-    // 6. disconnect
+    // 6. Player Profile & Presence Protocol
+
+    socket.on('profile_get', (payload = {}) => {
+      const targetId = payload.playerId || currentSocketPlayerId;
+      if (!targetId) return;
+      const profile = playerManager.getPlayerProfile(targetId);
+      if (profile) {
+        socket.emit('profile_data', profile);
+      }
+    });
+
+    socket.on('profile_update', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const color = payload.color || (payload.customization && payload.customization.color);
+      const avatar = payload.avatar || (payload.customization && payload.customization.avatar);
+      const updated = playerManager.updatePlayerCustomization(player.id, { color, avatar });
+      if (updated) {
+        const fullProfile = playerManager.getPlayerProfile(player.id);
+        socket.emit('profile_updated', fullProfile);
+        socket.emit('profile_data', fullProfile);
+        broadcastPlayersUpdate();
+      }
+    });
+
+    socket.on('player_set_game', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const game = payload.game || 'Roulette';
+      playerManager.setPlayerGame(player.id, game);
+      broadcastPlayersUpdate();
+    });
+
+    // 7. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {

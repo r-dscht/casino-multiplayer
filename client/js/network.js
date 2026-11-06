@@ -164,6 +164,15 @@
       this.socket.on('bank_bailout_claimed', (data) => {
         this.emitInternal('bank_bailout_claimed', data);
       });
+
+      // Player Profile & Presence events
+      this.socket.on('profile_data', (data) => {
+        this.emitInternal('profile_data', data);
+      });
+
+      this.socket.on('profile_updated', (data) => {
+        this.emitInternal('profile_updated', data);
+      });
     }
 
     /**
@@ -263,6 +272,33 @@
     claimBailout() {
       if (!this.socket) return;
       this.socket.emit('bank_claim_bailout', {});
+    }
+
+    /**
+     * Requests profile information for a player.
+     * @param {string} [playerId] 
+     */
+    getProfile(playerId) {
+      if (!this.socket) return;
+      this.socket.emit('profile_get', { playerId });
+    }
+
+    /**
+     * Updates profile customization (color, avatar).
+     * @param {{ color?: string, avatar?: string }} customization 
+     */
+    updateProfile(customization) {
+      if (!this.socket) return;
+      this.socket.emit('profile_update', customization);
+    }
+
+    /**
+     * Updates player active game presence.
+     * @param {string} game 
+     */
+    setGamePresence(game) {
+      if (!this.socket) return;
+      this.socket.emit('player_set_game', { game });
     }
   }
 

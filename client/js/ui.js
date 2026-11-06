@@ -37,6 +37,17 @@
     { name: 'Coral', color: '#F97316' }
   ];
 
+  function getMonogram(name) {
+    if (!name || typeof name !== 'string') return '?';
+    const clean = name.trim();
+    if (!clean) return '?';
+    const parts = clean.split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return clean.slice(0, 2).toUpperCase();
+  }
+
   class CasinoUI {
     /**
      * @param {Object} options
@@ -77,6 +88,8 @@
       this.setupChipDock();
       this.setupChat();
       this.setupSidebarTabs();
+      this.setupProfileTab();
+      this.setupInspectorModal();
     }
 
     cacheElements() {
@@ -115,6 +128,34 @@
         tableTotalChips: document.getElementById('table-total-chips'),
         playersOnlineCount: document.getElementById('players-online-count'),
 
+        // Profile Tab
+        profileAvatarDisc: document.getElementById('profile-avatar-disc'),
+        profileMonogramLetter: document.getElementById('profile-monogram-letter'),
+        profileUserName: document.getElementById('profile-user-name'),
+        profilePresenceBadge: document.getElementById('profile-presence-badge'),
+        profilePresenceText: document.getElementById('profile-presence-text'),
+        profileStatChips: document.getElementById('profile-stat-chips'),
+        profileStatRounds: document.getElementById('profile-stat-rounds'),
+        profileStatTotalWon: document.getElementById('profile-stat-total-won'),
+        profileStatBiggestWin: document.getElementById('profile-stat-biggest-win'),
+        profileMemberDate: document.getElementById('profile-member-date'),
+        profileColorPalette: document.getElementById('profile-color-palette'),
+
+        // Player Inspector Modal
+        inspectorModal: document.getElementById('player-profile-modal'),
+        btnCloseProfileModal: document.getElementById('btn-close-profile-modal'),
+        inspectorAvatarDisc: document.getElementById('inspector-avatar-disc'),
+        inspectorMonogramLetter: document.getElementById('inspector-monogram-letter'),
+        inspectorUserName: document.getElementById('inspector-user-name'),
+        inspectorPresenceBadge: document.getElementById('inspector-presence-badge'),
+        inspectorPresenceText: document.getElementById('inspector-presence-text'),
+        inspectorStatChips: document.getElementById('inspector-stat-chips'),
+        inspectorStatRounds: document.getElementById('inspector-stat-rounds'),
+        inspectorStatTotalWon: document.getElementById('inspector-stat-total-won'),
+        inspectorStatBiggestWin: document.getElementById('inspector-stat-biggest-win'),
+        inspectorMemberDate: document.getElementById('inspector-member-date'),
+        btnInspectorTransfer: document.getElementById('btn-inspector-transfer'),
+
         // Chat
         chatContainer: document.getElementById('chat-messages-container'),
         chatForm: document.getElementById('chat-form'),
@@ -127,25 +168,28 @@
       };
     }
 
+    switchSidebarTab(targetTab) {
+      if (this.elements.sidebarTabs) {
+        this.elements.sidebarTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === targetTab));
+      }
+      if (this.elements.tabPanes) {
+        this.elements.tabPanes.forEach(pane => pane.classList.toggle('active', pane.id === `tab-pane-${targetTab}`));
+      }
+    }
+
     setupSidebarTabs() {
       if (!this.elements.sidebarTabs) return;
       this.elements.sidebarTabs.forEach(tab => {
         tab.addEventListener('click', () => {
-          const targetTab = tab.dataset.tab;
-          this.elements.sidebarTabs.forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-
-          if (this.elements.tabPanes) {
-            this.elements.tabPanes.forEach(pane => {
-              if (pane.id === `tab-pane-${targetTab}`) {
-                pane.classList.add('active');
-              } else {
-                pane.classList.remove('active');
-              }
-            });
-          }
+          this.switchSidebarTab(tab.dataset.tab);
         });
       });
+
+      if (this.elements.avatarDisc) {
+        this.elements.avatarDisc.addEventListener('click', () => {
+          this.switchSidebarTab('profile');
+        });
+      }
     }
 
     /* =========================================================================
@@ -264,6 +308,10 @@
     updatePlayerHUD() {
       if (this.elements.avatarDisc) {
         this.elements.avatarDisc.style.backgroundColor = this.myPlayer.color;
+        this.elements.avatarDisc.classList.add('avatar-monogram');
+        this.elements.avatarDisc.innerHTML = `<span class="monogram-letter">${getMonogram(this.myPlayer.name)}</span>`;
+        this.elements.avatarDisc.title = 'Bekijk je profiel';
+        this.elements.avatarDisc.style.cursor = 'pointer';
       }
       if (this.elements.playerName) {
         this.elements.playerName.textContent = this.myPlayer.name;
@@ -271,6 +319,134 @@
       if (this.elements.playerChips) {
         this.elements.playerChips.textContent = `${this.myPlayer.chips.toLocaleString()} CHIPS`;
       }
+      this.renderMyProfile();
+    }
+
+    setupProfileTab() {
+      if (!this.elements.profileColorPalette) return;
+      this.elements.profileColorPalette.innerHTML = '';
+
+      LUXURY_SWATCHES.forEach(swatch => {
+        const div = document.createElement('div');
+        div.className = 'color-swatch' + (swatch.color === this.myPlayer.color ? ' active' : '');
+        div.dataset.color = swatch.color;
+        div.title = swatch.name;
+        div.style.backgroundColor = swatch.color;
+
+        div.addEventListener('click', () => {
+          document.querySelectorAll('#profile-color-palette .color-swatch').forEach(s => s.classList.remove('active'));
+          div.classList.add('active');
+          this.myPlayer.color = swatch.color;
+          this.updatePlayerHUD();
+          if (typeof this.options.onUpdateCustomization === 'function') {
+            this.options.onUpdateCustomization({ color: swatch.color });
+          }
+        });
+
+        this.elements.profileColorPalette.appendChild(div);
+      });
+    }
+
+    renderMyProfile(profileData = {}) {
+      const stats = profileData.stats || (this.myPlayer.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 });
+      const chips = typeof profileData.chips === 'number' ? profileData.chips : this.myPlayer.chips;
+      const color = profileData.color || this.myPlayer.color || '#D4AF37';
+      const name = profileData.name || this.myPlayer.name;
+      const game = profileData.currentGame || this.myPlayer.currentGame || 'Roulette';
+
+      if (this.elements.profileAvatarDisc) {
+        this.elements.profileAvatarDisc.style.backgroundColor = color;
+      }
+      if (this.elements.profileMonogramLetter) {
+        this.elements.profileMonogramLetter.textContent = getMonogram(name);
+      }
+      if (this.elements.profileUserName) {
+        this.elements.profileUserName.textContent = name;
+      }
+      if (this.elements.profilePresenceText) {
+        this.elements.profilePresenceText.textContent = game;
+      }
+      if (this.elements.profileStatChips) {
+        this.elements.profileStatChips.textContent = chips.toLocaleString();
+      }
+      if (this.elements.profileStatRounds) {
+        this.elements.profileStatRounds.textContent = (stats.roundsPlayed || 0).toLocaleString();
+      }
+      if (this.elements.profileStatTotalWon) {
+        this.elements.profileStatTotalWon.textContent = (stats.totalWon || 0).toLocaleString();
+      }
+      if (this.elements.profileStatBiggestWin) {
+        this.elements.profileStatBiggestWin.textContent = (stats.biggestWin || 0).toLocaleString();
+      }
+      if (this.elements.profileMemberDate) {
+        const ts = profileData.createdAt || this.myPlayer.createdAt;
+        const d = ts ? new Date(ts) : new Date();
+        this.elements.profileMemberDate.textContent = d.toLocaleDateString('nl-NL');
+      }
+    }
+
+    setupInspectorModal() {
+      if (this.elements.btnCloseProfileModal) {
+        this.elements.btnCloseProfileModal.addEventListener('click', () => {
+          if (this.elements.inspectorModal) this.elements.inspectorModal.classList.add('hidden');
+        });
+      }
+      if (this.elements.inspectorModal) {
+        this.elements.inspectorModal.addEventListener('click', (e) => {
+          if (e.target === this.elements.inspectorModal) {
+            this.elements.inspectorModal.classList.add('hidden');
+          }
+        });
+      }
+    }
+
+    showPlayerProfile(p) {
+      if (!p || !this.elements.inspectorModal) return;
+      const stats = p.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };
+      const chips = typeof p.chips === 'number' ? p.chips : 0;
+      const color = p.color || '#D4AF37';
+      const name = p.name || 'Speler';
+      const game = p.currentGame || 'Roulette';
+
+      if (this.elements.inspectorAvatarDisc) {
+        this.elements.inspectorAvatarDisc.style.backgroundColor = color;
+      }
+      if (this.elements.inspectorMonogramLetter) {
+        this.elements.inspectorMonogramLetter.textContent = getMonogram(name);
+      }
+      if (this.elements.inspectorUserName) {
+        this.elements.inspectorUserName.textContent = name;
+      }
+      if (this.elements.inspectorPresenceText) {
+        this.elements.inspectorPresenceText.textContent = game;
+      }
+      if (this.elements.inspectorStatChips) {
+        this.elements.inspectorStatChips.textContent = chips.toLocaleString();
+      }
+      if (this.elements.inspectorStatRounds) {
+        this.elements.inspectorStatRounds.textContent = (stats.roundsPlayed || 0).toLocaleString();
+      }
+      if (this.elements.inspectorStatTotalWon) {
+        this.elements.inspectorStatTotalWon.textContent = (stats.totalWon || 0).toLocaleString();
+      }
+      if (this.elements.inspectorStatBiggestWin) {
+        this.elements.inspectorStatBiggestWin.textContent = (stats.biggestWin || 0).toLocaleString();
+      }
+      if (this.elements.inspectorMemberDate) {
+        const d = p.createdAt ? new Date(p.createdAt) : new Date();
+        this.elements.inspectorMemberDate.textContent = d.toLocaleDateString('nl-NL');
+      }
+
+      if (this.elements.btnInspectorTransfer) {
+        this.elements.btnInspectorTransfer.onclick = () => {
+          this.elements.inspectorModal.classList.add('hidden');
+          if (typeof this.options.onOpenTransferToPlayer === 'function') {
+            this.options.onOpenTransferToPlayer(p.id);
+          }
+        };
+      }
+
+      this.elements.inspectorModal.classList.remove('hidden');
     }
 
     /* =========================================================================
@@ -850,18 +1026,34 @@
         const item = document.createElement('div');
         const isMe = p.id === this.myPlayer.id;
         item.className = 'leaderboard-item' + (isMe ? ' is-me' : '');
+        item.title = isMe ? 'Jouw profiel' : `${p.name} inspecteren`;
+        item.style.cursor = 'pointer';
 
         const rankIcon = (idx + 1).toString();
         const nameSuffix = isMe ? ' (Jij)' : '';
+        const game = p.currentGame || 'Roulette';
+        const gameSlug = game.toLowerCase();
 
         item.innerHTML = `
           <div class="leaderboard-rank">${rankIcon}</div>
-          <div class="leaderboard-avatar" style="background-color: ${p.color || '#D4AF37'};"></div>
+          <div class="leaderboard-avatar avatar-monogram" style="background-color: ${p.color || '#D4AF37'};">
+            <span class="monogram-letter-sm">${getMonogram(p.name)}</span>
+          </div>
           <div class="leaderboard-details">
-            <span class="leaderboard-name">${p.name}${nameSuffix}</span>
+            <div class="leaderboard-name-row">
+              <span class="leaderboard-name">${p.name}${nameSuffix}</span>
+              <span class="presence-badge badge-${gameSlug}"><span class="presence-dot"></span>${game}</span>
+            </div>
             <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} fiches</span>
           </div>
         `;
+
+        item.addEventListener('click', () => {
+          if (typeof this.options.onInspectPlayer === 'function') {
+            this.options.onInspectPlayer(p.id);
+          }
+        });
+
         this.elements.leaderboardList.appendChild(item);
       });
     }

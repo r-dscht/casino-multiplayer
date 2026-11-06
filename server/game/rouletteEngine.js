@@ -174,6 +174,12 @@ class RouletteEngine extends EventEmitter {
 
       const currentChips = player ? player.chips : 0;
 
+      // Update player statistics
+      let updatedStats = null;
+      if (typeof this.playerManager.updatePlayerStats === 'function') {
+        updatedStats = this.playerManager.updatePlayerStats(playerId, { wonAmount: totalWon });
+      }
+
       results.push({
         playerId,
         playerName,
@@ -181,6 +187,7 @@ class RouletteEngine extends EventEmitter {
         totalWon,
         net,
         chips: currentChips,
+        stats: updatedStats || (player ? player.stats : null),
         winningBets,
         repayments
       });

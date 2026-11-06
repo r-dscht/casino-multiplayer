@@ -111,6 +111,7 @@
           <button class="sidebar-tab active" data-tab="chat">Chat</button>
           <button class="sidebar-tab" data-tab="leaderboard">Ranglijst</button>
           <button class="sidebar-tab" data-tab="bets">Inzetten <span id="bets-count-badge" class="tab-badge">0</span></button>
+          <button class="sidebar-tab" data-tab="profile">Profiel</button>
         </div>
 
         <div class="chat-drawer">
@@ -150,6 +151,58 @@
             </div>
             <div class="active-bets-scroll" id="active-bets-list">
               <div class="empty-state-notice">Nog geen inzetten geplaatst deze ronde</div>
+            </div>
+          </div>
+
+          <!-- 4. Profile Tab -->
+          <div class="sidebar-tab-pane" id="tab-pane-profile">
+            <div class="profile-tab-content">
+              <div class="profile-card glass-panel">
+                <div class="profile-header">
+                  <div class="avatar-disc avatar-monogram avatar-lg" id="profile-avatar-disc" style="background-color: #D4AF37;">
+                    <span class="monogram-letter" id="profile-monogram-letter">R</span>
+                  </div>
+                  <div class="profile-user-info">
+                    <h3 class="profile-user-name" id="profile-user-name">VIP Player</h3>
+                    <div class="presence-badge badge-roulette" id="profile-presence-badge">
+                      <span class="presence-dot"></span>
+                      <span id="profile-presence-text">Roulette</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="profile-stats-grid">
+                  <div class="stat-box">
+                    <span class="stat-box-label">Saldo</span>
+                    <span class="stat-box-val text-gold" id="profile-stat-chips">10.000</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-box-label">Rondes</span>
+                    <span class="stat-box-val" id="profile-stat-rounds">0</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-box-label">Totaal Gewonnen</span>
+                    <span class="stat-box-val text-emerald" id="profile-stat-total-won">0</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-box-label">Grootste Winst</span>
+                    <span class="stat-box-val text-gold" id="profile-stat-biggest-win">0</span>
+                  </div>
+                </div>
+
+                <!-- Member Since -->
+                <div class="profile-member-since">
+                  <span>Lid sinds:</span>
+                  <strong id="profile-member-date">Vandaag</strong>
+                </div>
+
+                <!-- Live Color Customization -->
+                <div class="profile-color-section">
+                  <span class="field-label">Avatar Accentkleur</span>
+                  <div class="color-palette" id="profile-color-palette"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -393,6 +446,62 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- Player Profile Inspector Modal -->
+    <div class="modal-overlay hidden" id="player-profile-modal">
+      <div class="modal-content profile-inspector-content glass-panel">
+        <div class="modal-header-row">
+          <div>
+            <h2 class="gold-text">Spelersprofiel</h2>
+            <p class="modal-subtitle">Spelerinformatie en casino-prestaties</p>
+          </div>
+          <button class="btn-modal-close" id="btn-close-profile-modal" aria-label="Sluiten">&times;</button>
+        </div>
+
+        <div class="inspector-card">
+          <div class="profile-header">
+            <div class="avatar-disc avatar-monogram avatar-lg" id="inspector-avatar-disc" style="background-color: #D4AF37;">
+              <span class="monogram-letter" id="inspector-monogram-letter">?</span>
+            </div>
+            <div class="profile-user-info">
+              <h3 class="profile-user-name" id="inspector-user-name">Player</h3>
+              <div class="presence-badge" id="inspector-presence-badge">
+                <span class="presence-dot"></span>
+                <span id="inspector-presence-text">Roulette</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-stats-grid">
+            <div class="stat-box">
+              <span class="stat-box-label">Saldo</span>
+              <span class="stat-box-val text-gold" id="inspector-stat-chips">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-box-label">Rondes</span>
+              <span class="stat-box-val" id="inspector-stat-rounds">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-box-label">Totaal Gewonnen</span>
+              <span class="stat-box-val text-emerald" id="inspector-stat-total-won">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-box-label">Grootste Winst</span>
+              <span class="stat-box-val text-gold" id="inspector-stat-biggest-win">0</span>
+            </div>
+          </div>
+
+          <div class="profile-member-since">
+            <span>Lid sinds:</span>
+            <strong id="inspector-member-date">-</strong>
+          </div>
+
+          <div class="inspector-actions">
+            <button class="btn btn-gold btn-block btn-lg" id="btn-inspector-transfer">Fiches Overmaken</button>
+          </div>
+        </div>
       </div>
     </div>
 

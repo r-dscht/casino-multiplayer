@@ -29,6 +29,17 @@ function sanitizeName(rawName) {
   return clean.slice(0, 16);
 }
 
+function getMonogram(name) {
+  if (!name || typeof name !== 'string') return '?';
+  const clean = name.trim();
+  if (!clean) return '?';
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
 class PlayerManager {
   /**
    * @param {Object} [config]
@@ -167,11 +178,25 @@ class PlayerManager {
         passwordHash: providedPassword ? this.hashPassword(providedPassword) : '',
         chips: STARTING_CHIPS,
         color: chosenColor,
+        stats: {
+          roundsPlayed: 0,
+          totalWon: 0,
+          biggestWin: 0
+        },
+        currentGame: 'Roulette',
         createdAt: Date.now(),
         lastLogin: Date.now()
       };
       this.accounts.set(normKey, savedAccount);
       this.saveAccounts();
+    }
+
+    // Ensure stats exist on legacy loaded accounts
+    if (!savedAccount.stats) {
+      savedAccount.stats = { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };
+    }
+    if (!savedAccount.currentGame) {
+      savedAccount.currentGame = 'Roulette';
     }
 
     // Check if player object is already in active memory with this usernameKey
@@ -191,6 +216,8 @@ class PlayerManager {
       existingPlayer.connected = true;
       existingPlayer.name = savedAccount.name || cleanName;
       existingPlayer.chips = savedAccount.chips;
+      existingPlayer.stats = savedAccount.stats;
+      existingPlayer.currentGame = savedAccount.currentGame || 'Roulette';
       if (opts.color) existingPlayer.color = opts.color;
       if (opts.avatar) existingPlayer.avatar = opts.avatar;
 
@@ -208,9 +235,11 @@ class PlayerManager {
       avatar: opts.avatar || 'avatar_1',
       color: opts.color || savedAccount.color,
       chips: savedAccount.chips,
+      stats: savedAccount.stats,
+      currentGame: savedAccount.currentGame || 'Roulette',
       connected: true,
       isHost: this.players.size === 0,
-      createdAt: Date.now()
+      createdAt: savedAccount.createdAt || Date.now()
     };
 
     this.players.set(id, newPlayer);
@@ -325,6 +354,118 @@ class PlayerManager {
   }
 
   /**
+   * Updates player gameplay statistics (rounds played, total won, biggest win).
+   * @param {string} playerId 
+   * @param {{ wonAmount?: number }} params 
+   * @returns {Object|null} Updated stats
+   */
+  updatePlayerStats(playerId, { wonAmount = 0 } = {}) {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+    if (!player.stats) {
+      player.stats = { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };
+    }
+    player.stats.roundsPlayed += 1;
+    if (typeof wonAmount === 'number' && wonAmount > 0) {
+      player.stats.totalWon += wonAmount;
+      if (wonAmount > player.stats.biggestWin) {
+        player.stats.biggestWin = wonAmount;
+      }
+    }
+    if (player.usernameKey && this.accounts.has(player.usernameKey)) {
+      this.accounts.get(player.usernameKey).stats = { ...player.stats };
+      this.saveAccounts();
+    }
+    return player.stats;
+  }
+
+  /**
+   * Updates active game status (presence).
+   * @param {string} playerId 
+   * @param {string} gameName 
+   * @returns {boolean}
+   */
+  setPlayerGame(playerId, gameName) {
+    const player = this.players.get(playerId);
+    if (!player) return false;
+    const cleanGame = (typeof gameName === 'string' && gameName.trim())
+      ? gameName.trim().slice(0, 24)
+      : 'Roulette';
+    player.currentGame = cleanGame;
+    if (player.usernameKey && this.accounts.has(player.usernameKey)) {
+      this.accounts.get(player.usernameKey).currentGame = cleanGame;
+      this.saveAccounts();
+    }
+    return true;
+  }
+
+  /**
+   * Updates avatar or accent color customization.
+   * @param {string} playerId 
+   * @param {{ color?: string, avatar?: string }} params 
+   * @returns {boolean}
+   */
+  updatePlayerCustomization(playerId, { color, avatar } = {}) {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+    if (typeof color === 'string' && color.startsWith('#')) {
+      player.color = color;
+    }
+    if (typeof avatar === 'string' && avatar.trim()) {
+      player.avatar = avatar.trim().slice(0, 24);
+    }
+    if (player.usernameKey && this.accounts.has(player.usernameKey)) {
+      const acc = this.accounts.get(player.usernameKey);
+      if (player.color) acc.color = player.color;
+      if (player.avatar) acc.avatar = player.avatar;
+      this.saveAccounts();
+    }
+    return player;
+  }
+
+  /**
+   * Returns comprehensive public player profile with monogram and statistics.
+   * @param {string} playerId 
+   * @returns {Object|null}
+   */
+  getPlayerProfile(playerId) {
+    const player = this.players.get(playerId);
+    if (!player) {
+      for (const acc of this.accounts.values()) {
+        if (acc.name.toLowerCase() === String(playerId).toLowerCase()) {
+          return {
+            id: playerId,
+            name: acc.name,
+            monogram: getMonogram(acc.name),
+            color: acc.color,
+            avatar: acc.avatar || 'avatar_1',
+            chips: acc.chips,
+            currentGame: acc.currentGame || 'Offline',
+            connected: false,
+            stats: acc.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
+            createdAt: acc.createdAt || Date.now()
+          };
+        }
+      }
+      return null;
+    }
+
+    const savedAccount = player.usernameKey ? this.accounts.get(player.usernameKey) : null;
+    return {
+      id: player.id,
+      name: player.name,
+      monogram: getMonogram(player.name),
+      color: player.color,
+      avatar: player.avatar || 'avatar_1',
+      chips: player.chips,
+      currentGame: player.currentGame || 'Roulette',
+      connected: !!player.connected,
+      stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
+      createdAt: (savedAccount && savedAccount.createdAt) ? savedAccount.createdAt : player.createdAt
+    };
+  }
+
+  /**
    * Returns list of connected players formatted for table state broadcasts.
    * @returns {Array<Object>}
    */
@@ -335,9 +476,12 @@ class PlayerManager {
         list.push({
           id: player.id,
           name: player.name,
+          monogram: getMonogram(player.name),
           avatar: player.avatar,
           color: player.color,
           chips: player.chips,
+          currentGame: player.currentGame || 'Roulette',
+          stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
           isHost: player.isHost
         });
       }
@@ -355,3 +499,4 @@ class PlayerManager {
 }
 
 module.exports = PlayerManager;
+module.exports.getMonogram = getMonogram;

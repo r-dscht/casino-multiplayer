@@ -70,6 +70,21 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onSendChat: (text) => {
       network.sendChat(text);
+    },
+    onInspectPlayer: (playerId) => {
+      network.getProfile(playerId);
+    },
+    onUpdateCustomization: (customization) => {
+      network.updateProfile(customization);
+    },
+    onOpenTransferToPlayer: (playerId) => {
+      if (bank) {
+        bank.open();
+        bank.switchTab('transfer');
+        if (bank.selectTransferRecipient) {
+          bank.selectTransferRecipient.value = playerId;
+        }
+      }
     }
   });
 
@@ -112,7 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.myPlayer.chips = me.chips;
         ui.myPlayer.name = me.name;
         ui.myPlayer.color = me.color;
+        ui.myPlayer.currentGame = me.currentGame || 'Roulette';
+        if (me.stats) ui.myPlayer.stats = me.stats;
+        if (me.createdAt) ui.myPlayer.createdAt = me.createdAt;
         ui.updatePlayerHUD();
+        ui.renderMyProfile(me);
       }
     }
 
@@ -215,6 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
       myResult = data.results.find(r => r.playerId === ui.myPlayer.id);
       if (myResult) {
         ui.myPlayer.chips = myResult.chips;
+        if (myResult.stats) {
+          ui.myPlayer.stats = myResult.stats;
+          ui.renderMyProfile();
+        }
         ui.updatePlayerHUD();
       }
     }
@@ -276,10 +299,52 @@ document.addEventListener('DOMContentLoaded', () => {
       const me = players.find(p => p.id === ui.myPlayer.id);
       if (me) {
         ui.myPlayer.chips = me.chips;
+        if (me.currentGame) ui.myPlayer.currentGame = me.currentGame;
+        if (me.stats) ui.myPlayer.stats = me.stats;
+        if (me.createdAt) ui.myPlayer.createdAt = me.createdAt;
         ui.updatePlayerHUD();
+        ui.renderMyProfile(me);
         if (bank) bank.updateBankData(bank.currentBankData);
       }
     }
+  });
+
+  network.on('profile_data', (profile) => {
+    if (!profile) return;
+    if (profile.id === ui.myPlayer.id) {
+      ui.myPlayer.stats = profile.stats;
+      ui.myPlayer.createdAt = profile.createdAt;
+      ui.myPlayer.currentGame = profile.currentGame;
+      ui.renderMyProfile(profile);
+    } else {
+      ui.showPlayerProfile(profile);
+    }
+  });
+
+  network.on('profile_updated', (profile) => {
+    if (!profile) return;
+    if (profile.id === ui.myPlayer.id) {
+      ui.myPlayer.stats = profile.stats;
+      ui.myPlayer.color = profile.color;
+      ui.myPlayer.createdAt = profile.createdAt;
+      ui.myPlayer.currentGame = profile.currentGame;
+      ui.updatePlayerHUD();
+      ui.renderMyProfile(profile);
+      ui.showToast('Profielkleur bijgewerkt!', 'success');
+    }
+  });
+
+  // Game Presence switcher pills
+  document.querySelectorAll('.game-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const game = btn.dataset.game;
+      if (game === 'roulette') {
+        network.setGamePresence('Roulette');
+        ui.showToast('Je speelt nu Roulette', 'info');
+      } else {
+        ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
+      }
+    });
   });
 
   network.on('chips_update', (data) => {
