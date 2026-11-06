@@ -1433,6 +1433,34 @@
      * ========================================================================= */
 
     /**
+     * Computes the Blackjack score for an array of cards with soft Ace handling.
+     * @param {Array<{ rank: string, value: number, hidden?: boolean }>} [cards=[]]
+     * @returns {number}
+     */
+    computeCardsScore(cards = []) {
+      if (!Array.isArray(cards) || cards.length === 0) return 0;
+      let total = 0;
+      let aces = 0;
+      for (const c of cards) {
+        if (!c || c.hidden) continue;
+        const rank = String(c.rank || '');
+        if (rank === 'A') {
+          aces++;
+          total += 11;
+        } else if (['K', 'Q', 'J', '10'].includes(rank)) {
+          total += 10;
+        } else {
+          total += parseInt(rank, 10) || (c.value || 0);
+        }
+      }
+      while (total > 21 && aces > 0) {
+        total -= 10;
+        aces--;
+      }
+      return total;
+    }
+
+    /**
      * Renders a 3D perspective playing card with luxury vector graphics. Zero emojis.
      * @param {{ suit: string, rank: string, value: number, hidden?: boolean, isBlackjack?: boolean }} card 
      * @param {boolean} [isDealerHole=false] 
@@ -1510,13 +1538,15 @@
 
       if (this.elements.bjDealerScore) {
         if (isHoleMasked) {
-          // Show only upcard rank
-          const upcardRank = cards[0] ? cards[0].rank : '';
+          // Show only upcard rank or value
+          const upcard = cards[0];
+          const upcardRank = upcard ? (upcard.rank || upcard.value || '') : '';
           this.elements.bjDealerScore.textContent = upcardRank ? `${upcardRank}` : '?';
         } else {
-          let scoreText = `${score}`;
-          if (score > 21) scoreText = `BUST ${score}`;
-          else if (score === 21 && cards.length === 2) scoreText = 'BJ 21';
+          const effectiveScore = (typeof score === 'number' && score > 0) ? score : this.computeCardsScore(cards);
+          let scoreText = `${effectiveScore}`;
+          if (effectiveScore > 21) scoreText = `BUST ${effectiveScore}`;
+          else if (effectiveScore === 21 && cards.length === 2) scoreText = 'BJ 21';
           this.elements.bjDealerScore.textContent = scoreText;
         }
         this.elements.bjDealerScore.classList.remove('hidden');
@@ -1596,19 +1626,26 @@
 
           // Hand 0 cards & score
           const hand0 = seat.hands && seat.hands[0];
-          if (dock0 && hand0) {
-            if (Array.isArray(hand0.cards) && hand0.cards.length > 0) {
+          const cards0 = (hand0 && Array.isArray(hand0.cards) && hand0.cards.length > 0)
+            ? hand0.cards
+            : (Array.isArray(seat.cards) ? seat.cards : []);
+
+          if (dock0) {
+            if (cards0.length > 0) {
               let h0Html = '';
-              hand0.cards.forEach(c => {
+              cards0.forEach(c => {
                 h0Html += this.renderBlackjackCardHtml(c, false);
               });
               dock0.innerHTML = h0Html;
 
               if (score0) {
-                let scoreText = `${hand0.value || 0}`;
-                if (hand0.value > 21) scoreText = `BUST ${hand0.value}`;
-                else if (hand0.value === 21 && hand0.cards.length === 2 && !hand0.isSplitHand) scoreText = 'BJ 21';
-                else if (hand0.isSoft) scoreText = `Soft ${hand0.value}`;
+                const scoreVal = (hand0 && typeof hand0.value === 'number' && hand0.value > 0)
+                  ? hand0.value
+                  : this.computeCardsScore(cards0);
+                let scoreText = `${scoreVal}`;
+                if (scoreVal > 21) scoreText = `BUST ${scoreVal}`;
+                else if (scoreVal === 21 && cards0.length === 2 && !(hand0 && hand0.isSplitHand)) scoreText = 'BJ 21';
+                else if (hand0 && hand0.isSoft) scoreText = `Soft ${scoreVal}`;
                 score0.textContent = scoreText;
                 score0.classList.remove('hidden');
               }
@@ -1621,18 +1658,22 @@
           // Hand 1 (Split hand) cards & score
           const hand1 = seat.hands && seat.hands[1];
           if (handBlock1 && dock1) {
-            if (hand1 && Array.isArray(hand1.cards) && hand1.cards.length > 0) {
+            const cards1 = (hand1 && Array.isArray(hand1.cards) && hand1.cards.length > 0) ? hand1.cards : [];
+            if (cards1.length > 0) {
               handBlock1.classList.remove('hidden');
               let h1Html = '';
-              hand1.cards.forEach(c => {
+              cards1.forEach(c => {
                 h1Html += this.renderBlackjackCardHtml(c, false);
               });
               dock1.innerHTML = h1Html;
 
               if (score1) {
-                let scoreText = `${hand1.value || 0}`;
-                if (hand1.value > 21) scoreText = `BUST ${hand1.value}`;
-                else if (hand1.isSoft) scoreText = `Soft ${hand1.value}`;
+                const scoreVal = (hand1 && typeof hand1.value === 'number' && hand1.value > 0)
+                  ? hand1.value
+                  : this.computeCardsScore(cards1);
+                let scoreText = `${scoreVal}`;
+                if (scoreVal > 21) scoreText = `BUST ${scoreVal}`;
+                else if (hand1 && hand1.isSoft) scoreText = `Soft ${scoreVal}`;
                 score1.textContent = scoreText;
                 score1.classList.remove('hidden');
               }
@@ -1820,6 +1861,7 @@
       }
 
       this.updateChatTableFilter(this.currentTableId);
+      this.switchChatScope('table');
     }
   }
 

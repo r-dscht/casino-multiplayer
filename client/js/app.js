@@ -402,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveGame = 'Roulette';
         ui.switchGameView('roulette');
         network.setGamePresence('Roulette');
+        ui.switchChatScope('table');
         ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
         ui.showToast('Je speelt nu Roulette', 'info');
       } else if (game === 'blackjack') {
@@ -409,8 +410,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.switchGameView('blackjack', currentBjTableId);
         network.setGamePresence('Blackjack');
         network.bjJoinTable(currentBjTableId);
+        ui.switchChatScope('table');
         if (currentBjTableState) {
           ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
+          ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
+          ui.renderBlackjackSeats(currentBjTableState.seats || [], currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
         } else {
           ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
         }
@@ -682,8 +686,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     ui.setNavigationLocked(hasUnsettledBets());
-    ui.renderBlackjackDealer(data.dealerHand || [], data.phase);
-    ui.renderBlackjackSeats(data.seats || [], data.activeSeatIndex, myBjSeatIndex, data.phase);
+    ui.renderBlackjackDealer(data.dealerHand || [], data.dealerScore || 0, data.phase);
+    ui.renderBlackjackSeats(
+      data.seats || [],
+      data.activeSeatIndex !== undefined ? data.activeSeatIndex : (data.activeTurn ? data.activeTurn.seatIndex : -1),
+      myBjSeatIndex,
+      data.phase
+    );
     if (data.shoe) {
       ui.updateShoePenetration(data.shoe.remainingCards, data.shoe.totalCards);
     }
@@ -736,6 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('bj_seat_accepted', (data) => {
     myBjSeatIndex = data.seatIndex;
     ui.showToast(`Plek ${data.seatIndex + 1} ingenomen aan Blackjacktafel`, 'success');
+    ui.switchChatScope('table');
     if (!currentBjTableState) {
       currentBjTableState = { seats: [null, null, null, null, null, null], phase: 'BETTING', activeSeatIndex: -1 };
     }
@@ -832,6 +842,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (seat && data.card) {
         if (!seat.cards) seat.cards = [];
         seat.cards.push(data.card);
+        if (seat.hands && seat.hands[0]) {
+          if (!seat.hands[0].cards) seat.hands[0].cards = [];
+          seat.hands[0].cards.push(data.card);
+        }
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
@@ -851,7 +865,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data || data.tableId !== currentBjTableId) return;
     if (currentBjTableState) {
       currentBjTableState.activeSeatIndex = data.seatIndex;
+      if (data.seats) currentBjTableState.seats = data.seats;
+      if (data.dealerHand) currentBjTableState.dealerHand = data.dealerHand;
+      if (data.dealerScore !== undefined) currentBjTableState.dealerScore = data.dealerScore;
       ui.renderBlackjackSeats(currentBjTableState.seats, data.seatIndex, myBjSeatIndex, currentBjTableState.phase);
+      ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
     }
     if (currentActiveGame === 'Blackjack') {
       ui.updateTimer(data.turnTimeLeft !== undefined ? data.turnTimeLeft : 15);
@@ -878,9 +896,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentBjTableState) {
       currentBjTableState.phase = data.phase;
       currentBjTableState.activeSeatIndex = data.activeSeatIndex !== undefined ? data.activeSeatIndex : currentBjTableState.activeSeatIndex;
+      if (data.seats) currentBjTableState.seats = data.seats;
+      if (data.dealerHand) currentBjTableState.dealerHand = data.dealerHand;
+      if (data.dealerScore !== undefined) currentBjTableState.dealerScore = data.dealerScore;
     }
     if (currentActiveGame === 'Blackjack') {
       ui.updatePhase(data.phase, data.duration || 15, data.timeLeft || 15);
+      if (currentBjTableState) {
+        ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, data.phase);
+        ui.renderBlackjackSeats(
+          currentBjTableState.seats || [],
+          currentBjTableState.activeSeatIndex !== undefined ? currentBjTableState.activeSeatIndex : -1,
+          myBjSeatIndex,
+          data.phase
+        );
+      }
     }
     ui.setNavigationLocked(hasUnsettledBets());
     updateBjActionButtons();
@@ -888,18 +918,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_dealer_reveal', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
+    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
     if (currentBjTableState) {
       currentBjTableState.dealerHand = data.dealerHand;
+      currentBjTableState.dealerScore = score;
     }
-    ui.renderBlackjackDealer(data.dealerHand || [], 'DEALER_TURN');
+    ui.renderBlackjackDealer(data.dealerHand || [], score, 'DEALER_TURN');
   });
 
   network.on('bj_dealer_draw', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
+    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
     if (currentBjTableState) {
       currentBjTableState.dealerHand = data.dealerHand;
+      currentBjTableState.dealerScore = score;
     }
-    ui.renderBlackjackDealer(data.dealerHand || [], 'DEALER_TURN');
+    ui.renderBlackjackDealer(data.dealerHand || [], score, 'DEALER_TURN');
   });
 
   network.on('bj_shoe_reshuffle', (data) => {
@@ -912,11 +946,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_round_result', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
+    const score = (data.dealerScore !== undefined) ? data.dealerScore : (ui.computeCardsScore ? ui.computeCardsScore(data.dealerHand) : 0);
     if (currentBjTableState) {
       currentBjTableState.phase = 'ROUND_OVER';
+      currentBjTableState.dealerScore = score;
     }
     if (data.dealerHand) {
-      ui.renderBlackjackDealer(data.dealerHand, 'ROUND_OVER');
+      ui.renderBlackjackDealer(data.dealerHand, score, 'ROUND_OVER');
     }
 
     // Inspect outcome for my seat
@@ -964,14 +1000,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.game === 'Blackjack') {
         currentActiveGame = 'Blackjack';
         ui.switchGameView('blackjack', currentBjTableId);
+        ui.switchChatScope('table');
         if (currentBjTableState) {
           ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
+          ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
+          ui.renderBlackjackSeats(currentBjTableState.seats || [], currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
         } else {
           ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
         }
       } else if (data.game === 'Roulette') {
         currentActiveGame = 'Roulette';
         ui.switchGameView('roulette');
+        ui.switchChatScope('table');
         ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
       }
     }

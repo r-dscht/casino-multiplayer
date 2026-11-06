@@ -153,7 +153,12 @@ function setupSocket(httpServer, options = {}) {
       io.emit('bj_phase_tick', data);
     });
     tbl.on('phase_change', (data) => {
-      io.emit('bj_phase_change', data);
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
+      io.emit('bj_phase_change', {
+        ...data,
+        ...state
+      });
       if (data && data.phase === 'BETTING') {
         broadcastPlayersUpdate();
       }
@@ -162,38 +167,59 @@ function setupSocket(httpServer, options = {}) {
       io.emit('bj_turn_tick', data);
     });
     tbl.on('turn_change', (data) => {
-      io.emit('bj_turn_change', data);
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
+      io.emit('bj_turn_change', {
+        ...data,
+        ...state
+      });
     });
     tbl.on('seat_taken', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_seat_taken', data);
       broadcastPlayersUpdate();
     });
     tbl.on('seat_left', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_seat_left', data);
       broadcastPlayersUpdate();
     });
     tbl.on('bet_placed', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_bet_placed', data);
       broadcastPlayersUpdate();
     });
     tbl.on('bet_cleared', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_bet_cleared', data);
       broadcastPlayersUpdate();
     });
     tbl.on('action_applied', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_action_applied', data);
       io.emit('bj_action_executed', data);
     });
     tbl.on('dealer_reveal', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_dealer_reveal', data);
     });
     tbl.on('dealer_draw', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_dealer_draw', data);
     });
     tbl.on('shoe_reshuffle', (data) => {
       io.emit('bj_shoe_reshuffle', data);
     });
     tbl.on('round_result', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
       io.emit('bj_round_result', data);
       io.emit('bj_round_end', data);
       broadcastPlayersUpdate();
@@ -249,18 +275,19 @@ function setupSocket(httpServer, options = {}) {
               scope: 'table',
               table: tbl.tableId
             });
-            // If significant win, announce to Global Casino Chat
-            if (r.net >= 1000) {
-              broadcastChatMessage({
-                sender: 'CASINO',
-                color: '#d4af37',
-                text: `[GRAND WIN] ${r.playerName} wint ${r.net.toLocaleString()} fiches aan ${tableLabel}!`,
-                timestamp: Date.now(),
-                isSystem: true,
-                scope: 'global',
-                table: 'all'
-              });
-            }
+            // Announce to Global Casino Chat as well so all players can celebrate
+            const isGrand = r.net >= 1000;
+            broadcastChatMessage({
+              sender: 'CASINO',
+              color: '#d4af37',
+              text: isGrand
+                ? `[GRAND WIN] ${r.playerName} wint ${r.net.toLocaleString()} fiches aan ${tableLabel}!`
+                : `[CASINO] ${r.playerName} wint ${r.net.toLocaleString()} fiches aan ${tableLabel}!`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'global',
+              table: 'all'
+            });
           } else if (r.totalWon > 0 && r.net === 0) {
             // Push announcement in Table Chat
             broadcastChatMessage({

@@ -1153,8 +1153,10 @@ class BlackjackEngine extends EventEmitter {
       timeLeft: Math.max(0, this.timeLeft),
       turnTimeLeft: this.activeTurn ? Math.max(0, this.turnTimeLeft) : 0,
       activeTurn: this.activeTurn,
+      activeSeatIndex: this.activeTurn ? this.activeTurn.seatIndex : -1,
       dealerHand: publicDealerHand,
       dealerCards: publicDealerHand, // alias
+      dealerScore: this.dealerCards.length > 0 ? (this.dealerHoleCardHidden ? (this.dealerCards[0] ? this.dealerCards[0].value : 0) : calculateHandValue(this.dealerCards).value) : 0,
       seats: publicSeats,
       shoePenetration: this.deck.getPenetration(),
       shoeCardsLeft: this.deck.cardsRemaining(),
