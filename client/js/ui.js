@@ -1442,30 +1442,32 @@
 
         if (!seatEl) continue;
 
-        if (seat && seat.player) {
+        const seatPlayer = (seat && (seat.player || (seat.playerId ? seat : null))) || null;
+        if (seat && seatPlayer) {
           if (emptyBadge) emptyBadge.classList.add('hidden');
           if (playerBox) playerBox.classList.remove('hidden');
 
-          if (userEl) userEl.textContent = seat.player.name || `Player ${i + 1}`;
-          if (chipsEl) chipsEl.textContent = `${(seat.player.chips || 0).toLocaleString()} fiches`;
+          if (userEl) userEl.textContent = seatPlayer.name || `Player ${i + 1}`;
+          if (chipsEl) chipsEl.textContent = `${(seatPlayer.chips || 0).toLocaleString()} fiches`;
 
-          const color = seat.player.color || '#c5a059';
+          const color = seatPlayer.color || '#c5a059';
           if (avatarDisc) {
             avatarDisc.style.backgroundColor = color;
           }
           if (avatarMono) {
-            avatarMono.textContent = getMonogram(seat.player.name);
+            avatarMono.textContent = getMonogram(seatPlayer.name);
           }
 
           // Leave button only for seated player on their own seat
-          const isMe = seat.player.id === myPlayerId;
+          const myId = myPlayerId || (this.myPlayer && this.myPlayer.id);
+          const isMe = (seatPlayer.id === myId) || (typeof myPlayerId === 'number' && i === myPlayerId);
           if (leaveBtn) {
             leaveBtn.classList.toggle('hidden', !isMe);
             leaveBtn.classList.toggle('navigation-locked', this.isNavigationLocked);
           }
 
           // Active turn thinking pulse animation
-          const isTurn = activeTurn && activeTurn.seatIndex === i;
+          const isTurn = activeTurn !== null && activeTurn !== undefined && (typeof activeTurn === 'number' ? activeTurn === i : (activeTurn && activeTurn.seatIndex === i));
           seatEl.classList.toggle('is-active-turn', !!isTurn);
           if (avatarDisc) {
             avatarDisc.classList.toggle('is-active-turn', !!isTurn);

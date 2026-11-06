@@ -1,0 +1,62 @@
+{
+  "ply_d7208dc0e175e810": {
+    "id": "ply_d7208dc0e175e810",
+    "sessionToken": "cst_7c974f0f5a509b2b2ad8e027b559b110",
+    "usernameKey": "alice",
+    "name": "Alice",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#10b981",
+    "chips": 11000,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Roulette",
+    "location": "ROULETTE",
+    "seatIndex": null,
+    "createdAt": 1793989318699,
+    "lastSeen": 1793989318712
+  },
+  "ply_64ee168a0127a603": {
+    "id": "ply_64ee168a0127a603",
+    "sessionToken": "cst_832d15f4722fba098a629c7a63ac8638",
+    "usernameKey": "bob",
+    "name": "Bob",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#3b82f6",
+    "chips": 11000,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Roulette",
+    "location": "ROULETTE",
+    "seatIndex": null,
+    "createdAt": 1793989318699,
+    "lastSeen": 1793989318712
+  },
+  "ply_f8c0e78e39d30d7c": {
+    "id": "ply_f8c0e78e39d30d7c",
+    "sessionToken": "cst_e8acca4a15e99870ffeda0c9b038eef6",
+    "usernameKey": "charlie",
+    "name": "Charlie",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#8b5cf6",
+    "chips": 10250,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Roulette",
+    "location": "ROULETTE",
+    "seatIndex": null,
+    "createdAt": 1793989318699,
+    "lastSeen": 1793989318712
+  }
+}

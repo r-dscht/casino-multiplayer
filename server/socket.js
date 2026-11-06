@@ -961,8 +961,23 @@ function setupSocket(httpServer, options = {}) {
         socket.emit('bj_seat_error', { code: 'PLAYER_NOT_FOUND', reason: 'Must be authenticated before taking a seat' });
         return;
       }
-      const table = getTable(payload && payload.tableId);
-      const seatIndex = (payload && typeof payload.seatIndex === 'number') ? payload.seatIndex : -1;
+      let tableId = (payload && payload.tableId) || 'table_1';
+      let seatIndex = -1;
+      if (payload && typeof payload.seatIndex === 'number') {
+        seatIndex = payload.seatIndex;
+      } else if (payload && typeof payload.seat === 'number') {
+        seatIndex = payload.seat;
+      } else if (payload && typeof payload.seatIndex === 'string') {
+        if (payload.seatIndex.startsWith('table_')) {
+          tableId = payload.seatIndex;
+          seatIndex = typeof payload.tableId === 'number' ? payload.tableId : parseInt(payload.tableId, 10);
+        } else if (!isNaN(parseInt(payload.seatIndex, 10))) {
+          seatIndex = parseInt(payload.seatIndex, 10);
+        }
+      } else if (payload && typeof payload.seat === 'string' && !isNaN(parseInt(payload.seat, 10))) {
+        seatIndex = parseInt(payload.seat, 10);
+      }
+      const table = getTable(tableId);
       const res = table.takeSeat(seatIndex, player.id);
       if (!res.success) {
         socket.emit('bj_seat_error', res);
@@ -971,6 +986,7 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('bj_seat_accepted', {
         tableId: table.tableId,
         seatIndex,
+        seat: res.seat,
         player: res.seat.player
       });
       broadcastPlayersUpdate();

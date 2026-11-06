@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sitBtn) {
         const seatIdx = parseInt(sitBtn.dataset.seat, 10);
         if (!isNaN(seatIdx)) {
-          network.bjTakeSeat(currentBjTableId, seatIdx);
+          network.bjTakeSeat(seatIdx, currentBjTableId);
         }
         return;
       }
@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const seatIdx = parseInt(leaveBtn.dataset.seat, 10);
         if (!isNaN(seatIdx)) {
-          network.bjLeaveSeat(currentBjTableId, seatIdx);
+          network.bjLeaveSeat(seatIdx, currentBjTableId);
         }
         return;
       }
@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ui.showToast('Onvoldoende fiches voor deze inzet', 'error');
           return;
         }
-        network.bjPlaceBet(currentBjTableId, seatIdx, selectedBjChip);
+        network.bjPlaceBet(seatIdx, selectedBjChip, currentBjTableId);
       }
     });
   }
@@ -478,28 +478,44 @@ document.addEventListener('DOMContentLoaded', () => {
   // Blackjack Action Buttons
   if (ui.elements.btnBjHit) {
     ui.elements.btnBjHit.addEventListener('click', () => {
-      network.bjAction(currentBjTableId, 'hit');
+      if (myBjSeatIndex !== -1) {
+        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
+        network.bjAction('hit', myBjSeatIndex, handIndex, currentBjTableId);
+      }
     });
   }
   if (ui.elements.btnBjStand) {
     ui.elements.btnBjStand.addEventListener('click', () => {
-      network.bjAction(currentBjTableId, 'stand');
+      if (myBjSeatIndex !== -1) {
+        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
+        network.bjAction('stand', myBjSeatIndex, handIndex, currentBjTableId);
+      }
     });
   }
   if (ui.elements.btnBjDouble) {
     ui.elements.btnBjDouble.addEventListener('click', () => {
-      network.bjAction(currentBjTableId, 'double');
+      if (myBjSeatIndex !== -1) {
+        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
+        network.bjAction('double', myBjSeatIndex, handIndex, currentBjTableId);
+      }
     });
   }
   if (ui.elements.btnBjSplit) {
     ui.elements.btnBjSplit.addEventListener('click', () => {
-      network.bjAction(currentBjTableId, 'split');
+      if (myBjSeatIndex !== -1) {
+        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+        const handIndex = mySeat ? (mySeat.activeHandIndex || 0) : 0;
+        network.bjAction('split', myBjSeatIndex, handIndex, currentBjTableId);
+      }
     });
   }
   if (ui.elements.btnBjClear) {
     ui.elements.btnBjClear.addEventListener('click', () => {
       if (myBjSeatIndex !== -1) {
-        network.bjClearBet(currentBjTableId, myBjSeatIndex);
+        network.bjClearBet(myBjSeatIndex, currentBjTableId);
       }
     });
   }
@@ -562,20 +578,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_seat_taken', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    if (currentBjTableState && Array.isArray(currentBjTableState.seats)) {
-      currentBjTableState.seats[data.seatIndex] = data.seat || {
-        playerId: data.player ? data.player.id : null,
+    if (!currentBjTableState) {
+      currentBjTableState = { seats: [null, null, null, null, null, null], phase: 'BETTING', activeSeatIndex: -1 };
+    }
+    if (!Array.isArray(currentBjTableState.seats)) {
+      currentBjTableState.seats = [null, null, null, null, null, null];
+    }
+    const seatObj = data.seat || {
+      playerId: data.player ? data.player.id : null,
+      player: data.player || {
+        id: data.player ? data.player.id : null,
         name: data.player ? data.player.name : 'Player',
         color: data.player ? data.player.color : '#c5a059',
-        chips: data.player ? data.player.chips : 0,
-        bet: 0,
-        cards: []
-      };
-    }
+        chips: data.player ? data.player.chips : 0
+      },
+      name: data.player ? data.player.name : 'Player',
+      color: data.player ? data.player.color : '#c5a059',
+      chips: data.player ? data.player.chips : 0,
+      bet: 0,
+      cards: []
+    };
+    currentBjTableState.seats[data.seatIndex] = seatObj;
+
     if (data.player && data.player.id === ui.myPlayer.id) {
       myBjSeatIndex = data.seatIndex;
     }
-    ui.renderBlackjackSeats(currentBjTableState ? currentBjTableState.seats : [], currentBjTableState ? currentBjTableState.activeSeatIndex : -1, myBjSeatIndex, currentBjTableState ? currentBjTableState.phase : 'BETTING');
+    ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     updateBjActionButtons();
   });
 
@@ -594,17 +622,28 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('bj_seat_accepted', (data) => {
     myBjSeatIndex = data.seatIndex;
     ui.showToast(`Plek ${data.seatIndex + 1} ingenomen aan Blackjacktafel`, 'success');
-    if (currentBjTableState && Array.isArray(currentBjTableState.seats)) {
-      currentBjTableState.seats[data.seatIndex] = data.seat || {
-        playerId: ui.myPlayer.id,
+    if (!currentBjTableState) {
+      currentBjTableState = { seats: [null, null, null, null, null, null], phase: 'BETTING', activeSeatIndex: -1 };
+    }
+    if (!Array.isArray(currentBjTableState.seats)) {
+      currentBjTableState.seats = [null, null, null, null, null, null];
+    }
+    const seatObj = data.seat || {
+      playerId: ui.myPlayer.id,
+      player: {
+        id: ui.myPlayer.id,
         name: ui.myPlayer.name,
         color: ui.myPlayer.color,
-        chips: data.chips !== undefined ? data.chips : ui.myPlayer.chips,
-        bet: 0,
-        cards: []
-      };
-      ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
-    }
+        chips: data.chips !== undefined ? data.chips : ui.myPlayer.chips
+      },
+      name: ui.myPlayer.name,
+      color: ui.myPlayer.color,
+      chips: data.chips !== undefined ? data.chips : ui.myPlayer.chips,
+      bet: 0,
+      cards: []
+    };
+    currentBjTableState.seats[data.seatIndex] = seatObj;
+    ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     updateBjActionButtons();
   });
 
@@ -622,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('bj_seat_error', (data) => {
-    ui.showToast((data && data.message) || 'Kon stoel niet innemen', 'error');
+    ui.showToast((data && (data.reason || data.message)) || 'Kon stoel niet innemen', 'error');
   });
 
   network.on('bj_bet_accepted', (data) => {

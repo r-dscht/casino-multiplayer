@@ -524,54 +524,109 @@
 
     /**
      * Claims an open seat at the Blackjack table.
-     * @param {number} seatIndex 
-     * @param {string} [tableId='table_1']
+     * Supports both (seatIndex, tableId) and (tableId, seatIndex).
+     * @param {number|string} arg1 
+     * @param {string|number} [arg2='table_1']
      */
-    bjTakeSeat(seatIndex, tableId = 'table_1') {
+    bjTakeSeat(arg1, arg2 = 'table_1') {
       if (!this.socket) return;
+      let seatIndex = -1;
+      let tableId = 'table_1';
+      if (typeof arg1 === 'number') {
+        seatIndex = arg1;
+        tableId = typeof arg2 === 'string' ? arg2 : 'table_1';
+      } else if (typeof arg1 === 'string') {
+        tableId = arg1;
+        seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+      }
       this.socket.emit('bj_take_seat', { seatIndex, tableId });
     }
 
     /**
      * Vacates a seat at the Blackjack table.
-     * @param {number} [seatIndex] 
-     * @param {string} [tableId='table_1']
+     * Supports both (seatIndex, tableId) and (tableId, seatIndex).
+     * @param {number|string} [arg1] 
+     * @param {string|number} [arg2='table_1']
      */
-    bjLeaveSeat(seatIndex, tableId = 'table_1') {
+    bjLeaveSeat(arg1, arg2 = 'table_1') {
       if (!this.socket) return;
+      let seatIndex = -1;
+      let tableId = 'table_1';
+      if (typeof arg1 === 'number') {
+        seatIndex = arg1;
+        tableId = typeof arg2 === 'string' ? arg2 : 'table_1';
+      } else if (typeof arg1 === 'string') {
+        tableId = arg1;
+        seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+      }
       this.socket.emit('bj_leave_seat', { seatIndex, tableId });
     }
 
     /**
      * Places or increases bet on a seat during BETTING phase.
-     * @param {number} seatIndex 
-     * @param {number} amount 
-     * @param {string} [tableId='table_1']
+     * Supports both (seatIndex, amount, tableId) and (tableId, seatIndex, amount).
      */
-    bjPlaceBet(seatIndex, amount, tableId = 'table_1') {
+    bjPlaceBet(arg1, arg2, arg3 = 'table_1') {
       if (!this.socket) return;
+      let tableId = 'table_1';
+      let seatIndex = 0;
+      let amount = 0;
+      if (typeof arg1 === 'string' && (arg1.startsWith('table_') || isNaN(parseInt(arg1, 10)))) {
+        tableId = arg1;
+        seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+        amount = typeof arg3 === 'number' ? arg3 : parseInt(arg3, 10);
+      } else {
+        seatIndex = typeof arg1 === 'number' ? arg1 : parseInt(arg1, 10);
+        amount = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+        tableId = typeof arg3 === 'string' ? arg3 : 'table_1';
+      }
       this.socket.emit('bj_place_bet', { seatIndex, amount, tableId });
     }
 
     /**
      * Clears all bets on a seat during BETTING phase.
-     * @param {number} seatIndex 
-     * @param {string} [tableId='table_1']
+     * Supports both (seatIndex, tableId) and (tableId, seatIndex).
      */
-    bjClearBet(seatIndex, tableId = 'table_1') {
+    bjClearBet(arg1, arg2 = 'table_1') {
       if (!this.socket) return;
+      let seatIndex = -1;
+      let tableId = 'table_1';
+      if (typeof arg1 === 'number') {
+        seatIndex = arg1;
+        tableId = typeof arg2 === 'string' ? arg2 : 'table_1';
+      } else if (typeof arg1 === 'string') {
+        tableId = arg1;
+        seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+      }
       this.socket.emit('bj_clear_bet', { seatIndex, tableId });
     }
 
     /**
      * Submits a player decision action on the active hand.
-     * @param {'hit'|'stand'|'double'|'split'} action 
-     * @param {number} seatIndex 
-     * @param {number} [handIndex=0] 
-     * @param {string} [tableId='table_1']
+     * Supports both (action, seatIndex, handIndex, tableId) and (tableId, action, seatIndex, handIndex).
      */
-    bjAction(action, seatIndex, handIndex = 0, tableId = 'table_1') {
+    bjAction(arg1, arg2, arg3 = 0, arg4 = 'table_1') {
       if (!this.socket) return;
+      let action = 'hit';
+      let seatIndex = 0;
+      let handIndex = 0;
+      let tableId = 'table_1';
+      if (typeof arg1 === 'string' && ['table_1', 'table_2'].includes(arg1)) {
+        tableId = arg1;
+        action = arg2;
+        seatIndex = typeof arg3 === 'number' ? arg3 : 0;
+        handIndex = typeof arg4 === 'number' ? arg4 : 0;
+      } else if (typeof arg1 === 'string' && ['hit', 'stand', 'double', 'split'].includes(arg1)) {
+        action = arg1;
+        seatIndex = typeof arg2 === 'number' ? arg2 : 0;
+        handIndex = typeof arg3 === 'number' ? arg3 : 0;
+        tableId = typeof arg4 === 'string' ? arg4 : 'table_1';
+      } else {
+        action = String(arg1 || 'hit');
+        seatIndex = typeof arg2 === 'number' ? arg2 : 0;
+        handIndex = typeof arg3 === 'number' ? arg3 : 0;
+        tableId = typeof arg4 === 'string' ? arg4 : 'table_1';
+      }
       this.socket.emit('bj_action', { action, seatIndex, handIndex, tableId });
     }
   }

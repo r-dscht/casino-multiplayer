@@ -224,4 +224,28 @@ describe('Multiplayer Blackjack WebSocket Integration Protocol', () => {
     assert.ok(Array.isArray(result.results));
     assert.ok(result.dealerHand);
   });
+
+  it('should accept taking seat with flexible payload formats (numeric seatIndex, string seatIndex, or reversed)', async () => {
+    // Client 2 leaves seat 3 first
+    const leaveP = new Promise(resolve => client2.once('bj_seat_vacated', resolve));
+    client2.emit('bj_leave_seat', { tableId: 'table_1', seatIndex: 3 });
+    await leaveP;
+
+    // Client 2 takes seat 5 with string format: { seatIndex: '5', tableId: 'table_1' }
+    const sitP = new Promise(resolve => client2.once('bj_seat_accepted', resolve));
+    client2.emit('bj_take_seat', { seatIndex: '5', tableId: 'table_1' });
+    const res = await sitP;
+    assert.equal(res.seatIndex, 5);
+
+    // Client 2 leaves seat 5
+    const leaveP2 = new Promise(resolve => client2.once('bj_seat_vacated', resolve));
+    client2.emit('bj_leave_seat', { tableId: 'table_1', seatIndex: 5 });
+    await leaveP2;
+
+    // Client 2 takes seat 2 with swapped keys: { seatIndex: 'table_1', tableId: 2 }
+    const sitP2 = new Promise(resolve => client2.once('bj_seat_accepted', resolve));
+    client2.emit('bj_take_seat', { seatIndex: 'table_1', tableId: 2 });
+    const res2 = await sitP2;
+    assert.equal(res2.seatIndex, 2);
+  });
 });
