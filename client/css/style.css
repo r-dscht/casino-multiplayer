@@ -1139,18 +1139,38 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   padding: 24px 12px;
 }
 
-/* Modular Topbar & Game Switcher */
-.casino-navbar {
+/* ==========================================================================
+   Master Unified Header
+   ========================================================================== */
+
+.master-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 24px;
-  background: rgba(5, 12, 9, 0.96);
-  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
-  z-index: 101;
+  background: rgba(6, 15, 11, 0.95);
+  border-bottom: 1px solid var(--border-gold);
+  height: 60px;
+  box-sizing: border-box;
+  z-index: 100;
+  gap: 16px;
 }
 
-.nav-brand .brand-title {
+/* Left: Brand & Game Switcher */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.brand-badge {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.brand-crest {
   font-family: var(--font-serif);
   font-size: 0.95rem;
   font-weight: 800;
@@ -1159,50 +1179,76 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   text-shadow: 0 0 10px var(--gold-glow);
 }
 
-.game-switcher {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.brand-sub {
+  font-family: var(--font-serif);
+  font-size: 0.65rem;
+  letter-spacing: 0.28em;
+  color: #a3c4b5;
+  margin-top: 2px;
 }
 
-.game-btn {
-  padding: 5px 14px;
-  font-family: var(--font-sans);
-  font-size: 0.8rem;
-  font-weight: 700;
+.game-nav-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px 5px;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: #a3c4b5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.game-pill {
+  padding: 4px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.game-btn:hover:not(.disabled) {
-  border-color: var(--gold-primary);
+.game-pill:hover:not(.disabled) {
   color: #ffffff;
-  background: rgba(212, 175, 55, 0.12);
 }
 
-.game-btn.active {
-  background: rgba(16, 185, 129, 0.2);
+.game-pill.active {
+  background: rgba(16, 185, 129, 0.25);
   border-color: #10b981;
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
 }
 
-.game-btn.disabled {
-  opacity: 0.45;
+.game-pill.disabled {
+  opacity: 0.4;
   cursor: not-allowed;
-  border-style: dashed;
 }
 
-/* Bank Button in HUD */
+/* Center: Phase Badge & History */
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* Right: Bank Button & Player Profile */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
 .btn-bank {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: 8px;
+  padding: 6px 14px;
   border-radius: 6px;
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%);
   border: 1px solid #10b981;
@@ -1210,14 +1256,14 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   font-family: var(--font-sans);
   font-size: 0.82rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-left: 8px;
 }
 
 .btn-bank:hover {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.4) 0%, rgba(5, 150, 105, 0.5) 100%);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.45) 0%, rgba(5, 150, 105, 0.55) 100%);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
   transform: translateY(-1px);
 }
 
@@ -1231,20 +1277,26 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-/* Bank Modal Content */
+/* ==========================================================================
+   Casino Bank & Deals Modal Overhaul
+   ========================================================================== */
+
 .bank-modal-content {
-  max-width: 580px;
-  width: 92%;
+  max-width: 540px;
+  width: 94%;
   max-height: 88vh;
   overflow-y: auto;
   padding: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(212, 175, 55, 0.15);
 }
 
 .modal-header-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-modal-close {
@@ -1262,26 +1314,31 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   color: #ffffff;
 }
 
-.bank-tabs {
+.bank-tabs-bar {
   display: flex;
   gap: 6px;
-  border-bottom: 1px solid var(--border-gold);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 20px;
   overflow-x: auto;
 }
 
 .bank-tab {
+  flex: 1;
   background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 8px 14px;
+  border: 1px solid transparent;
+  padding: 7px 12px;
   font-family: var(--font-sans);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  color: #a3c4b5;
+  color: #94a3b8;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  text-align: center;
 }
 
 .bank-tab:hover {
@@ -1289,8 +1346,10 @@ h1, h2, h3, h4, .brand-title, .phase-title {
 }
 
 .bank-tab.active {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: var(--gold-primary);
   color: var(--gold-bright);
-  border-bottom-color: var(--gold-primary);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
 }
 
 .bank-tab-pane {
@@ -1301,97 +1360,238 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   display: block;
 }
 
-.bank-select {
+.bank-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.label-with-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.pill-value-badge {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+  background: rgba(212, 175, 55, 0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.bank-select, .bank-input {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(10, 26, 19, 0.8);
+  background: rgba(8, 20, 15, 0.85);
   border: 1px solid var(--border-gold);
   border-radius: 6px;
   color: #ffffff;
   font-family: var(--font-sans);
   font-size: 0.9rem;
   outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.bank-select:focus, .bank-input:focus {
+  border-color: #38ef7d;
+  box-shadow: 0 0 8px rgba(56, 239, 125, 0.3);
 }
 
 .bank-select option {
-  background: #0a1a13;
+  background: #08140f;
   color: #ffffff;
 }
 
-.loan-type-selector {
+/* Quick Chip Buttons */
+.quick-chips-row {
   display: flex;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
 }
 
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: #e2e8f0;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  flex: 1;
-}
-
-.radio-label input[type="radio"]:checked + span {
-  color: var(--gold-bright);
+.btn-quick-chip {
+  padding: 4px 11px;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 700;
+  color: var(--gold-bright);
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.loan-calculation-box {
-  background: rgba(10, 26, 19, 0.85);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+.btn-quick-chip:hover {
+  background: rgba(212, 175, 55, 0.25);
+  border-color: var(--gold-primary);
+  transform: translateY(-1px);
+}
+
+.btn-quick-chip.chip-all {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.btn-quick-chip.chip-all:hover {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
+}
+
+/* Segmented Control for Deal Type (Replaces radio buttons) */
+.segmented-control {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.segment-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.segment-btn:hover {
+  color: #ffffff;
+}
+
+.segment-btn.active {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+/* Preset Pill Group (Replaces Range Sliders) */
+.preset-pill-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-pill {
+  flex: 1;
+  min-width: 52px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.preset-pill:hover {
+  color: #ffffff;
+  border-color: rgba(212, 175, 55, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.preset-pill.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(183, 121, 31, 0.35) 100%);
+  border-color: var(--gold-primary);
+  color: var(--gold-bright);
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+
+/* Financial Calculation Summary Card */
+.loan-summary-card {
+  background: rgba(8, 22, 16, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.35);
   border-radius: 8px;
   padding: 14px 16px;
-  margin: 16px 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
-.calc-row {
+.summary-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.summary-stat {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #a3c4b5;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.calc-total {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: var(--gold-bright);
-  border-top: 1px dashed rgba(255, 255, 255, 0.15);
-  padding-top: 8px;
-  margin-top: 4px;
-}
-
-.calc-note {
-  font-size: 0.78rem;
+.stat-caption {
+  font-size: 0.72rem;
   color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-num {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.stat-highlight .stat-num {
+  font-size: 1.05rem;
+}
+
+.text-gold {
+  color: var(--gold-bright);
+}
+
+.text-emerald {
+  color: #34d399;
+}
+
+.summary-footer {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  padding-top: 8px;
   line-height: 1.4;
-  margin-top: 4px;
 }
 
-.form-row {
-  display: flex;
-  gap: 12px;
+.btn-lg {
+  padding: 11px 16px;
+  font-size: 0.92rem;
 }
 
-.col-half {
-  flex: 1;
-}
-
-/* Inbox & Cards */
+/* Inbox & Schulden Cards */
 .inbox-section {
   margin-bottom: 22px;
 }
 
-.inbox-title {
+.inbox-section-title {
   font-size: 0.85rem;
   font-weight: 800;
   color: var(--gold-bright);
@@ -1401,7 +1601,7 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   padding-bottom: 4px;
 }
 
-.inbox-list {
+.inbox-cards-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1409,7 +1609,7 @@ h1, h2, h3, h4, .brand-title, .phase-title {
 
 .deal-card, .debt-card, .loan-card {
   padding: 12px 14px;
-  background: rgba(10, 26, 19, 0.75);
+  background: rgba(8, 20, 15, 0.8);
   border: 1px solid rgba(212, 175, 55, 0.25);
   border-radius: 8px;
   display: flex;
@@ -1520,33 +1720,80 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   cursor: pointer;
 }
 
-/* Bailout Tab */
-.bailout-box {
+/* ==========================================================================
+   Casino Noodfonds (Bailout Vault Card)
+   ========================================================================== */
+
+.bailout-card {
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background: rgba(8, 22, 16, 0.85);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 8px 0;
+  gap: 16px;
 }
 
-.bailout-desc {
+.bailout-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.15rem;
+}
+
+.bailout-subtitle {
   font-size: 0.85rem;
   color: #cbd5e1;
-  line-height: 1.5;
+  margin: 0;
+  line-height: 1.4;
 }
 
-.bailout-status-panel {
-  background: rgba(10, 26, 19, 0.8);
+.bailout-requirements {
+  display: flex;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.req-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.req-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.req-item.req-met {
+  color: #e2e8f0;
+}
+
+.req-item.req-met .req-dot {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.bailout-timer-box {
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border-gold);
   border-radius: 8px;
   padding: 16px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.bailout-timer-label {
-  font-size: 0.8rem;
+.bailout-timer-title {
+  font-size: 0.75rem;
   color: #a3c4b5;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1554,19 +1801,19 @@ h1, h2, h3, h4, .brand-title, .phase-title {
 
 .bailout-timer-val {
   font-family: var(--font-sans);
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 800;
   letter-spacing: 0.05em;
 }
 
 .timer-ready {
   color: #10b981;
-  text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
 }
 
 .timer-waiting {
   color: #f59e0b;
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
 
 .bailout-reason {

@@ -19,41 +19,46 @@
   <!-- Main Application Container -->
   <div id="casino-app">
 
-    <!-- Modular Casino Game Switcher Topbar -->
-    <nav class="casino-navbar">
-      <div class="nav-brand">
-        <span class="brand-title">LE GRAND CASINO</span>
-      </div>
-      <div class="game-switcher">
-        <button class="game-btn active" data-game="roulette">Roulette</button>
-        <button class="game-btn disabled" title="Binnenkort beschikbaar">Blackjack (Binnenkort)</button>
-        <button class="game-btn disabled" title="Binnenkort beschikbaar">Gokkasten (Binnenkort)</button>
-      </div>
-    </nav>
-
-    <!-- Top HUD Status Bar -->
-    <header class="hud-header glass-panel">
-      <!-- Player Profile & Bankroll -->
-      <div class="player-badge">
-        <div class="avatar-disc" id="hud-avatar-disc" style="background-color: #D4AF37;"></div>
-        <div class="player-info">
-          <span class="player-name" id="hud-player-name">VIP Player</span>
-          <span class="player-chips" id="hud-player-chips">10,000 CHIPS</span>
+    <!-- Unified Master Luxury Header -->
+    <header class="hud-header glass-panel master-header">
+      <!-- Left: Casino Brand & Game Switcher -->
+      <div class="header-left">
+        <div class="brand-badge">
+          <span class="brand-crest">LE GRAND</span>
+          <span class="brand-sub">CASINO</span>
         </div>
+        <div class="game-nav-pills">
+          <button class="game-pill active" data-game="roulette">Roulette</button>
+          <button class="game-pill disabled" title="Binnenkort beschikbaar">Blackjack</button>
+          <button class="game-pill disabled" title="Binnenkort beschikbaar">Gokkasten</button>
+        </div>
+      </div>
+
+      <!-- Center: Round Phase Badge & Winning History Strip -->
+      <div class="header-center">
+        <div class="phase-badge" id="hud-phase-badge">
+          <span class="phase-title phase-betting" id="phase-title">INZETTEN</span>
+          <span class="phase-timer" id="phase-timer">20s</span>
+        </div>
+        <div class="history-strip" id="hud-history-strip">
+          <!-- Colored pills dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Right: Bank & Player Profile -->
+      <div class="header-right">
         <button class="btn-bank" id="btn-open-bank" title="Open Casino Bank & Deals">
-          Bank <span id="bank-badge" class="bank-badge hidden">0</span>
+          <span class="bank-btn-text">Bank</span>
+          <span id="bank-badge" class="bank-badge hidden">0</span>
         </button>
-      </div>
 
-      <!-- Center Round Phase & Countdown Pill -->
-      <div class="phase-badge" id="hud-phase-badge">
-        <span class="phase-title phase-betting" id="phase-title">PLACE YOUR BETS</span>
-        <span class="phase-timer" id="phase-timer">20s</span>
-      </div>
-
-      <!-- Right Winning History Strip (Last 15 Numbers) -->
-      <div class="history-strip" id="hud-history-strip">
-        <!-- Colored pills dynamically populated -->
+        <div class="player-badge">
+          <div class="avatar-disc" id="hud-avatar-disc" style="background-color: #D4AF37;"></div>
+          <div class="player-info">
+            <span class="player-name" id="hud-player-name">VIP Player</span>
+            <span class="player-chips" id="hud-player-chips">10,000 CHIPS</span>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -210,14 +215,14 @@
         <div class="modal-header-row">
           <div>
             <h2 class="gold-text">Casino Bank</h2>
-            <p class="modal-subtitle">Transfers, leningen met rente en winstinhouding</p>
+            <p class="modal-subtitle">Transfers, leningen met rente en noodfiches</p>
           </div>
           <button class="btn-modal-close" id="btn-close-bank-modal" aria-label="Sluiten">&times;</button>
         </div>
 
-        <div class="bank-tabs">
+        <div class="bank-tabs-bar">
           <button class="bank-tab active" data-tab="transfer">Overmaken</button>
-          <button class="bank-tab" data-tab="loan">Lening Voorstellen</button>
+          <button class="bank-tab" data-tab="loan">Lening Sluiten</button>
           <button class="bank-tab" data-tab="inbox">
             Inbox & Schulden <span id="bank-tab-badge" class="tab-badge hidden">0</span>
           </button>
@@ -226,95 +231,134 @@
 
         <!-- Tab 1: Overmaken -->
         <div class="bank-tab-pane active" id="bank-pane-transfer">
-          <form id="form-bank-transfer">
+          <form id="form-bank-transfer" class="bank-form">
             <div class="form-group">
-              <label for="bank-transfer-recipient">Ontvanger (online speler)</label>
+              <label for="bank-transfer-recipient" class="field-label">Ontvanger (speler aan tafel)</label>
               <select id="bank-transfer-recipient" class="bank-select" required>
                 <option value="">Selecteer een speler...</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="bank-transfer-amount">Aantal fiches</label>
-              <input type="number" id="bank-transfer-amount" min="1" step="1" placeholder="Bijv. 500" required>
+              <label for="bank-transfer-amount" class="field-label">Aantal fiches</label>
+              <input type="number" id="bank-transfer-amount" min="1" step="1" placeholder="Voer bedrag in" required class="bank-input">
+              <div class="quick-chips-row">
+                <button type="button" class="btn-quick-chip" data-target="bank-transfer-amount" data-add="100">+100</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-transfer-amount" data-add="500">+500</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-transfer-amount" data-add="1000">+1.000</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-transfer-amount" data-add="5000">+5.000</button>
+                <button type="button" class="btn-quick-chip chip-all" data-target="bank-transfer-amount" data-action="all">Alles</button>
+              </div>
             </div>
-            <button type="submit" class="btn btn-gold btn-block">Fiches Overmaken</button>
+            <button type="submit" class="btn btn-gold btn-block btn-lg">Fiches Overmaken</button>
           </form>
         </div>
 
-        <!-- Tab 2: Lening Voorstellen -->
+        <!-- Tab 2: Lening Sluiten -->
         <div class="bank-tab-pane" id="bank-pane-loan">
-          <form id="form-bank-loan">
+          <form id="form-bank-loan" class="bank-form">
             <div class="form-group">
-              <label for="bank-loan-target">Speler</label>
+              <label for="bank-loan-target" class="field-label">Speler</label>
               <select id="bank-loan-target" class="bank-select" required>
                 <option value="">Selecteer een speler...</option>
               </select>
             </div>
+
             <div class="form-group">
-              <label>Type afspraak</label>
-              <div class="loan-type-selector">
-                <label class="radio-label">
-                  <input type="radio" name="loan-direction" value="borrow" checked>
-                  <span>Ik wil fiches lenen</span>
-                </label>
-                <label class="radio-label">
-                  <input type="radio" name="loan-direction" value="lend">
-                  <span>Ik bied een lening aan</span>
-                </label>
+              <label class="field-label">Type deal</label>
+              <div class="segmented-control" id="loan-type-segmented">
+                <button type="button" class="segment-btn active" data-type="borrow">Ik wil fiches lenen</button>
+                <button type="button" class="segment-btn" data-type="lend">Ik bied lening aan</button>
+                <input type="hidden" name="loan-direction" id="loan-direction-val" value="borrow">
               </div>
             </div>
+
             <div class="form-group">
-              <label for="bank-loan-amount">Bedrag (fiches)</label>
-              <input type="number" id="bank-loan-amount" min="10" step="10" placeholder="Bijv. 2000" required>
-            </div>
-            <div class="form-row">
-              <div class="form-group col-half">
-                <label for="bank-loan-interest">Rente: <strong id="lbl-loan-interest">10%</strong></label>
-                <input type="range" id="bank-loan-interest" min="0" max="50" step="5" value="10">
-              </div>
-              <div class="form-group col-half">
-                <label for="bank-loan-deduction">Winstinhouding: <strong id="lbl-loan-deduction">15%</strong></label>
-                <input type="range" id="bank-loan-deduction" min="5" max="50" step="5" value="15">
+              <label for="bank-loan-amount" class="field-label">Bedrag (fiches)</label>
+              <input type="number" id="bank-loan-amount" min="10" step="10" placeholder="Bijv. 2000" required class="bank-input">
+              <div class="quick-chips-row">
+                <button type="button" class="btn-quick-chip" data-target="bank-loan-amount" data-add="500">+500</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-loan-amount" data-add="1000">+1.000</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-loan-amount" data-add="2500">+2.500</button>
+                <button type="button" class="btn-quick-chip" data-target="bank-loan-amount" data-add="5000">+5.000</button>
               </div>
             </div>
-            <div class="loan-calculation-box">
-              <div class="calc-row">
-                <span>Hoofdsom:</span>
-                <span id="calc-principal">0 fiches</span>
+
+            <!-- Rente (Pill selector ipv lelijke sleepbalk) -->
+            <div class="form-group">
+              <div class="label-with-value">
+                <span class="field-label">Rentepercentage</span>
+                <span class="pill-value-badge" id="lbl-loan-interest">10%</span>
               </div>
-              <div class="calc-row">
-                <span>Rente:</span>
-                <span id="calc-interest">+0 fiches (10%)</span>
+              <div class="preset-pill-group" id="interest-pill-group">
+                <button type="button" class="preset-pill" data-val="0">0%</button>
+                <button type="button" class="preset-pill" data-val="5">5%</button>
+                <button type="button" class="preset-pill active" data-val="10">10%</button>
+                <button type="button" class="preset-pill" data-val="15">15%</button>
+                <button type="button" class="preset-pill" data-val="20">20%</button>
+                <button type="button" class="preset-pill" data-val="25">25%</button>
               </div>
-              <div class="calc-row calc-total">
-                <span>Totaal terug te betalen:</span>
-                <strong id="calc-total-owed">0 fiches</strong>
+              <input type="hidden" id="bank-loan-interest" value="10">
+            </div>
+
+            <!-- Winstinhouding (Pill selector ipv lelijke sleepbalk) -->
+            <div class="form-group">
+              <div class="label-with-value">
+                <span class="field-label">Winstinhouding bij winnende ronde</span>
+                <span class="pill-value-badge" id="lbl-loan-deduction">15%</span>
               </div>
-              <div class="calc-note">
-                Bij elke roulettewinst wordt <strong id="calc-deduction-pct">15%</strong> van de nettowinst automatisch afgeroomd naar de verstrekker tot de schuld voldaan is.
+              <div class="preset-pill-group" id="deduction-pill-group">
+                <button type="button" class="preset-pill" data-val="10">10%</button>
+                <button type="button" class="preset-pill active" data-val="15">15%</button>
+                <button type="button" class="preset-pill" data-val="20">20%</button>
+                <button type="button" class="preset-pill" data-val="25">25%</button>
+                <button type="button" class="preset-pill" data-val="30">30%</button>
+                <button type="button" class="preset-pill" data-val="50">50%</button>
+              </div>
+              <input type="hidden" id="bank-loan-deduction" value="15">
+            </div>
+
+            <!-- Financial Calculation Card -->
+            <div class="loan-summary-card">
+              <div class="summary-stats-grid">
+                <div class="summary-stat">
+                  <span class="stat-caption">Hoofdsom</span>
+                  <span class="stat-num" id="calc-principal">0</span>
+                </div>
+                <div class="summary-stat">
+                  <span class="stat-caption">Rente (<span id="summary-interest-pct">10%</span>)</span>
+                  <span class="stat-num text-gold" id="calc-interest">+0</span>
+                </div>
+                <div class="summary-stat stat-highlight">
+                  <span class="stat-caption">Totaal Opgelopen</span>
+                  <span class="stat-num text-emerald" id="calc-total-owed">0</span>
+                </div>
+              </div>
+              <div class="summary-footer">
+                Automatische aflossing: <strong id="calc-deduction-pct">15%</strong> van nettowinst per winnende ronde.
               </div>
             </div>
-            <button type="submit" class="btn btn-gold btn-block">Voorstel Versturen</button>
+
+            <button type="submit" class="btn btn-gold btn-block btn-lg">Voorstel Versturen</button>
           </form>
         </div>
 
         <!-- Tab 3: Inbox & Schulden -->
         <div class="bank-tab-pane" id="bank-pane-inbox">
           <div class="inbox-section">
-            <h3 class="inbox-title">Inkomende Voorstellen</h3>
-            <div class="inbox-list" id="bank-incoming-proposals">
+            <h3 class="inbox-section-title">Inkomende Voorstellen</h3>
+            <div class="inbox-cards-list" id="bank-incoming-proposals">
               <div class="empty-state-notice">Geen inkomende voorstellen</div>
             </div>
           </div>
           <div class="inbox-section">
-            <h3 class="inbox-title">Mijn Openstaande Schulden (te betalen)</h3>
-            <div class="inbox-list" id="bank-my-debts">
+            <h3 class="inbox-section-title">Mijn Openstaande Schulden</h3>
+            <div class="inbox-cards-list" id="bank-my-debts">
               <div class="empty-state-notice">Geen openstaande schulden</div>
             </div>
           </div>
           <div class="inbox-section">
-            <h3 class="inbox-title">Mijn Verstrekte Leningen (ontvangend)</h3>
-            <div class="inbox-list" id="bank-my-loans-given">
+            <h3 class="inbox-section-title">Mijn Verstrekte Leningen</h3>
+            <div class="inbox-cards-list" id="bank-my-loans-given">
               <div class="empty-state-notice">Geen uitstaande leningen verstrekt</div>
             </div>
           </div>
@@ -322,17 +366,30 @@
 
         <!-- Tab 4: Noodfiches -->
         <div class="bank-tab-pane" id="bank-pane-bailout">
-          <div class="bailout-box">
-            <h3 class="gold-text">Casino Noodfonds</h3>
-            <p class="bailout-desc">
-              Ben je al je fiches kwijtgeraakt? Als je saldo lager is dan 10 fiches, kun je elke 10 minuten <strong>100 gratis noodfiches</strong> aanvragen om weer mee te kunnen spelen.
-            </p>
-            <div class="bailout-status-panel">
-              <div class="bailout-timer-label">Status noodgift:</div>
+          <div class="bailout-card glass-panel">
+            <div class="bailout-header">
+              <h3 class="gold-text">Casino Noodfonds</h3>
+              <p class="bailout-subtitle">100 gratis fiches elke 10 minuten wanneer je saldo onder 10 fiches zakt.</p>
+            </div>
+
+            <div class="bailout-requirements">
+              <div class="req-item" id="req-chips-item">
+                <span class="req-dot"></span>
+                <span>Saldo minder dan 10 fiches</span>
+              </div>
+              <div class="req-item" id="req-cooldown-item">
+                <span class="req-dot"></span>
+                <span>10-minuten cooldown</span>
+              </div>
+            </div>
+
+            <div class="bailout-timer-box">
+              <span class="bailout-timer-title">Aftelklok</span>
               <div class="bailout-timer-val" id="bailout-timer-val">Beschikbaar</div>
               <div class="bailout-reason" id="bailout-reason-text"></div>
             </div>
-            <button class="btn btn-gold btn-block" id="btn-claim-bailout" disabled>Claim 100 Fiches</button>
+
+            <button class="btn btn-gold btn-block btn-lg" id="btn-claim-bailout" disabled>Claim 100 Noodfiches</button>
           </div>
         </div>
 

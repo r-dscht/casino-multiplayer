@@ -127,19 +127,79 @@
       // Loan Calculation Listeners
       const updateCalc = () => this._updateLoanCalculation();
       if (this.inputLoanAmount) this.inputLoanAmount.addEventListener('input', updateCalc);
-      if (this.sliderLoanInterest) {
-        this.sliderLoanInterest.addEventListener('input', () => {
-          if (this.lblLoanInterest) this.lblLoanInterest.textContent = `${this.sliderLoanInterest.value}%`;
+
+      // Preset Pill Buttons for Interest (Replaces sliders)
+      const interestPills = document.querySelectorAll('#interest-pill-group .preset-pill');
+      const summaryInterestPct = document.getElementById('summary-interest-pct');
+      interestPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          interestPills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          if (this.sliderLoanInterest) {
+            this.sliderLoanInterest.value = pill.dataset.val;
+          }
+          if (this.lblLoanInterest) {
+            this.lblLoanInterest.textContent = `${pill.dataset.val}%`;
+          }
+          if (summaryInterestPct) {
+            summaryInterestPct.textContent = `${pill.dataset.val}%`;
+          }
           updateCalc();
         });
-      }
-      if (this.sliderLoanDeduction) {
-        this.sliderLoanDeduction.addEventListener('input', () => {
-          if (this.lblLoanDeduction) this.lblLoanDeduction.textContent = `${this.sliderLoanDeduction.value}%`;
-          if (this.calcDeductionPct) this.calcDeductionPct.textContent = `${this.sliderLoanDeduction.value}%`;
+      });
+
+      // Preset Pill Buttons for Deduction (Replaces sliders)
+      const deductionPills = document.querySelectorAll('#deduction-pill-group .preset-pill');
+      deductionPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          deductionPills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          if (this.sliderLoanDeduction) {
+            this.sliderLoanDeduction.value = pill.dataset.val;
+          }
+          if (this.lblLoanDeduction) {
+            this.lblLoanDeduction.textContent = `${pill.dataset.val}%`;
+          }
+          if (this.calcDeductionPct) {
+            this.calcDeductionPct.textContent = `${pill.dataset.val}%`;
+          }
           updateCalc();
         });
-      }
+      });
+
+      // Segmented Deal Direction Toggle (Replaces radio buttons)
+      const segmentBtns = document.querySelectorAll('#loan-type-segmented .segment-btn');
+      const hiddenDirection = document.getElementById('loan-direction-val');
+      segmentBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          segmentBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (hiddenDirection) {
+            hiddenDirection.value = btn.dataset.type;
+          }
+        });
+      });
+
+      // Quick Chip Increments
+      document.querySelectorAll('.btn-quick-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.dataset.target;
+          const targetInput = document.getElementById(targetId);
+          if (!targetInput) return;
+
+          if (btn.dataset.action === 'all') {
+            const myChips = (this.ui.myPlayer && typeof this.ui.myPlayer.chips === 'number')
+              ? this.ui.myPlayer.chips
+              : 0;
+            targetInput.value = myChips;
+          } else {
+            const addVal = parseInt(btn.dataset.add, 10) || 0;
+            const currentVal = parseInt(targetInput.value, 10) || 0;
+            targetInput.value = currentVal + addVal;
+          }
+          targetInput.dispatchEvent(new Event('input'));
+        });
+      });
 
       // Loan Form Submit
       if (this.formLoan) {
@@ -419,6 +479,15 @@
 
       if (this.btnClaimBailout) {
         this.btnClaimBailout.disabled = !canClaim;
+      }
+
+      const reqChips = document.getElementById('req-chips-item');
+      if (reqChips) {
+        reqChips.classList.toggle('req-met', eligibleByChips);
+      }
+      const reqCooldown = document.getElementById('req-cooldown-item');
+      if (reqCooldown) {
+        reqCooldown.classList.toggle('req-met', timeLeftMs <= 0);
       }
 
       if (this.lblBailoutTimer) {

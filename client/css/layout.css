@@ -42,9 +42,9 @@
   background: rgba(8, 18, 14, 0.95);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 65px); /* Minus top HUD height */
+  height: calc(100vh - 60px); /* Exactly matching master-header height */
   position: sticky;
-  top: 65px;
+  top: 60px;
   flex-shrink: 0;
 }
 
@@ -105,6 +105,29 @@
     position: static;
     border-left: none;
     border-top: 1px solid var(--border-gold);
+  }
+
+  .master-header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .header-left {
+    order: 1;
+  }
+
+  .header-right {
+    order: 2;
+  }
+
+  .header-center {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .hud-header {
