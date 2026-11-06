@@ -2849,6 +2849,35 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   transform: scale(1.05);
 }
 
+.betting-spot.my-bet-spot {
+  border-color: rgba(212, 175, 55, 0.95);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.35), inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.betting-spot.can-bet {
+  border-color: var(--gold-bright);
+  animation: mySpotPulse 2.4s infinite ease-in-out;
+}
+
+@keyframes mySpotPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.35), inset 0 0 8px rgba(0, 0, 0, 0.5);
+    border-color: rgba(212, 175, 55, 0.85);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.6), inset 0 0 12px rgba(212, 175, 55, 0.25);
+    border-color: #ffd700;
+  }
+}
+
+.betting-spot.my-bet-spot:hover,
+.betting-spot.can-bet:hover {
+  border-color: #ffffff;
+  border-style: solid;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.75), inset 0 0 12px rgba(212, 175, 55, 0.35);
+  transform: scale(1.08);
+}
+
 .bet-spot-label {
   font-family: var(--font-serif);
   font-size: 0.62rem;

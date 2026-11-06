@@ -1634,7 +1634,7 @@
         const avatarDisc = document.getElementById(`seat-avatar-${i}`);
         const avatarMono = document.getElementById(`seat-mono-${i}`);
         const leaveBtn = document.getElementById(`btn-leave-${i}`);
-        const betSpot = document.getElementById(`seat-bet-spot-${i}`);
+        const betSpot = document.getElementById(`betting-spot-${i}`) || document.getElementById(`seat-bet-spot-${i}`);
         const chipsDock = document.getElementById(`seat-chips-dock-${i}`);
         const dock0 = document.getElementById(`seat-cards-dock-${i}-0`);
         const score0 = document.getElementById(`seat-score-${i}-0`);
@@ -1678,20 +1678,25 @@
 
           // Betting spot chips & label
           const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
+          if (betSpot) {
+            betSpot.classList.toggle('my-bet-spot', Boolean(isMe));
+            betSpot.classList.toggle('can-bet', Boolean(isMe && currentPhase === 'BETTING'));
+            betSpot.title = isMe ? 'Klik op dit inzetvak om je geselecteerde fiche in te zetten' : 'Inzetvak';
+          }
           if (chipsDock) {
             if (seat.bet > 0) {
               const formattedBet = (seat.bet >= 1000 && seat.bet % 1000 === 0)
                 ? `${seat.bet / 1000}k`
                 : seat.bet.toLocaleString();
               chipsDock.innerHTML = `
-                <div class="chip-btn active" style="width: 38px; height: 38px; font-size: 0.72rem; background: ${color}; color: #ffffff; border: 1.5px solid var(--gold-bright);">
+                <div class="placed-chip-badge" style="width: 38px; height: 38px; font-size: 0.72rem; font-weight: 700; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: ${color}; color: #ffffff; border: 1.5px solid var(--gold-bright); box-shadow: 0 2px 6px rgba(0,0,0,0.5);">
                   ${formattedBet}
                 </div>
               `;
               if (betLabel) betLabel.textContent = `${seat.bet.toLocaleString()}`;
             } else {
               chipsDock.innerHTML = '';
-              if (betLabel) betLabel.textContent = isMe ? 'KLIK OM IN TE ZETTEN' : 'INZET';
+              if (betLabel) betLabel.textContent = isMe ? 'KLIK HIER' : 'INZET';
             }
           }
 
@@ -1762,6 +1767,10 @@
           if (playerBox) playerBox.classList.add('hidden');
           seatEl.classList.remove('is-active-turn');
           if (avatarDisc) avatarDisc.classList.remove('is-active-turn');
+          if (betSpot) {
+            betSpot.classList.remove('my-bet-spot', 'can-bet');
+            betSpot.title = 'Inzetvak';
+          }
           if (chipsDock) chipsDock.innerHTML = '';
           const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
           if (betLabel) betLabel.textContent = 'INZET';

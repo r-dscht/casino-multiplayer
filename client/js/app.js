@@ -466,8 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.elements.bjTableBtn2.addEventListener('click', () => handleBjTableSwitch('table_2'));
   }
 
-  // Blackjack Chip Selection & Immediate Bet Placement when Seated
-  const bjChipBtns = document.querySelectorAll('#blackjack-view .chip-btn');
+  // Blackjack Chip Selection (Click to choose chip denomination without auto-betting)
+  const bjChipBtns = document.querySelectorAll('#blackjack-view .chip-selector .chip-btn, #bj-bet-chips-row .chip-btn');
   bjChipBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       bjChipBtns.forEach(b => b.classList.remove('active'));
@@ -475,13 +475,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = parseInt(btn.dataset.val || btn.dataset.value || btn.textContent.trim(), 10);
       if (!isNaN(val) && val > 0) {
         selectedBjChip = val;
-        if (myBjSeatIndex !== -1 && currentBjTableState && currentBjTableState.phase === 'BETTING') {
-          if (ui.myPlayer.chips < val) {
-            ui.showToast('Onvoldoende fiches voor deze inzet', 'error');
-            return;
-          }
-          network.bjPlaceBet(myBjSeatIndex, val, currentBjTableId);
-        }
       }
     });
   });
@@ -532,8 +525,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Betting spot
-      const spot = e.target.closest('.betting-spot');
+      // Betting spot (hokje)
+      let spot = e.target.closest('.betting-spot') || (e.target.closest('.seat-betting-area') ? e.target.closest('.seat-betting-area').querySelector('.betting-spot') : null);
+      if (!spot && myBjSeatIndex !== -1) {
+        const seatEl = e.target.closest('.bj-seat');
+        if (seatEl && parseInt(seatEl.dataset.seat, 10) === myBjSeatIndex) {
+          spot = seatEl.querySelector('.betting-spot');
+        }
+      }
+
       if (spot) {
         const seatIdx = parseInt(spot.dataset.seat, 10);
         if (seatIdx !== myBjSeatIndex) {
