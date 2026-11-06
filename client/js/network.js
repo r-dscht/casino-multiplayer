@@ -114,7 +114,10 @@
           const storedColor = (typeof localStorage !== 'undefined')
             ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
             : null;
-          this.authSession({ sessionToken: token, name: storedName, color: storedColor });
+          const storedPassword = (typeof localStorage !== 'undefined')
+            ? (localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password'))
+            : null;
+          this.authSession({ sessionToken: token, name: storedName, color: storedColor, password: storedPassword });
         }
       });
 
@@ -218,8 +221,14 @@
           try {
             if (typeof localStorage !== 'undefined') {
               localStorage.setItem('casino_player_id', data.player.id);
-              if (data.player.name) localStorage.setItem('casino_player_name', data.player.name);
-              if (data.player.color) localStorage.setItem('casino_player_color', data.player.color);
+              if (data.player.name) {
+                localStorage.setItem('casino_player_name', data.player.name);
+                localStorage.setItem('roulette_player_name', data.player.name);
+              }
+              if (data.player.color) {
+                localStorage.setItem('casino_player_color', data.player.color);
+                localStorage.setItem('roulette_player_color', data.player.color);
+              }
             }
           } catch (e) {}
         }

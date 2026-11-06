@@ -318,10 +318,27 @@ class PlayerManager {
 
     // 1. Session token lookup
     if (opts.sessionToken && typeof opts.sessionToken === 'string') {
-      const playerId = this.tokenToPlayerId.get(opts.sessionToken);
-      if (playerId && this.players.has(playerId)) {
-        const player = this.players.get(playerId);
-
+      let playerId = this.tokenToPlayerId.get(opts.sessionToken);
+      let player = playerId ? this.players.get(playerId) : null;
+      if (!player) {
+        for (const p of this.players.values()) {
+          if (p.sessionToken === opts.sessionToken) {
+            player = p;
+            break;
+          }
+        }
+        if (!player) {
+          for (const acc of this.accounts.values()) {
+            if (acc.sessionToken === opts.sessionToken) {
+              player = acc;
+              this.players.set(player.id, player);
+              this.tokenToPlayerId.set(player.sessionToken, player.id);
+              break;
+            }
+          }
+        }
+      }
+      if (player) {
         // Unmap previous socket if assigned
         if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
           this.socketToPlayer.delete(player.socketId);
@@ -367,8 +384,41 @@ class PlayerManager {
         }
       }
 
-      const player = this.players.get(existingAccount.id);
-      if (player) {
+      let player = this.players.get(existingAccount.id);
+      if (!player) {
+        for (const p of this.players.values()) {
+          if (p.usernameKey === normKey) {
+            player = p;
+            break;
+          }
+        }
+      }
+
+      if (!player) {
+        // Reconstruct active player session from saved account, preserving exact chips
+        player = {
+          id: existingAccount.id,
+          sessionToken: existingAccount.sessionToken || `cst_${crypto.randomBytes(16).toString('hex')}`,
+          socketId: socketId || null,
+          usernameKey: normKey,
+          name: existingAccount.name || cleanName,
+          passwordHash: existingAccount.passwordHash || '',
+          avatar: opts.avatar || existingAccount.avatar || 'avatar_1',
+          color: opts.color || existingAccount.color || DEFAULT_COLORS[0],
+          chips: (typeof existingAccount.chips === 'number') ? existingAccount.chips : STARTING_CHIPS,
+          stats: existingAccount.stats ? { ...existingAccount.stats } : { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
+          currentGame: existingAccount.currentGame || 'Roulette',
+          location: existingAccount.location || 'ROULETTE',
+          seatIndex: existingAccount.seatIndex !== undefined ? existingAccount.seatIndex : null,
+          connected: true,
+          isHost: false,
+          createdAt: existingAccount.createdAt || Date.now(),
+          lastSeen: Date.now()
+        };
+        this.players.set(player.id, player);
+        this.tokenToPlayerId.set(player.sessionToken, player.id);
+        this.accounts.set(normKey, player);
+      } else {
         if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
           this.socketToPlayer.delete(player.socketId);
         }
@@ -378,13 +428,19 @@ class PlayerManager {
         }
         player.connected = true;
         player.lastSeen = Date.now();
-        this.scheduleSave();
-        return {
-          player,
-          sessionToken: player.sessionToken,
-          isNew: false
-        };
+        if (opts.color) player.color = opts.color;
+        if (opts.avatar) player.avatar = opts.avatar;
       }
+
+      if (socketId) {
+        this.socketToPlayer.set(socketId, player.id);
+      }
+      this.scheduleSave();
+      return {
+        player,
+        sessionToken: player.sessionToken,
+        isNew: false
+      };
     }
 
     // 3. New player registration with starting 10,000 chips and bearer token

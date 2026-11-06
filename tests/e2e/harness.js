@@ -28,10 +28,15 @@ const { setupSocket } = require('../../server/socket');
 function startTestServer(options = {}) {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
-    const { io, playerManager, engine, broadcastChatMessage } = setupSocket(server, options);
+    const { io, playerManager, engine, blackjackTables, broadcastChatMessage } = setupSocket(server, options);
 
     if (options.autoStartEngine !== false) {
       engine.start();
+      if (blackjackTables) {
+        for (const tbl of blackjackTables.values()) {
+          tbl.start();
+        }
+      }
     }
 
     server.listen(0, '127.0.0.1', () => {
@@ -42,6 +47,11 @@ function startTestServer(options = {}) {
       async function close() {
         try {
           engine.stop();
+          if (blackjackTables) {
+            for (const tbl of blackjackTables.values()) {
+              tbl.stop();
+            }
+          }
           const sockets = await io.fetchSockets();
           for (const s of sockets) {
             s.disconnect(true);

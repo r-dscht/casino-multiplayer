@@ -584,6 +584,32 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   border-color: #1a1405;
 }
 
+.chip-btn[data-val="5000"] {
+  background: radial-gradient(circle at 35% 35%, #f87171 0%, #b91c1c 100%);
+  color: #ffffff;
+  border-color: #fecaca;
+}
+
+.chip-btn[data-val="10000"] {
+  background: radial-gradient(circle at 35% 35%, #2d3748 0%, #0f172a 100%);
+  color: #f6e05e;
+  border-color: #d4af37;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+.chip-btn[data-val="25000"] {
+  background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #0369a1 100%);
+  color: #ffffff;
+  border-color: #e0f2fe;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+
+.bj-quick-bet-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chip-btn:hover {
   transform: translateY(-4px) scale(1.08);
 }

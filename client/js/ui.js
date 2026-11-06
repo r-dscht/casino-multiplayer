@@ -147,7 +147,7 @@
 
         // Board & Controls (Roulette)
         gridContainer: document.getElementById('roulette-betting-grid'),
-        chipButtons: document.querySelectorAll('.chip-btn'),
+        chipButtons: document.querySelectorAll('#roulette-view .chip-btn, .controls-bar .chip-btn'),
         btnClearBets: document.getElementById('btn-clear-bets'),
         btnDoubleBets: document.getElementById('btn-double-bets'),
         btnInsideHelper: document.getElementById('btn-inside-helper'),
@@ -280,9 +280,9 @@
     }
 
     setupOnboarding() {
-      const savedName = localStorage.getItem('roulette_player_name') || '';
-      const savedPassword = localStorage.getItem('roulette_player_password') || '';
-      const savedColor = localStorage.getItem('roulette_player_color') || '#D4AF37';
+      const savedName = localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name') || '';
+      const savedPassword = localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password') || '';
+      const savedColor = localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color') || '#D4AF37';
 
       if (this.elements.inputName && savedName) {
         this.elements.inputName.value = savedName;
@@ -329,12 +329,16 @@
 
       try {
         localStorage.setItem('roulette_player_name', name);
+        localStorage.setItem('casino_player_name', name);
         if (rawPassword) {
           localStorage.setItem('roulette_player_password', rawPassword);
+          localStorage.setItem('casino_player_password', rawPassword);
         } else {
           localStorage.removeItem('roulette_player_password');
+          localStorage.removeItem('casino_player_password');
         }
         localStorage.setItem('roulette_player_color', color);
+        localStorage.setItem('casino_player_color', color);
       } catch (e) {}
 
       if (this.options.onJoinTable) {
@@ -933,14 +937,29 @@
 
       if (this.elements.phaseTitle) {
         if (phase === 'BETTING') {
-          this.elements.phaseTitle.textContent = 'PLACE YOUR BETS';
+          this.elements.phaseTitle.textContent = 'INZETTEN';
           this.elements.phaseTitle.className = 'phase-title phase-betting';
         } else if (phase === 'SPINNING') {
-          this.elements.phaseTitle.textContent = 'WHEEL SPINNING';
+          this.elements.phaseTitle.textContent = 'WIEL DRAAIT';
           this.elements.phaseTitle.className = 'phase-title phase-spinning';
-        } else if (phase === 'PAYOUT') {
-          this.elements.phaseTitle.textContent = 'PAYOUT & RESULTS';
+        } else if (phase === 'WAITING_FOR_PLAYERS') {
+          this.elements.phaseTitle.textContent = 'WACHTEN OP SPELERS';
+          this.elements.phaseTitle.className = 'phase-title phase-waiting';
+        } else if (phase === 'DEALING') {
+          this.elements.phaseTitle.textContent = 'KAARTEN DELEN';
+          this.elements.phaseTitle.className = 'phase-title phase-dealing';
+        } else if (phase === 'PLAYER_TURNS') {
+          this.elements.phaseTitle.textContent = 'SPELER BEURT';
+          this.elements.phaseTitle.className = 'phase-title phase-player-turns';
+        } else if (phase === 'DEALER_TURN') {
+          this.elements.phaseTitle.textContent = 'DEALER SPEELT';
+          this.elements.phaseTitle.className = 'phase-title phase-dealer-turn';
+        } else if (phase === 'PAYOUT' || phase === 'ROUND_OVER') {
+          this.elements.phaseTitle.textContent = 'UITBETALING';
           this.elements.phaseTitle.className = 'phase-title phase-payout';
+        } else {
+          this.elements.phaseTitle.textContent = phase;
+          this.elements.phaseTitle.className = 'phase-title';
         }
       }
 
@@ -1794,6 +1813,10 @@
       if (this.elements.pillRoulette && this.elements.pillBlackjack) {
         this.elements.pillRoulette.classList.toggle('active', isRoulette);
         this.elements.pillBlackjack.classList.toggle('active', !isRoulette);
+      }
+
+      if (this.elements.historyStrip) {
+        this.elements.historyStrip.style.display = isRoulette ? '' : 'none';
       }
 
       this.updateChatTableFilter(this.currentTableId);

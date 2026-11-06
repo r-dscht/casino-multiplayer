@@ -28,12 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentBjTableState = null;
   let myBjSeatIndex = -1;
   let selectedBjChip = 100;
+  let lastRoulettePhase = 'BETTING';
+  let lastRouletteDuration = 20;
+  let lastRouletteTimeLeft = 20;
 
   function hasUnsettledBets() {
     if (currentActiveBets.length > 0) return true;
     if (myBjSeatIndex !== -1 && currentBjTableState) {
       const mySeat = currentBjTableState.seats && currentBjTableState.seats[myBjSeatIndex];
-      if (mySeat && mySeat.bet > 0 && ['BETTING', 'DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentBjTableState.phase)) {
+      if (mySeat && mySeat.bet > 0 && ['DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentBjTableState.phase)) {
         return true;
       }
     }
@@ -127,6 +130,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.showLoginError(data ? data.message : 'Inloggen mislukt');
   });
 
+  network.on('auth_error', (data) => {
+    ui.showLoginError(data ? data.message : 'Authenticatie mislukt');
+  });
+
+  network.on('auth_success', (data) => {
+    ui.hideLoginModal();
+    if (data && data.player) {
+      ui.myPlayer.id = data.player.id;
+      ui.myPlayer.name = data.player.name;
+      ui.myPlayer.chips = data.player.chips;
+      ui.myPlayer.color = data.player.color;
+      ui.myPlayer.avatar = data.player.avatar || 'avatar_1';
+      ui.updatePlayerHUD();
+      ui.renderMyProfile(data.player);
+    }
+  });
+
   network.on('table_state', (state) => {
     if (!state) return;
 
@@ -151,8 +171,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    lastRoulettePhase = state.currentPhase || 'BETTING';
+    lastRouletteDuration = state.phaseDuration || 20;
+    lastRouletteTimeLeft = state.timeLeft || 0;
+
     // Set phase and countdown
-    ui.updatePhase(state.currentPhase, state.phaseDuration || 20, state.timeLeft || 0);
+    if (currentActiveGame === 'Roulette') {
+      ui.updatePhase(state.currentPhase, state.phaseDuration || 20, state.timeLeft || 0);
+    }
 
     // Update history strip
     if (Array.isArray(state.recentHistory)) {
@@ -216,12 +242,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('phase_tick', (data) => {
     if (!data) return;
-    ui.updateTimer(data.timeLeft);
+    lastRouletteTimeLeft = data.timeLeft;
+    if (currentActiveGame === 'Roulette') {
+      ui.updateTimer(data.timeLeft);
+    }
   });
 
   network.on('phase_change', (data) => {
     if (!data) return;
-    ui.updatePhase(data.phase, data.duration, data.timeLeft);
+    lastRoulettePhase = data.phase;
+    lastRouletteDuration = data.duration || 20;
+    lastRouletteTimeLeft = data.timeLeft || 0;
+
+    if (currentActiveGame === 'Roulette') {
+      ui.updatePhase(data.phase, data.duration, data.timeLeft);
+    }
 
     if (data.phase === 'SPINNING') {
       if (roulette3D && typeof data.winningNumber === 'number') {
@@ -367,12 +402,18 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveGame = 'Roulette';
         ui.switchGameView('roulette');
         network.setGamePresence('Roulette');
+        ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
         ui.showToast('Je speelt nu Roulette', 'info');
       } else if (game === 'blackjack') {
         currentActiveGame = 'Blackjack';
         ui.switchGameView('blackjack', currentBjTableId);
         network.setGamePresence('Blackjack');
         network.bjJoinTable(currentBjTableId);
+        if (currentBjTableState) {
+          ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
+        } else {
+          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+        }
         ui.showToast('Je speelt nu Blackjack', 'info');
       } else {
         ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
@@ -446,14 +487,22 @@ document.addEventListener('DOMContentLoaded', () => {
       // Leave button
       const leaveBtn = e.target.closest('.btn-seat-leave');
       if (leaveBtn) {
-        if (hasUnsettledBets()) {
-          ui.showToast('Inzet actief — Navigatie vergrendeld tot einde van de ronde', 'error');
+        const seatIdx = parseInt(leaveBtn.dataset.seat, 10);
+        if (isNaN(seatIdx)) return;
+
+        const mySeat = currentBjTableState && currentBjTableState.seats ? currentBjTableState.seats[seatIdx] : null;
+        const currentPhase = currentBjTableState ? currentBjTableState.phase : 'BETTING';
+
+        if (['DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentPhase) && mySeat && mySeat.bet > 0) {
+          ui.showToast('Inzet actief — Je kunt de stoel pas verlaten na afloop van de hand', 'error');
           return;
         }
-        const seatIdx = parseInt(leaveBtn.dataset.seat, 10);
-        if (!isNaN(seatIdx)) {
-          network.bjLeaveSeat(seatIdx, currentBjTableId);
+
+        // If in BETTING phase and a bet was placed, clear it first so chips are refunded!
+        if (currentPhase === 'BETTING' && mySeat && mySeat.bet > 0) {
+          network.bjClearBet(seatIdx, currentBjTableId);
         }
+        network.bjLeaveSeat(seatIdx, currentBjTableId);
         return;
       }
 
@@ -527,6 +576,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnBjDoubleBet = document.getElementById('btn-bj-double-bet');
+  if (btnBjDoubleBet) {
+    btnBjDoubleBet.addEventListener('click', () => {
+      if (myBjSeatIndex === -1) {
+        ui.showToast('Neem eerst plaats aan tafel', 'info');
+        return;
+      }
+      if (!currentBjTableState || currentBjTableState.phase !== 'BETTING') {
+        ui.showToast('Inzetten kan alleen tijdens de inzetfase', 'info');
+        return;
+      }
+      const mySeat = currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+      const currentBet = mySeat ? (mySeat.bet || 0) : 0;
+      if (currentBet <= 0) {
+        if (ui.myPlayer.chips < selectedBjChip) {
+          ui.showToast('Onvoldoende fiches voor deze inzet', 'error');
+          return;
+        }
+        network.bjPlaceBet(myBjSeatIndex, selectedBjChip, currentBjTableId);
+        return;
+      }
+      const addAmount = Math.min(currentBet, ui.myPlayer.chips, 100000 - currentBet);
+      if (addAmount <= 0) {
+        ui.showToast('Onvoldoende fiches of maximale tafellimiet bereikt', 'error');
+        return;
+      }
+      network.bjPlaceBet(myBjSeatIndex, addAmount, currentBjTableId);
+    });
+  }
+
+  const btnBjMaxBet = document.getElementById('btn-bj-max-bet');
+  if (btnBjMaxBet) {
+    btnBjMaxBet.addEventListener('click', () => {
+      if (myBjSeatIndex === -1) {
+        ui.showToast('Neem eerst plaats aan tafel', 'info');
+        return;
+      }
+      if (!currentBjTableState || currentBjTableState.phase !== 'BETTING') {
+        ui.showToast('Inzetten kan alleen tijdens de inzetfase', 'info');
+        return;
+      }
+      const mySeat = currentBjTableState.seats ? currentBjTableState.seats[myBjSeatIndex] : null;
+      const currentBet = mySeat ? (mySeat.bet || 0) : 0;
+      const maxAllowed = 100000;
+      const desiredBet = Math.min(ui.myPlayer.chips + currentBet, maxAllowed);
+      const addAmount = desiredBet - currentBet;
+      if (addAmount <= 0) {
+        ui.showToast('Maximale tafellimiet bereikt of onvoldoende fiches', 'info');
+        return;
+      }
+      network.bjPlaceBet(myBjSeatIndex, addAmount, currentBjTableId);
+    });
+  }
+
   // Helper to recompute turn action buttons
   function updateBjActionButtons() {
     if (!currentBjTableState) {
@@ -572,6 +675,10 @@ document.addEventListener('DOMContentLoaded', () => {
           myBjSeatIndex = idx;
         }
       });
+    }
+
+    if (currentActiveGame === 'Blackjack') {
+      ui.updatePhase(data.phase, 15, data.timeLeft || 0);
     }
 
     ui.setNavigationLocked(hasUnsettledBets());
@@ -746,12 +853,22 @@ document.addEventListener('DOMContentLoaded', () => {
       currentBjTableState.activeSeatIndex = data.seatIndex;
       ui.renderBlackjackSeats(currentBjTableState.seats, data.seatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
+    if (currentActiveGame === 'Blackjack') {
+      ui.updateTimer(data.turnTimeLeft !== undefined ? data.turnTimeLeft : 15);
+    }
     updateBjActionButtons();
+  });
+
+  network.on('bj_turn_tick', (data) => {
+    if (!data || data.tableId !== currentBjTableId) return;
+    if (currentActiveGame === 'Blackjack') {
+      ui.updateTimer(data.turnTimeLeft);
+    }
   });
 
   network.on('bj_phase_tick', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    if (currentActiveGame === 'Blackjack' && data.phase === 'BETTING') {
+    if (currentActiveGame === 'Blackjack') {
       ui.updateTimer(data.timeLeft);
     }
   });
@@ -847,9 +964,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.game === 'Blackjack') {
         currentActiveGame = 'Blackjack';
         ui.switchGameView('blackjack', currentBjTableId);
+        if (currentBjTableState) {
+          ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
+        } else {
+          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+        }
       } else if (data.game === 'Roulette') {
         currentActiveGame = 'Roulette';
         ui.switchGameView('roulette');
+        ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
       }
     }
   });

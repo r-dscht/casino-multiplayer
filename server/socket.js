@@ -94,6 +94,12 @@ function setupSocket(httpServer, options = {}) {
   });
   blackjackTables.set('table_2', highRollerBjEngine);
 
+  if (options && options.autoStartBlackjack === true) {
+    for (const tbl of blackjackTables.values()) {
+      tbl.start();
+    }
+  }
+
   function getTable(tableId) {
     if (tableId && blackjackTables.has(tableId)) {
       return blackjackTables.get(tableId);

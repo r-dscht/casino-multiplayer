@@ -132,7 +132,12 @@ class BlackjackEngine extends EventEmitter {
         if (activeBetCount > 0) {
           this.transitionToDealing();
         } else {
-          this.transitionToWaiting();
+          const seatedCount = this.seats.filter(s => s.player !== null).length;
+          if (seatedCount > 0) {
+            this.transitionToBetting();
+          } else {
+            this.transitionToWaiting();
+          }
         }
       }
     } else if (this.currentPhase === PHASES.DEALING) {
@@ -273,6 +278,11 @@ class BlackjackEngine extends EventEmitter {
       return { success: false, code: 'NOT_SEAT_OWNER', reason: 'You do not occupy this seat' };
     }
 
+    // If player is in BETTING phase and has placed a bet, auto-refund so they are not trapped
+    if (this.currentPhase === PHASES.BETTING && seat.bet > 0) {
+      this.clearBet(seatIndex, playerId);
+    }
+
     // Navigation Lock Check: Cannot leave while having active, unresolved bets
     if (this.hasActiveBets(playerId)) {
       return {
@@ -328,7 +338,9 @@ class BlackjackEngine extends EventEmitter {
    * @returns {{ success: boolean, code?: string, reason?: string, seat?: Object, chips?: number }}
    */
   placeBet(seatIndex, playerId, amount) {
-    if (this.currentPhase !== PHASES.BETTING) {
+    if (this.currentPhase === PHASES.WAITING_FOR_PLAYERS) {
+      this.transitionToBetting();
+    } else if (this.currentPhase !== PHASES.BETTING) {
       return { success: false, code: 'BETS_CLOSED', reason: 'Betting is closed for this round' };
     }
 
