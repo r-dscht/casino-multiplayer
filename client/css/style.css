@@ -812,7 +812,13 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   margin-bottom: 24px;
 }
 
+/* Global utility classes */
+.hidden {
+  display: none !important;
+}
+
 .login-error-msg {
+  display: none;
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid #ef4444;
   border-radius: 8px;
@@ -821,6 +827,10 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   color: #fca5a5;
   margin-bottom: 18px;
   text-align: center;
+}
+
+.login-error-msg.visible {
+  display: block;
 }
 
 .btn-block {

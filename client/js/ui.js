@@ -245,6 +245,7 @@
     showLoginError(msg) {
       if (this.elements.loginErrorMsg) {
         this.elements.loginErrorMsg.textContent = msg;
+        this.elements.loginErrorMsg.classList.add('visible');
         this.elements.loginErrorMsg.classList.remove('hidden');
       }
     }
@@ -254,6 +255,8 @@
         this.elements.modal.classList.add('hidden');
       }
       if (this.elements.loginErrorMsg) {
+        this.elements.loginErrorMsg.textContent = '';
+        this.elements.loginErrorMsg.classList.remove('visible');
         this.elements.loginErrorMsg.classList.add('hidden');
       }
     }
