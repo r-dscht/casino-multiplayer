@@ -121,6 +121,17 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   border-color: var(--gold-primary);
 }
 
+.btn:disabled,
+.btn-gold:disabled,
+.btn-secondary:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(0.4);
+}
+
 .btn-gold-sm {
   padding: 8px 16px;
   font-size: 0.82rem;

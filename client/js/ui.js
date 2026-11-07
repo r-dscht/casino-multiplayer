@@ -842,7 +842,7 @@
       if (this.elements.btnClearBets) {
         this.elements.btnClearBets.addEventListener('click', () => {
           if (this.currentPhase !== 'BETTING') {
-            this.showToast('Betting is closed for this round', 'warning');
+            this.showToast('Inzetten is gesloten voor deze ronde', 'warning');
             return;
           }
           if (this.options.onClearBets) {
@@ -855,7 +855,7 @@
       if (this.elements.btnDoubleBets) {
         this.elements.btnDoubleBets.addEventListener('click', () => {
           if (this.currentPhase !== 'BETTING') {
-            this.showToast('Betting is closed for this round', 'warning');
+            this.showToast('Inzetten is gesloten voor deze ronde', 'warning');
             return;
           }
           if (this.options.onDoubleBets) {
@@ -867,12 +867,12 @@
 
     handleSpotClick(type, value, spotKey) {
       if (this.currentPhase !== 'BETTING') {
-        this.showToast('Betting is closed for this round', 'warning');
+        this.showToast('Inzetten is gesloten voor deze ronde', 'warning');
         return;
       }
 
       if (this.myPlayer.chips < this.selectedChip) {
-        this.showToast('Insufficient chip balance', 'error');
+        this.showToast('Onvoldoende fiches voor deze inzet', 'error');
         return;
       }
 

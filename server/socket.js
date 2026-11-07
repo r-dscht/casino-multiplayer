@@ -186,6 +186,12 @@ function setupSocket(httpServer, options = {}) {
       io.emit('bj_seat_left', data);
       broadcastPlayersUpdate();
     });
+    tbl.on('seat_vacated', (data) => {
+      const state = tbl.getTableState();
+      io.emit('bj_table_state', state);
+      io.emit('bj_seat_vacated', data);
+      broadcastPlayersUpdate();
+    });
     tbl.on('bet_placed', (data) => {
       const state = tbl.getTableState();
       io.emit('bj_table_state', state);

@@ -69,12 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onDoubleBets: () => {
       if (currentActiveBets.length === 0) {
-        ui.showToast('No active bets to double', 'info');
+        ui.showToast('Geen actieve inzetten om te verdubbelen', 'info');
         return;
       }
       const totalRequired = currentActiveBets.reduce((sum, b) => sum + b.amount, 0);
       if (ui.myPlayer.chips < totalRequired) {
-        ui.showToast('Insufficient chips to double bets', 'error');
+        ui.showToast('Onvoldoende fiches om inzetten te verdubbelen', 'error');
         return;
       }
       // Re-place each active bet
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
           amount: b.amount
         });
       });
-      ui.showToast(`Doubled ${currentActiveBets.length} bets!`, 'info');
+      ui.showToast(`${currentActiveBets.length} inzetten verdubbeld!`, 'info');
     },
     onSendChat: (text, scope = 'global') => {
       network.sendChat(text, scope, currentActiveGame === 'Blackjack' ? currentBjTableId : 'roulette');
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.playerId === ui.myPlayer.id) {
       currentActiveBets = [];
       ui.setNavigationLocked(hasUnsettledBets());
-      ui.showToast('All your bets have been refunded', 'info');
+      ui.showToast('Al je inzetten zijn geretourneerd', 'info');
     }
   });
 
@@ -660,6 +660,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper to recompute turn action buttons
   function updateBjActionButtons() {
     if (!currentBjTableState) {
+      if (btnBjDeal) btnBjDeal.disabled = true;
+      if (btnBjDoubleBet) btnBjDoubleBet.disabled = true;
+      if (btnBjMaxBet) btnBjMaxBet.disabled = true;
       ui.setBlackjackActionsState({ canHit: false, canStand: false, canDouble: false, canSplit: false, canClearBet: false });
       return;
     }
@@ -687,8 +690,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const hasBet = Boolean(mySeat && (mySeat.bet > 0 || (mySeat.hands && mySeat.hands[0] && mySeat.hands[0].bet > 0)));
     const canClearBet = (currentBjTableState.phase === 'BETTING' && hasBet);
+    const canQuickBet = (currentBjTableState.phase === 'BETTING' && myBjSeatIndex !== -1);
+
     if (btnBjDeal) {
       btnBjDeal.disabled = !canClearBet;
+    }
+    if (btnBjDoubleBet) {
+      btnBjDoubleBet.disabled = !canQuickBet;
+    }
+    if (btnBjMaxBet) {
+      btnBjMaxBet.disabled = !canQuickBet;
     }
     ui.setBlackjackActionsState({ canHit, canStand, canDouble, canSplit, canClearBet });
   }
@@ -852,7 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('bj_bet_cleared', (data) => {
-    const newChips = typeof data.remainingChips === 'number' ? data.remainingChips : data.chipsRemaining;
+    const newChips = (typeof data.remainingChips === 'number')
+      ? data.remainingChips
+      : (typeof data.chipsRemaining === 'number' ? data.chipsRemaining : (typeof data.chips === 'number' ? data.chips : null));
     if (typeof newChips === 'number' && (data.playerId === ui.myPlayer.id || data.seatIndex === myBjSeatIndex)) {
       ui.myPlayer.chips = newChips;
       ui.updatePlayerHUD();

@@ -6,7 +6,9 @@
 #casino-app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background-color: var(--bg-dark);
 }
 
@@ -214,6 +216,13 @@
 
 /* Mobile Devices (< 860px) */
 @media (max-width: 860px) {
+  #casino-app {
+    height: auto;
+    max-height: none;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
   .main-viewport {
     flex-direction: column;
   }
