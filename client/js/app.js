@@ -40,6 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
       }
     }
+    if (poker && poker.mySeatIndex !== -1 && poker.currentTableState) {
+      const mySeat = poker.currentTableState.seats && poker.currentTableState.seats[poker.mySeatIndex];
+      if (mySeat && !mySeat.folded && !['WAITING_FOR_PLAYERS', 'HAND_END'].includes(poker.currentTableState.currentPhase)) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -88,7 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.showToast(`${currentActiveBets.length} inzetten verdubbeld!`, 'info');
     },
     onSendChat: (text, scope = 'global') => {
-      network.sendChat(text, scope, currentActiveGame === 'Blackjack' ? currentBjTableId : 'roulette');
+      let roomTable = 'roulette';
+      if (currentActiveGame === 'Blackjack') {
+        roomTable = currentBjTableId;
+      } else if (currentActiveGame === 'Poker') {
+        roomTable = (poker && poker.currentTableId) || 'poker_1';
+      }
+      network.sendChat(text, scope, roomTable);
     },
     onInspectPlayer: (playerId) => {
       network.getProfile(playerId);
@@ -111,6 +123,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let bank = null;
   if (typeof CasinoBank !== 'undefined') {
     bank = new CasinoBank({ network, ui });
+  }
+
+  // 5b. Initialize Texas Hold'em Poker Controller
+  let poker = null;
+  if (typeof CasinoPoker !== 'undefined') {
+    poker = new CasinoPoker({ network, ui });
+    poker.init();
   }
 
   // 6. Connect Socket Network
@@ -427,6 +446,20 @@ document.addEventListener('DOMContentLoaded', () => {
           ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
         }
         ui.showToast('Je speelt nu Blackjack', 'info');
+      } else if (game === 'poker') {
+        currentActiveGame = 'Poker';
+        const targetPokerTable = (poker && poker.currentTableId) || 'poker_1';
+        ui.switchGameView('poker', targetPokerTable);
+        network.setGamePresence('POKER');
+        network.pokerJoinTable(targetPokerTable);
+        ui.switchChatScope('table');
+        if (poker && poker.currentTableState) {
+          ui.updatePhase(poker.currentTableState.currentPhase || 'WAITING_FOR_PLAYERS', 15, poker.currentTableState.turnTimeLeft || 0);
+          poker.renderTable(poker.currentTableState);
+        } else {
+          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+        }
+        ui.showToast('Je speelt nu Texas Hold\'em Poker', 'info');
       } else {
         ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
       }
@@ -1122,6 +1155,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.switchGameView('roulette');
         ui.switchChatScope('table');
         ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
+      } else if (data.game === 'Poker') {
+        currentActiveGame = 'Poker';
+        const targetPokerTable = (poker && poker.currentTableId) || 'poker_1';
+        ui.switchGameView('poker', targetPokerTable);
+        ui.switchChatScope('table');
+        if (poker && poker.currentTableState) {
+          ui.updatePhase(poker.currentTableState.currentPhase || 'WAITING_FOR_PLAYERS', 15, poker.currentTableState.turnTimeLeft || 0);
+          poker.renderTable(poker.currentTableState);
+        } else {
+          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+        }
       }
     }
   });

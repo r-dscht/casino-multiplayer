@@ -445,6 +445,115 @@
       this.socket.on('bj_round_end', (data) => {
         this.emitInternal('bj_round_end', data);
       });
+
+      // Multiplayer 6-Seat Texas Hold'em Poker Protocol Events
+      this.socket.on('poker_table_state', (data) => {
+        this.emitInternal('poker_table_state', data);
+      });
+
+      this.socket.on('poker_seat_taken', (data) => {
+        this.emitInternal('poker_seat_taken', data);
+      });
+
+      this.socket.on('poker_seat_left', (data) => {
+        this.emitInternal('poker_seat_left', data);
+      });
+
+      this.socket.on('poker_seat_vacated', (data) => {
+        this.emitInternal('poker_seat_vacated', data);
+      });
+
+      this.socket.on('poker_seat_accepted', (data) => {
+        this.emitInternal('poker_seat_accepted', data);
+      });
+
+      this.socket.on('poker_seat_error', (data) => {
+        this.emitInternal('poker_seat_error', data);
+      });
+
+      this.socket.on('poker_phase_tick', (data) => {
+        this.emitInternal('poker_phase_tick', data);
+      });
+
+      this.socket.on('poker_phase_change', (data) => {
+        this.emitInternal('poker_phase_change', data);
+      });
+
+      this.socket.on('poker_phase_changed', (data) => {
+        this.emitInternal('poker_phase_changed', data);
+      });
+
+      this.socket.on('poker_turn_tick', (data) => {
+        this.emitInternal('poker_turn_tick', data);
+      });
+
+      this.socket.on('poker_turn_change', (data) => {
+        this.emitInternal('poker_turn_change', data);
+      });
+
+      this.socket.on('poker_turn_changed', (data) => {
+        this.emitInternal('poker_turn_changed', data);
+      });
+
+      this.socket.on('poker_hand_start', (data) => {
+        this.emitInternal('poker_hand_start', data);
+      });
+
+      this.socket.on('poker_hand_started', (data) => {
+        this.emitInternal('poker_hand_started', data);
+      });
+
+      this.socket.on('poker_hole_cards', (data) => {
+        this.emitInternal('poker_hole_cards', data);
+      });
+
+      this.socket.on('poker_community_cards', (data) => {
+        this.emitInternal('poker_community_cards', data);
+      });
+
+      this.socket.on('poker_community_dealt', (data) => {
+        this.emitInternal('poker_community_dealt', data);
+      });
+
+      this.socket.on('poker_player_acted', (data) => {
+        this.emitInternal('poker_player_acted', data);
+      });
+
+      this.socket.on('poker_player_action', (data) => {
+        this.emitInternal('poker_player_action', data);
+      });
+
+      this.socket.on('poker_action_success', (data) => {
+        this.emitInternal('poker_action_success', data);
+      });
+
+      this.socket.on('poker_action_rejected', (data) => {
+        this.emitInternal('poker_action_rejected', data);
+      });
+
+      this.socket.on('poker_hand_end', (data) => {
+        this.emitInternal('poker_hand_end', data);
+      });
+
+      this.socket.on('poker_hand_ended', (data) => {
+        this.emitInternal('poker_hand_ended', data);
+      });
+
+      this.socket.on('poker_showdown', (data) => {
+        this.emitInternal('poker_showdown', data);
+      });
+
+      this.socket.on('poker_rebuy_success', (data) => {
+        this.emitInternal('poker_rebuy_success', data);
+      });
+
+      this.socket.on('poker_rebuy_error', (data) => {
+        this.emitInternal('poker_rebuy_error', data);
+      });
+
+      this.socket.on('poker_stack_update', (data) => {
+        this.emitInternal('poker_stack_update', data);
+      });
     }
 
     /**
@@ -737,6 +846,127 @@
         tableId = typeof arg4 === 'string' ? arg4 : 'table_1';
       }
       this.socket.emit('bj_action', { action, seatIndex, handIndex, tableId });
+    }
+
+    /**
+     * Joins or switches to a Texas Hold'em Poker table.
+     * @param {string} [tableId='poker_1']
+     */
+    pokerJoinTable(tableId = 'poker_1') {
+      if (!this.socket) return;
+      this.socket.emit('poker_join_table', { tableId: tableId || 'poker_1' });
+    }
+
+    /**
+     * Leaves the Texas Hold'em Poker table room.
+     * @param {string} [tableId='poker_1']
+     */
+    pokerLeaveTable(tableId = 'poker_1') {
+      if (!this.socket) return;
+      this.socket.emit('poker_leave_table', { tableId: tableId || 'poker_1' });
+    }
+
+    /**
+     * Claims an open seat at the Poker table with specified buy-in.
+     * Supports both (seatIndex, buyInAmount, tableId) and ({ seatIndex, buyInAmount, tableId }).
+     * @param {number|Object} arg1
+     * @param {number} [arg2=2000]
+     * @param {string} [arg3='poker_1']
+     */
+    pokerTakeSeat(arg1, arg2 = 2000, arg3 = 'poker_1') {
+      if (!this.socket) return;
+      let seatIndex = 0;
+      let buyInAmount = 2000;
+      let tableId = 'poker_1';
+      if (typeof arg1 === 'object' && arg1 !== null) {
+        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : 0;
+        buyInAmount = typeof arg1.buyInAmount === 'number' ? arg1.buyInAmount : (typeof arg1.amount === 'number' ? arg1.amount : 2000);
+        tableId = arg1.tableId || 'poker_1';
+      } else {
+        seatIndex = typeof arg1 === 'number' ? arg1 : parseInt(arg1, 10);
+        buyInAmount = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+        tableId = typeof arg3 === 'string' ? arg3 : 'poker_1';
+      }
+      this.socket.emit('poker_take_seat', { seatIndex, buyInAmount, tableId });
+    }
+
+    /**
+     * Vacates a seat at the Poker table.
+     * @param {number|Object} [arg1]
+     * @param {string} [arg2='poker_1']
+     */
+    pokerLeaveSeat(arg1, arg2 = 'poker_1') {
+      if (!this.socket) return;
+      let seatIndex = -1;
+      let tableId = 'poker_1';
+      if (typeof arg1 === 'object' && arg1 !== null) {
+        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : -1;
+        tableId = arg1.tableId || 'poker_1';
+      } else if (typeof arg1 === 'number') {
+        seatIndex = arg1;
+        tableId = typeof arg2 === 'string' ? arg2 : 'poker_1';
+      } else if (typeof arg1 === 'string') {
+        tableId = arg1;
+      }
+      this.socket.emit('poker_leave_seat', { seatIndex, tableId });
+    }
+
+    /**
+     * Submits a player decision action on the active poker turn.
+     * Supports both (action, amount, seatIndex, tableId) and ({ action, amount, seatIndex, tableId }).
+     * @param {string|Object} arg1
+     * @param {number} [arg2=0]
+     * @param {number} [arg3=0]
+     * @param {string} [arg4='poker_1']
+     */
+    pokerAction(arg1, arg2 = 0, arg3 = 0, arg4 = 'poker_1') {
+      if (!this.socket) return;
+      let action = 'check';
+      let amount = 0;
+      let seatIndex = 0;
+      let tableId = 'poker_1';
+      if (typeof arg1 === 'object' && arg1 !== null) {
+        action = arg1.action || 'check';
+        amount = typeof arg1.amount === 'number' ? arg1.amount : 0;
+        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : 0;
+        tableId = arg1.tableId || 'poker_1';
+      } else {
+        action = String(arg1 || 'check');
+        amount = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10) || 0;
+        seatIndex = typeof arg3 === 'number' ? arg3 : parseInt(arg3, 10) || 0;
+        tableId = typeof arg4 === 'string' ? arg4 : 'poker_1';
+      }
+      this.socket.emit('poker_action', { action, amount, seatIndex, tableId });
+    }
+
+    /**
+     * Tops up table stack between hands (buy-in / rebuy).
+     * @param {number|Object} arg1
+     * @param {number} [arg2=0]
+     * @param {string} [arg3='poker_1']
+     */
+    pokerBuyIn(arg1, arg2 = 0, arg3 = 'poker_1') {
+      if (!this.socket) return;
+      let amount = 0;
+      let seatIndex = 0;
+      let tableId = 'poker_1';
+      if (typeof arg1 === 'object' && arg1 !== null) {
+        amount = typeof arg1.amount === 'number' ? arg1.amount : 0;
+        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : 0;
+        tableId = arg1.tableId || 'poker_1';
+      } else {
+        amount = typeof arg1 === 'number' ? arg1 : parseInt(arg1, 10) || 0;
+        seatIndex = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10) || 0;
+        tableId = typeof arg3 === 'string' ? arg3 : 'poker_1';
+      }
+      this.socket.emit('poker_rebuy', { amount, seatIndex, tableId });
+    }
+
+    /**
+     * Alias for pokerBuyIn
+     */
+    pokerRebuy(arg1, arg2 = 0, arg3 = 'poker_1') {
+      this.pokerBuyIn(arg1, arg2, arg3);
     }
   }
 

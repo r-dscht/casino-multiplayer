@@ -27,6 +27,7 @@ describe('Client UI, Avatar Presence & Game Feel (Milestone 3)', () => {
   const uiJs = fs.readFileSync(path.join(clientDir, 'js', 'ui.js'), 'utf8');
   const appJs = fs.readFileSync(path.join(clientDir, 'js', 'app.js'), 'utf8');
   const networkJs = fs.readFileSync(path.join(clientDir, 'js', 'network.js'), 'utf8');
+  const pokerJs = fs.readFileSync(path.join(clientDir, 'js', 'poker.js'), 'utf8');
 
   describe('1. Monogram Extraction (getMonogram)', () => {
     // Extract getMonogram function from ui.js for direct behavioral testing
@@ -272,7 +273,7 @@ describe('Client UI, Avatar Presence & Game Feel (Milestone 3)', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/u;
 
     it('client codebase must contain zero Web Audio API references or <audio> tags', () => {
-      const files = [indexHtml, styleCss, layoutCss, uiJs, appJs, networkJs];
+      const files = [indexHtml, styleCss, layoutCss, uiJs, appJs, networkJs, pokerJs];
       for (const content of files) {
         for (const pattern of audioForbidden) {
           assert.equal(pattern.test(content), false, `Forbidden audio pattern ${pattern} detected`);
@@ -287,7 +288,8 @@ describe('Client UI, Avatar Presence & Game Feel (Milestone 3)', () => {
         { name: 'layout.css', content: layoutCss },
         { name: 'ui.js', content: uiJs },
         { name: 'app.js', content: appJs },
-        { name: 'network.js', content: networkJs }
+        { name: 'network.js', content: networkJs },
+        { name: 'poker.js', content: pokerJs }
       ];
 
       for (const file of files) {
@@ -297,6 +299,115 @@ describe('Client UI, Avatar Presence & Game Feel (Milestone 3)', () => {
           assert.equal(emojiRegex.test(sanitized), false, `Unicode emoji found in ${file.name}:${idx + 1}: ${line}`);
         });
       }
+    });
+  });
+
+  describe('8. Texas Hold\'em Poker Table View & 6-Seat Elliptical Felt (PK-M3)', () => {
+    it('index.html must enable the Poker game switcher pill (#pill-poker)', () => {
+      assert.ok(indexHtml.includes('id="pill-poker"'));
+      assert.equal(indexHtml.includes('id="pill-poker" disabled'), false, 'Poker pill must not be disabled');
+    });
+
+    it('index.html must contain poker view pane (#poker-view) and felt stage (#poker-felt-stage)', () => {
+      assert.ok(indexHtml.includes('id="poker-view"'));
+      assert.ok(indexHtml.includes('id="poker-felt-stage"'));
+      assert.ok(indexHtml.includes('id="poker-win-shimmer-canvas"'));
+      assert.ok(indexHtml.includes('id="poker-result-banner"'));
+    });
+
+    it('index.html must define table header, switcher pills, limits, and hand counter', () => {
+      assert.ok(indexHtml.includes('id="poker-table-btn-1"'));
+      assert.ok(indexHtml.includes('id="poker-table-btn-2"'));
+      assert.ok(indexHtml.includes('id="poker-table-name"'));
+      assert.ok(indexHtml.includes('id="poker-table-stakes"'));
+      assert.ok(indexHtml.includes('id="poker-hand-number"'));
+    });
+
+    it('index.html must define community center with pot badges and 5 community card slots', () => {
+      assert.ok(indexHtml.includes('id="poker-community-center"'));
+      assert.ok(indexHtml.includes('id="poker-main-pot"'));
+      assert.ok(indexHtml.includes('id="poker-pot-amount"'));
+      assert.ok(indexHtml.includes('id="poker-side-pots"'));
+      assert.ok(indexHtml.includes('id="poker-community-cards"'));
+      assert.ok(indexHtml.includes('id="poker-phase-indicator"'));
+      assert.ok(indexHtml.includes('id="poker-phase-text"'));
+
+      for (let i = 0; i < 5; i++) {
+        assert.ok(indexHtml.includes(`id="poker-card-slot-${i}"`), `Community card slot ${i} must exist`);
+      }
+      assert.ok(indexHtml.includes('data-slot="flop-1"'));
+      assert.ok(indexHtml.includes('data-slot="flop-2"'));
+      assert.ok(indexHtml.includes('data-slot="flop-3"'));
+      assert.ok(indexHtml.includes('data-slot="turn"'));
+      assert.ok(indexHtml.includes('data-slot="river"'));
+    });
+
+    it('index.html must define all 6 radial seats with hero bottom-center', () => {
+      for (let i = 0; i <= 5; i++) {
+        assert.ok(indexHtml.includes(`id="poker-seat-${i}"`), `Seat ${i} must exist in HTML`);
+        assert.ok(indexHtml.includes(`data-seat="${i}"`), `Seat ${i} data attribute must exist`);
+        assert.ok(indexHtml.includes(`id="btn-poker-sit-${i}"`), `Sit button for seat ${i} must exist`);
+        assert.ok(indexHtml.includes(`id="poker-player-box-${i}"`), `Player box for seat ${i} must exist`);
+        assert.ok(indexHtml.includes(`id="poker-cards-dock-${i}"`), `Hole cards dock for seat ${i} must exist`);
+        assert.ok(indexHtml.includes(`id="poker-dealer-btn-${i}"`), `Dealer puck for seat ${i} must exist`);
+        assert.ok(indexHtml.includes(`id="poker-action-pill-${i}"`), `Action status pill for seat ${i} must exist`);
+        assert.ok(indexHtml.includes(`id="poker-street-bet-${i}"`), `Street bet badge for seat ${i} must exist`);
+      }
+    });
+
+    it('index.html must define player action controls, sizing slider, presets, and 15s timer', () => {
+      assert.ok(indexHtml.includes('id="poker-controls-panel"'));
+      assert.ok(indexHtml.includes('id="poker-turn-timer-fill"'));
+      assert.ok(indexHtml.includes('id="poker-turn-timer-text"'));
+      assert.ok(indexHtml.includes('id="poker-raise-slider"'));
+      assert.ok(indexHtml.includes('id="poker-raise-input"'));
+      assert.ok(indexHtml.includes('id="btn-preset-1bb"'));
+      assert.ok(indexHtml.includes('id="btn-preset-2x"'));
+      assert.ok(indexHtml.includes('id="btn-preset-3x"'));
+      assert.ok(indexHtml.includes('id="btn-preset-half-pot"'));
+      assert.ok(indexHtml.includes('id="btn-preset-pot"'));
+      assert.ok(indexHtml.includes('id="btn-preset-allin"'));
+      assert.ok(indexHtml.includes('id="btn-poker-fold"'));
+      assert.ok(indexHtml.includes('id="btn-poker-check-call"'));
+      assert.ok(indexHtml.includes('id="btn-poker-raise"'));
+    });
+
+    it('index.html must define the Buy-In modal with range slider and quick chips', () => {
+      assert.ok(indexHtml.includes('id="poker-buyin-modal"'));
+      assert.ok(indexHtml.includes('id="poker-buyin-bankroll"'));
+      assert.ok(indexHtml.includes('id="poker-buyin-amount"'));
+      assert.ok(indexHtml.includes('id="poker-buyin-slider"'));
+      assert.ok(indexHtml.includes('id="btn-buyin-min"'));
+      assert.ok(indexHtml.includes('id="btn-buyin-mid"'));
+      assert.ok(indexHtml.includes('id="btn-buyin-max"'));
+      assert.ok(indexHtml.includes('id="btn-confirm-poker-buyin"'));
+    });
+
+    it('layout.css must style 1080x540px elliptical felt and radial seat coordinates', () => {
+      assert.ok(layoutCss.includes('.poker-felt-stage'));
+      assert.ok(layoutCss.includes('max-width: 1080px'));
+      assert.ok(layoutCss.includes('height: 540px'));
+      assert.ok(layoutCss.includes('#poker-seat-0'));
+      assert.ok(layoutCss.includes('bottom: -22px'));
+      assert.ok(layoutCss.includes('#poker-seat-3'));
+      assert.ok(layoutCss.includes('top: -22px'));
+    });
+
+    it('network.js must expose client emit methods for Poker operations', () => {
+      assert.ok(networkJs.includes('pokerJoinTable('));
+      assert.ok(networkJs.includes('pokerLeaveTable('));
+      assert.ok(networkJs.includes('pokerTakeSeat('));
+      assert.ok(networkJs.includes('pokerLeaveSeat('));
+      assert.ok(networkJs.includes('pokerAction('));
+      assert.ok(networkJs.includes('pokerBuyIn('));
+      assert.ok(networkJs.includes('pokerRebuy('));
+    });
+
+    it('app.js and ui.js must wire navigation, bet lock, and poker controller', () => {
+      assert.ok(appJs.includes('poker'));
+      assert.ok(appJs.includes('CasinoPoker'));
+      assert.ok(uiJs.includes('viewPoker'));
+      assert.ok(uiJs.includes('pillPoker'));
     });
   });
 });

@@ -10,6 +10,7 @@ const PlayerManager = require('./game/playerManager');
 const RouletteEngine = require('./game/rouletteEngine');
 const BankManager = require('./game/bankManager');
 const BlackjackEngine = require('./game/blackjackEngine');
+const PokerEngine = require('./game/pokerEngine');
 
 /**
  * Escapes HTML characters to prevent XSS.
@@ -29,30 +30,75 @@ function sanitizeHtml(str) {
 
 /**
  * Central Navigation Validator Contract.
- * Blocks table exit or room switching while unresolved bets are active on Roulette or Blackjack.
+ * Blocks table exit or room switching while unresolved bets are active on Roulette, Blackjack, or Poker.
  * @param {string} playerId 
  * @param {Object} [rouletteEngine] 
  * @param {Object} [blackjackEngine] 
- * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, message?: string }}
+ * @param {Object} [pokerEngine=null] 
+ * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, reason?: string, message?: string }}
  */
-function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine) {
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null) {
   if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
     return {
       allowed: false,
       code: 'CANNOT_LEAVE_ACTIVE_BETS',
       game: 'Roulette',
       amount: typeof rouletteEngine.getActiveBetTotal === 'function' ? rouletteEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Active bets present on Roulette table.',
       message: 'Active bets present on Roulette table.'
     };
   }
-  if (blackjackEngine && typeof blackjackEngine.hasActiveBets === 'function' && blackjackEngine.hasActiveBets(playerId)) {
-    return {
-      allowed: false,
-      code: 'CANNOT_LEAVE_ACTIVE_BETS',
-      game: 'Blackjack',
-      amount: typeof blackjackEngine.getActiveBetTotal === 'function' ? blackjackEngine.getActiveBetTotal(playerId) : 0,
-      message: 'Active bets present on Blackjack table.'
-    };
+  if (blackjackEngine) {
+    if (typeof blackjackEngine.hasActiveBets === 'function' && blackjackEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Blackjack',
+        amount: typeof blackjackEngine.getActiveBetTotal === 'function' ? blackjackEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Active bets present on Blackjack table.',
+        message: 'Active bets present on Blackjack table.'
+      };
+    }
+    if (blackjackEngine instanceof Map || (typeof blackjackEngine.values === 'function' && typeof blackjackEngine.hasActiveBets !== 'function')) {
+      for (const tbl of blackjackEngine.values()) {
+        if (typeof tbl.hasActiveBets === 'function' && tbl.hasActiveBets(playerId)) {
+          return {
+            allowed: false,
+            code: 'CANNOT_LEAVE_ACTIVE_BETS',
+            game: 'Blackjack',
+            amount: typeof tbl.getActiveBetTotal === 'function' ? tbl.getActiveBetTotal(playerId) : 0,
+            reason: 'Active bets present on Blackjack table.',
+            message: 'Active bets present on Blackjack table.'
+          };
+        }
+      }
+    }
+  }
+  if (pokerEngine) {
+    if (typeof pokerEngine.hasActiveBets === 'function' && pokerEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Poker',
+        amount: typeof pokerEngine.getActiveBetTotal === 'function' ? pokerEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actieve pokerhand. Speel de hand uit voordat je de tafel verlaat.',
+        message: 'Active hand in progress on Poker table.'
+      };
+    }
+    if (pokerEngine instanceof Map || (typeof pokerEngine.values === 'function' && typeof pokerEngine.hasActiveBets !== 'function')) {
+      for (const tbl of pokerEngine.values()) {
+        if (typeof tbl.hasActiveBets === 'function' && tbl.hasActiveBets(playerId)) {
+          return {
+            allowed: false,
+            code: 'CANNOT_LEAVE_ACTIVE_BETS',
+            game: 'Poker',
+            amount: typeof tbl.getActiveBetTotal === 'function' ? tbl.getActiveBetTotal(playerId) : 0,
+            reason: 'Je hebt een actieve pokerhand. Speel de hand uit voordat je de tafel verlaat.',
+            message: 'Active hand in progress on Poker table.'
+          };
+        }
+      }
+    }
   }
   return { allowed: true };
 }
@@ -107,6 +153,43 @@ function setupSocket(httpServer, options = {}) {
     return defaultBjEngine;
   }
 
+  /** @type {Map<string, PokerEngine>} Multi-table registry for Texas Hold'em */
+  const pokerTables = new Map();
+  const defaultPokerEngine = new PokerEngine(playerManager, {
+    tableId: 'poker_1',
+    tableName: 'Monte Carlo Texas Hold\'em 1',
+    smallBlind: 50,
+    bigBlind: 100,
+    minBuyIn: 2000,
+    maxBuyIn: 10000,
+    autoStart: true
+  });
+  pokerTables.set('poker_1', defaultPokerEngine);
+
+  const highRollerPokerEngine = new PokerEngine(playerManager, {
+    tableId: 'poker_2',
+    tableName: 'Monte Carlo High-Roller Poker 2',
+    smallBlind: 100,
+    bigBlind: 200,
+    minBuyIn: 4000,
+    maxBuyIn: 20000,
+    autoStart: true
+  });
+  pokerTables.set('poker_2', highRollerPokerEngine);
+
+  if (options && options.autoStartPoker === true) {
+    for (const tbl of pokerTables.values()) {
+      tbl.start();
+    }
+  }
+
+  function getPokerTable(tableId) {
+    if (tableId && pokerTables.has(tableId)) {
+      return pokerTables.get(tableId);
+    }
+    return defaultPokerEngine;
+  }
+
   function checkNavigation(playerId) {
     if (engine && typeof engine.hasActiveBets === 'function' && engine.hasActiveBets(playerId)) {
       return {
@@ -114,6 +197,7 @@ function setupSocket(httpServer, options = {}) {
         code: 'CANNOT_LEAVE_ACTIVE_BETS',
         game: 'Roulette',
         amount: typeof engine.getActiveBetTotal === 'function' ? engine.getActiveBetTotal(playerId) : 0,
+        reason: 'Active bets present on Roulette table.',
         message: 'Active bets present on Roulette table.'
       };
     }
@@ -124,7 +208,20 @@ function setupSocket(httpServer, options = {}) {
           code: 'CANNOT_LEAVE_ACTIVE_BETS',
           game: 'Blackjack',
           amount: typeof tbl.getActiveBetTotal === 'function' ? tbl.getActiveBetTotal(playerId) : 0,
+          reason: 'Active bets present on Blackjack table.',
           message: 'Active bets present on Blackjack table.'
+        };
+      }
+    }
+    for (const tbl of pokerTables.values()) {
+      if (typeof tbl.hasActiveBets === 'function' && tbl.hasActiveBets(playerId)) {
+        return {
+          allowed: false,
+          code: 'CANNOT_LEAVE_ACTIVE_BETS',
+          game: 'Poker',
+          amount: typeof tbl.getActiveBetTotal === 'function' ? tbl.getActiveBetTotal(playerId) : 0,
+          reason: 'Je hebt een actieve pokerhand. Speel de hand uit voordat je de tafel verlaat.',
+          message: 'Active hand in progress on Poker table.'
         };
       }
     }
@@ -339,6 +436,132 @@ function setupSocket(httpServer, options = {}) {
     hookBlackjackEvents(tbl);
   }
 
+  // Hook poker tables events
+  function hookPokerEvents(tbl) {
+    tbl.on('phase_tick', (data) => {
+      io.to('table:' + tbl.tableId).emit('poker_phase_tick', data);
+      io.emit('poker_phase_tick', data);
+    });
+
+    tbl.on('phase_changed', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_phase_change', { ...data, ...state });
+      io.to('table:' + tbl.tableId).emit('poker_phase_changed', { ...data, ...state });
+      io.emit('poker_table_state', state);
+      io.emit('poker_phase_change', { ...data, ...state });
+      io.emit('poker_phase_changed', { ...data, ...state });
+
+      if (data && (data.phase === 'FLOP' || data.phase === 'TURN' || data.phase === 'RIVER')) {
+        const commData = {
+          tableId: tbl.tableId,
+          street: data.phase.toLowerCase(),
+          phase: data.phase,
+          communityCards: tbl.communityCards,
+          allCommunityCards: tbl.communityCards
+        };
+        io.to('table:' + tbl.tableId).emit('poker_community_cards', commData);
+        io.emit('poker_community_cards', commData);
+      }
+    });
+
+    tbl.on('turn_changed', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_turn_change', { ...data, ...state });
+      io.to('table:' + tbl.tableId).emit('poker_turn_changed', { ...data, ...state });
+      io.emit('poker_turn_change', { ...data, ...state });
+      io.emit('poker_turn_changed', { ...data, ...state });
+    });
+
+    tbl.on('seat_taken', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_seat_taken', data);
+      io.emit('poker_table_state', state);
+      io.emit('poker_seat_taken', data);
+      broadcastPlayersUpdate();
+    });
+
+    tbl.on('seat_vacated', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_seat_vacated', data);
+      io.to('table:' + tbl.tableId).emit('poker_seat_left', data);
+      io.emit('poker_table_state', state);
+      io.emit('poker_seat_vacated', data);
+      io.emit('poker_seat_left', data);
+      broadcastPlayersUpdate();
+    });
+
+    tbl.on('hand_started', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_hand_start', data);
+      io.to('table:' + tbl.tableId).emit('poker_hand_started', data);
+      io.emit('poker_table_state', state);
+      io.emit('poker_hand_start', data);
+      io.emit('poker_hand_started', data);
+
+      // Unicast private hole cards to seat owners
+      for (const seat of tbl.seats) {
+        if (seat.player && seat.cards && seat.cards.length > 0) {
+          const p = playerManager.getPlayerById(seat.player.id);
+          const socketId = (p && p.socketId) || seat.player.socketId;
+          if (socketId) {
+            io.to(socketId).emit('poker_hole_cards', {
+              tableId: tbl.tableId,
+              seatIndex: seat.seatIndex,
+              cards: seat.cards,
+              holeCards: seat.cards
+            });
+          }
+        }
+      }
+    });
+
+    tbl.on('player_acted', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_player_acted', data);
+      io.to('table:' + tbl.tableId).emit('poker_player_action', data);
+      io.emit('poker_table_state', state);
+      io.emit('poker_player_acted', data);
+      io.emit('poker_player_action', data);
+    });
+
+    tbl.on('hand_ended', (data) => {
+      const state = tbl.getTableState(null);
+      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      io.to('table:' + tbl.tableId).emit('poker_hand_end', data);
+      io.to('table:' + tbl.tableId).emit('poker_hand_ended', data);
+      io.emit('poker_table_state', state);
+      io.emit('poker_hand_end', data);
+      io.emit('poker_hand_ended', data);
+      broadcastPlayersUpdate();
+
+      if (Array.isArray(data.winners) && data.winners.length > 0) {
+        for (const w of data.winners) {
+          const seat = tbl.seats[w.seatIndex];
+          const playerName = (seat && seat.player && seat.player.name) || `Seat ${w.seatIndex}`;
+          broadcastChatMessage({
+            sender: 'CASINO',
+            color: '#d4af37',
+            text: `[POKER] ${playerName} wint ${w.amount.toLocaleString()} fiches!`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: tbl.tableId
+          });
+        }
+      }
+    });
+  }
+
+  for (const tbl of pokerTables.values()) {
+    hookPokerEvents(tbl);
+  }
+
   // Hook engine events to socket broadcasts
   engine.on('tick', (data) => {
     io.emit('phase_tick', data);
@@ -449,6 +672,15 @@ function setupSocket(httpServer, options = {}) {
       const { player, sessionToken, isNew } = authResult;
       currentSocketPlayerId = player.id;
 
+      // Reconnect to active poker seats if player was seated
+      for (const tbl of pokerTables.values()) {
+        const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+        if (seat && seat.player) {
+          seat.player.connected = true;
+          seat.player.socketId = socket.id;
+        }
+      }
+
       // Send auth_success with bearer session token & player profile
       socket.emit('auth_success', {
         sessionToken,
@@ -534,6 +766,15 @@ function setupSocket(httpServer, options = {}) {
       }
       const player = result;
       currentSocketPlayerId = player.id;
+
+      // Reconnect to active poker seats if player was seated
+      for (const tbl of pokerTables.values()) {
+        const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+        if (seat && seat.player) {
+          seat.player.connected = true;
+          seat.player.socketId = socket.id;
+        }
+      }
 
       // Emit auth_success so client network can retain bearer sessionToken
       socket.emit('auth_success', {
@@ -980,7 +1221,8 @@ function setupSocket(httpServer, options = {}) {
       if (!navCheck.allowed) {
         socket.emit('navigation_blocked', {
           code: navCheck.code,
-          reason: navCheck.message,
+          reason: navCheck.reason || navCheck.message,
+          message: navCheck.message,
           game: navCheck.game,
           amount: navCheck.amount,
           activeBetsTotal: navCheck.amount
@@ -991,6 +1233,15 @@ function setupSocket(httpServer, options = {}) {
       const game = payload.game || payload.location || 'Roulette';
       const seatIndex = payload.seatIndex !== undefined ? payload.seatIndex : null;
       playerManager.setPlayerPresence(player.id, game, seatIndex);
+
+      if (player.location !== 'POKER') {
+        for (const tbl of pokerTables.values()) {
+          const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+          if (seat && !tbl.hasActiveBets(player.id)) {
+            tbl.leaveSeat(seat.seatIndex, player.id);
+          }
+        }
+      }
 
       socket.emit('game_switched', {
         game: player.currentGame,
@@ -1023,7 +1274,8 @@ function setupSocket(httpServer, options = {}) {
       if (!navCheck.allowed) {
         socket.emit('navigation_blocked', {
           code: navCheck.code,
-          reason: navCheck.message,
+          reason: navCheck.reason || navCheck.message,
+          message: navCheck.message,
           game: navCheck.game,
           amount: navCheck.amount,
           activeBetsTotal: navCheck.amount
@@ -1034,6 +1286,15 @@ function setupSocket(httpServer, options = {}) {
       const location = payload.location || payload.game || 'ROULETTE';
       const seatIndex = payload.seatIndex !== undefined ? payload.seatIndex : null;
       playerManager.setPlayerPresence(player.id, location, seatIndex);
+
+      if (player.location !== 'POKER') {
+        for (const tbl of pokerTables.values()) {
+          const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+          if (seat && !tbl.hasActiveBets(player.id)) {
+            tbl.leaveSeat(seat.seatIndex, player.id);
+          }
+        }
+      }
 
       socket.emit('game_switched', {
         game: player.currentGame,
@@ -1066,12 +1327,20 @@ function setupSocket(httpServer, options = {}) {
       if (!navCheck.allowed) {
         socket.emit('navigation_blocked', {
           code: navCheck.code,
-          reason: navCheck.message,
+          reason: navCheck.reason || navCheck.message,
+          message: navCheck.message,
           game: navCheck.game,
           amount: navCheck.amount,
           activeBetsTotal: navCheck.amount
         });
         return;
+      }
+
+      for (const tbl of pokerTables.values()) {
+        const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+        if (seat && !tbl.hasActiveBets(player.id)) {
+          tbl.leaveSeat(seat.seatIndex, player.id);
+        }
       }
 
       playerManager.setPlayerPresence(player.id, 'LOBBY', null);
@@ -1243,7 +1512,217 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
-    // 8. disconnect
+    // 8. Texas Hold'em Poker Protocol
+    socket.on('poker_join_table', (payload = {}) => {
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+      socket.join('table:' + table.tableId);
+      const player = playerManager.getPlayerBySocket(socket.id);
+      const state = table.getTableState(player ? player.id : null);
+      socket.emit('poker_table_state', state);
+
+      if (player) {
+        const holeCards = table.getHoleCards(player.id);
+        if (holeCards) {
+          const seat = table.seats.find(s => s.player && s.player.id === player.id);
+          socket.emit('poker_hole_cards', {
+            tableId: table.tableId,
+            seatIndex: seat ? seat.seatIndex : -1,
+            cards: holeCards,
+            holeCards
+          });
+        }
+      }
+    });
+
+    socket.on('poker_leave_table', (payload = {}) => {
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+      socket.leave('table:' + table.tableId);
+    });
+
+    socket.on('poker_take_seat', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('poker_seat_error', { code: 'PLAYER_NOT_FOUND', reason: 'Must be authenticated before taking a seat' });
+        return;
+      }
+
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+
+      let seatIndex = -1;
+      if (payload && typeof payload.seatIndex === 'number') {
+        seatIndex = payload.seatIndex;
+      } else if (payload && typeof payload.seat === 'number') {
+        seatIndex = payload.seat;
+      } else if (payload && typeof payload.seatIndex === 'string' && !isNaN(parseInt(payload.seatIndex, 10))) {
+        seatIndex = parseInt(payload.seatIndex, 10);
+      } else if (payload && typeof payload.seat === 'string' && !isNaN(parseInt(payload.seat, 10))) {
+        seatIndex = parseInt(payload.seat, 10);
+      }
+
+      const buyInAmount = (payload && (payload.buyInAmount || payload.amount)) || table.minBuyIn;
+
+      const res = table.takeSeat(seatIndex, player.id, buyInAmount, {
+        name: player.name,
+        avatar: player.avatar,
+        color: player.color,
+        socketId: socket.id
+      });
+
+      if (!res.success) {
+        socket.emit('poker_seat_error', res);
+        socket.emit('poker_table_state', table.getTableState(player.id));
+        return;
+      }
+
+      // Update presence
+      playerManager.setPlayerPresence(player.id, 'POKER', seatIndex);
+
+      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('poker_seat_accepted', {
+        tableId: table.tableId,
+        seatIndex,
+        stack: res.stack,
+        player: table.seats[seatIndex].player
+      });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('poker_leave_seat', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+
+      // Check navigation bet lock
+      if (table.hasActiveBets(player.id)) {
+        const navError = {
+          code: 'CANNOT_LEAVE_ACTIVE_BETS',
+          game: 'Poker',
+          reason: 'Je hebt een actieve pokerhand. Speel de hand uit voordat je de tafel verlaat.',
+          message: 'Je hebt een actieve pokerhand. Speel de hand uit voordat je de tafel verlaat.',
+          amount: table.getActiveBetTotal(player.id),
+          activeBetsTotal: table.getActiveBetTotal(player.id)
+        };
+        socket.emit('navigation_blocked', navError);
+        socket.emit('poker_seat_error', navError);
+        return;
+      }
+
+      let seatIndex = -1;
+      if (payload && typeof payload.seatIndex === 'number') {
+        seatIndex = payload.seatIndex;
+      } else if (payload && typeof payload.seat === 'number') {
+        seatIndex = payload.seat;
+      } else {
+        const found = table.seats.find(s => s.player && s.player.id === player.id);
+        if (found) seatIndex = found.seatIndex;
+      }
+
+      const res = table.leaveSeat(seatIndex, player.id);
+      if (!res.success) {
+        socket.emit('poker_seat_error', res);
+        return;
+      }
+
+      playerManager.setPlayerPresence(player.id, 'LOBBY', null);
+      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('poker_seat_vacated', { tableId: table.tableId, seatIndex, playerId: player.id, cashoutAmount: res.cashoutAmount });
+      broadcastPlayersUpdate();
+    });
+
+    const handlePokerRebuy = (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+
+      let seatIndex = -1;
+      if (payload && typeof payload.seatIndex === 'number') {
+        seatIndex = payload.seatIndex;
+      } else if (payload && typeof payload.seat === 'number') {
+        seatIndex = payload.seat;
+      } else {
+        const found = table.seats.find(s => s.player && s.player.id === player.id);
+        if (found) seatIndex = found.seatIndex;
+      }
+
+      const amount = (payload && (payload.amount || payload.buyInAmount)) || 0;
+
+      if (seatIndex < 0 || !table.seats[seatIndex] || !table.seats[seatIndex].player || table.seats[seatIndex].player.id !== player.id) {
+        socket.emit('poker_seat_error', { code: 'NOT_SEATED', reason: 'You are not seated at this table' });
+        return;
+      }
+
+      const res = table.rebuy(seatIndex, player.id, amount);
+      if (!res.success) {
+        socket.emit('poker_rebuy_error', res);
+        socket.emit('poker_seat_error', res);
+        return;
+      }
+
+      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('poker_rebuy_success', {
+        tableId: table.tableId,
+        seatIndex,
+        amount,
+        stack: res.stack,
+        pendingRebuy: res.pendingRebuy,
+        pending: res.pending
+      });
+
+      const updateData = {
+        tableId: table.tableId,
+        seatIndex,
+        playerId: player.id,
+        stack: res.stack,
+        pendingRebuy: res.pendingRebuy
+      };
+      io.to('table:' + table.tableId).emit('poker_stack_update', updateData);
+      io.emit('poker_stack_update', updateData);
+      broadcastPlayersUpdate();
+    };
+
+    socket.on('poker_rebuy', handlePokerRebuy);
+    socket.on('poker_buy_in', handlePokerRebuy);
+
+    socket.on('poker_action', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('poker_action_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Player profile not found' });
+        return;
+      }
+
+      const tableId = (payload && payload.tableId) || 'poker_1';
+      const table = getPokerTable(tableId);
+
+      let seatIndex = -1;
+      if (payload && typeof payload.seatIndex === 'number') {
+        seatIndex = payload.seatIndex;
+      } else if (payload && typeof payload.seat === 'number') {
+        seatIndex = payload.seat;
+      } else {
+        const found = table.seats.find(s => s.player && s.player.id === player.id);
+        if (found) seatIndex = found.seatIndex;
+      }
+
+      const action = payload ? payload.action : '';
+      const amount = payload ? payload.amount : undefined;
+
+      const res = table.handleAction(seatIndex, player.id, action, { amount });
+      if (!res.success) {
+        socket.emit('poker_action_rejected', res);
+        return;
+      }
+
+      socket.emit('poker_action_success', { tableId: table.tableId, seatIndex, action, amount });
+    });
+
+    // 9. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
@@ -1254,6 +1733,20 @@ function setupSocket(httpServer, options = {}) {
               if (seat.player && seat.player.id === player.id) {
                 tbl.leaveSeat(seat.seatIndex, player.id);
               }
+            }
+          }
+        }
+
+        // Handle Poker seats on disconnect
+        for (const tbl of pokerTables.values()) {
+          const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+          if (seat) {
+            if (tbl.hasActiveBets(player.id)) {
+              if (seat.player) {
+                seat.player.connected = false;
+              }
+            } else {
+              tbl.leaveSeat(seat.seatIndex, player.id);
             }
           }
         }
@@ -1290,12 +1783,22 @@ function setupSocket(httpServer, options = {}) {
     rouletteEngine: engine,
     blackjackEngine: defaultBjEngine,
     blackjackTables,
+    pokerEngine: defaultPokerEngine,
+    pokerTables,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
     stop: () => {
       engine.stop();
       for (const tbl of blackjackTables.values()) {
         tbl.stop();
+      }
+      for (const tbl of pokerTables.values()) {
+        try {
+          if (typeof tbl.cashoutAllPlayersSync === 'function') {
+            tbl.cashoutAllPlayersSync();
+          }
+          tbl.stop();
+        } catch (e) {}
       }
     }
   };

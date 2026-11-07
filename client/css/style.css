@@ -2035,6 +2035,7 @@ h1, h2, h3, h4, .brand-title, .phase-title {
 }
 
 .badge-blackjack,
+.badge-poker,
 .badge-gokkasten {
   background: rgba(212, 175, 55, 0.18);
   border: 1px solid rgba(212, 175, 55, 0.4);
@@ -2567,6 +2568,12 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   background: rgba(212, 175, 55, 0.22);
   color: #f9e79f;
   border: 1px solid rgba(212, 175, 55, 0.6);
+}
+
+.tag-poker {
+  background: rgba(180, 130, 20, 0.25);
+  color: #fef08a;
+  border: 1px solid rgba(212, 175, 55, 0.7);
 }
 
 .tag-grand-win {

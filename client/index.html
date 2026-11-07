@@ -52,6 +52,7 @@
         <div class="game-nav-pills game-switcher-pills">
           <button class="game-pill active" data-game="roulette" id="pill-roulette">Roulette</button>
           <button class="game-pill" data-game="blackjack" id="pill-blackjack">Blackjack</button>
+          <button class="game-pill" data-game="poker" id="pill-poker">Poker</button>
           <button class="game-pill disabled" title="Binnenkort beschikbaar">Gokkasten</button>
         </div>
       </div>
@@ -429,6 +430,283 @@
             </div>
           </div>
 
+        </div>
+
+        <!-- 3. Multiplayer 6-Seat Texas Hold'em Poker Table View -->
+        <div id="poker-view" class="game-view-pane hidden">
+          <!-- Golden particle shimmer celebration canvas -->
+          <canvas id="poker-win-shimmer-canvas" class="win-shimmer-canvas"></canvas>
+
+          <!-- Outcome banner for high-impact announcements -->
+          <div id="poker-result-banner" class="blackjack-result-banner hidden"></div>
+
+          <!-- Table Header: Table Switcher pills (Table 1 / Table 2), Stakes, Hand counter -->
+          <div class="poker-table-header glass-panel">
+            <div class="poker-table-switcher">
+              <button type="button" class="poker-table-pill active" data-table-id="poker_1" id="poker-table-btn-1">Tafel 1 (50/100)</button>
+              <button type="button" class="poker-table-pill" data-table-id="poker_2" id="poker-table-btn-2">Tafel 2 (100/200 High-Roller)</button>
+            </div>
+            <div class="poker-table-title-box">
+              <span class="poker-table-name" id="poker-table-name">Monte Carlo No-Limit Hold'em</span>
+              <span class="poker-table-limits" id="poker-table-stakes">Blinds: 50 / 100 fiches • Buy-in: 2.000 - 10.000</span>
+            </div>
+            <div class="poker-hand-counter-badge" id="poker-hand-counter" title="Actieve Hand">
+              <span class="hand-counter-label">Hand:</span>
+              <span class="hand-counter-val" id="poker-hand-number">#1</span>
+            </div>
+          </div>
+
+          <!-- 1080x540px Elliptical Felt Stage with 6 radial seats -->
+          <div class="poker-felt-stage" id="poker-felt-stage">
+            <!-- Center Area: Pot display & 5 Community Cards -->
+            <div class="poker-community-center" id="poker-community-center">
+              <div class="poker-pot-container">
+                <div class="poker-main-pot-badge" id="poker-main-pot">
+                  <span class="pot-crest-label">POT:</span>
+                  <span class="pot-amount-val" id="poker-pot-amount">0</span>
+                  <span class="pot-currency">FICHES</span>
+                </div>
+                <div class="poker-side-pots-row" id="poker-side-pots"></div>
+              </div>
+
+              <div class="poker-community-cards" id="poker-community-cards">
+                <div class="poker-card-slot" id="poker-card-slot-0" data-slot="flop-1">
+                  <div class="slot-placeholder"></div>
+                </div>
+                <div class="poker-card-slot" id="poker-card-slot-1" data-slot="flop-2">
+                  <div class="slot-placeholder"></div>
+                </div>
+                <div class="poker-card-slot" id="poker-card-slot-2" data-slot="flop-3">
+                  <div class="slot-placeholder"></div>
+                </div>
+                <div class="poker-card-slot" id="poker-card-slot-3" data-slot="turn">
+                  <div class="slot-placeholder"></div>
+                </div>
+                <div class="poker-card-slot" id="poker-card-slot-4" data-slot="river">
+                  <div class="slot-placeholder"></div>
+                </div>
+              </div>
+
+              <div class="poker-phase-indicator" id="poker-phase-indicator">
+                <span class="phase-text" id="poker-phase-text">WAITING FOR PLAYERS</span>
+              </div>
+            </div>
+
+            <!-- 6 Radial Seats: Seat 0 is Hero Bottom-Center -->
+            <!-- Seat 0 (Hero Bottom-Center) -->
+            <div class="poker-seat empty" data-seat="0" id="poker-seat-0">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-0">
+                <button type="button" class="btn-poker-sit" data-seat="0" id="btn-poker-sit-0">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-0">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-0">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-0">BB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-0">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-0" style="background-color: #c5a059;">
+                      <span class="seat-avatar-mono" id="poker-mono-0">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-0">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-0">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="0" id="btn-poker-leave-0" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-0">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-0">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-0">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-0"></div>
+              </div>
+            </div>
+
+            <!-- Seat 1 (Bottom-Left) -->
+            <div class="poker-seat empty" data-seat="1" id="poker-seat-1">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-1">
+                <button type="button" class="btn-poker-sit" data-seat="1" id="btn-poker-sit-1">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-1">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-1">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-1">SB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-1">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-1" style="background-color: #0d5c3a;">
+                      <span class="seat-avatar-mono" id="poker-mono-1">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-1">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-1">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="1" id="btn-poker-leave-1" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-1">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-1">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-1">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-1"></div>
+              </div>
+            </div>
+
+            <!-- Seat 2 (Top-Left) -->
+            <div class="poker-seat empty" data-seat="2" id="poker-seat-2">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-2">
+                <button type="button" class="btn-poker-sit" data-seat="2" id="btn-poker-sit-2">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-2">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-2">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-2">BB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-2">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-2" style="background-color: #1e3a8a;">
+                      <span class="seat-avatar-mono" id="poker-mono-2">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-2">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-2">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="2" id="btn-poker-leave-2" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-2">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-2">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-2">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-2"></div>
+              </div>
+            </div>
+
+            <!-- Seat 3 (Top-Center) -->
+            <div class="poker-seat empty" data-seat="3" id="poker-seat-3">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-3">
+                <button type="button" class="btn-poker-sit" data-seat="3" id="btn-poker-sit-3">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-3">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-3">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-3">BB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-3">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-3" style="background-color: #991b1b;">
+                      <span class="seat-avatar-mono" id="poker-mono-3">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-3">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-3">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="3" id="btn-poker-leave-3" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-3">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-3">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-3">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-3"></div>
+              </div>
+            </div>
+
+            <!-- Seat 4 (Top-Right) -->
+            <div class="poker-seat empty" data-seat="4" id="poker-seat-4">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-4">
+                <button type="button" class="btn-poker-sit" data-seat="4" id="btn-poker-sit-4">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-4">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-4">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-4">BB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-4">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-4" style="background-color: #581c87;">
+                      <span class="seat-avatar-mono" id="poker-mono-4">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-4">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-4">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="4" id="btn-poker-leave-4" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-4">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-4">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-4">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-4"></div>
+              </div>
+            </div>
+
+            <!-- Seat 5 (Bottom-Right) -->
+            <div class="poker-seat empty" data-seat="5" id="poker-seat-5">
+              <div class="poker-seat-empty-badge" id="poker-seat-empty-5">
+                <button type="button" class="btn-poker-sit" data-seat="5" id="btn-poker-sit-5">+ Neem Plaats</button>
+              </div>
+              <div class="poker-seat-occupied-wrap hidden" id="poker-seat-occupied-5">
+                <div class="poker-dealer-button hidden" id="poker-dealer-btn-5">D</div>
+                <div class="poker-blind-badge hidden" id="poker-blind-badge-5">BB</div>
+                <div class="poker-player-box glass-panel" id="poker-player-box-5">
+                  <div class="seat-avatar-dock">
+                    <div class="avatar-badge avatar-md" id="poker-avatar-5" style="background-color: #0f766e;">
+                      <span class="seat-avatar-mono" id="poker-mono-5">?</span>
+                    </div>
+                  </div>
+                  <div class="poker-player-details">
+                    <span class="poker-seat-username" id="poker-user-5">Player</span>
+                    <span class="poker-seat-stack" id="poker-stack-5">0 fiches</span>
+                  </div>
+                  <button type="button" class="btn-seat-leave hidden" data-seat="5" id="btn-poker-leave-5" title="Verlaat tafel">&times;</button>
+                </div>
+                <div class="poker-action-pill hidden" id="poker-action-pill-5">CHECK</div>
+                <div class="poker-street-bet-badge hidden" id="poker-street-bet-5">
+                  <span class="poker-chip-glyph"></span>
+                  <span class="poker-street-bet-amount" id="poker-bet-val-5">0</span>
+                </div>
+                <div class="poker-hole-cards-dock" id="poker-cards-dock-5"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Player Action Controls Panel -->
+          <div class="poker-controls-panel glass-panel" id="poker-controls-panel">
+            <!-- 15s Countdown Timer Bar -->
+            <div class="poker-turn-timer-bar-track">
+              <div class="poker-turn-timer-bar-fill" id="poker-turn-timer-fill" style="width: 100%;"></div>
+              <span class="poker-turn-timer-text" id="poker-turn-timer-text">15s</span>
+            </div>
+
+            <!-- Sizing Controls & Presets -->
+            <div class="poker-raise-controls-row" id="poker-raise-controls-row">
+              <div class="raise-slider-container">
+                <input type="range" id="poker-raise-slider" min="100" max="5000" step="50" value="200" class="poker-range-slider" disabled>
+              </div>
+              <div class="raise-input-container">
+                <input type="number" id="poker-raise-input" min="100" max="5000" step="50" value="200" class="poker-num-input" disabled>
+              </div>
+              <div class="poker-preset-buttons-group">
+                <button type="button" class="btn-poker-preset" data-preset="1bb" id="btn-preset-1bb" disabled>+1 BB</button>
+                <button type="button" class="btn-poker-preset" data-preset="2x" id="btn-preset-2x" disabled>2x</button>
+                <button type="button" class="btn-poker-preset" data-preset="3x" id="btn-preset-3x" disabled>3x</button>
+                <button type="button" class="btn-poker-preset" data-preset="half_pot" id="btn-preset-half-pot" disabled>1/2 Pot</button>
+                <button type="button" class="btn-poker-preset" data-preset="pot" id="btn-preset-pot" disabled>Pot</button>
+                <button type="button" class="btn-poker-preset btn-preset-allin" data-preset="all_in" id="btn-preset-allin" disabled>All-in</button>
+              </div>
+            </div>
+
+            <!-- Action Buttons: Fold, Check/Call, Bet/Raise -->
+            <div class="poker-action-buttons-row">
+              <button type="button" class="btn btn-action btn-poker-fold" id="btn-poker-fold" disabled>
+                <span class="action-btn-text">FOLD (Pas)</span>
+              </button>
+              <button type="button" class="btn btn-action btn-poker-check-call" id="btn-poker-check-call" disabled>
+                <span class="action-btn-text" id="btn-poker-check-call-text">CHECK</span>
+              </button>
+              <button type="button" class="btn btn-action btn-poker-raise" id="btn-poker-raise" disabled>
+                <span class="action-btn-text" id="btn-poker-raise-text">BET 200</span>
+              </button>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -853,6 +1131,52 @@
       </div>
     </div>
 
+    <!-- Poker Buy-In Modal -->
+    <div class="modal-overlay hidden" id="poker-buyin-modal">
+      <div class="modal-content glass-panel poker-buyin-content">
+        <div class="modal-header-row">
+          <div>
+            <h2 class="gold-text">Plaatsnemen aan Tafel</h2>
+            <p class="modal-subtitle" id="poker-modal-seat-title">Stoel 1 • No-Limit Texas Hold'em</p>
+          </div>
+          <button type="button" class="btn-modal-close" id="btn-close-poker-modal" aria-label="Sluiten">&times;</button>
+        </div>
+
+        <div class="buyin-balance-box">
+          <span class="buyin-balance-label">Beschikbaar Saldo:</span>
+          <span class="buyin-balance-val text-gold" id="poker-buyin-bankroll">10.000 fiches</span>
+        </div>
+
+        <div class="buyin-stakes-info">
+          <span id="poker-buyin-blinds-label">Blinds: <strong>50 / 100 fiches</strong></span>
+          <span id="poker-buyin-min-label">Min: <strong>2.000 fiches</strong> (20 BB)</span>
+          <span id="poker-buyin-max-label">Max: <strong>10.000 fiches</strong> (100 BB)</span>
+        </div>
+
+        <div class="form-group buyin-input-group">
+          <label for="poker-buyin-amount" class="field-label">Kies je Buy-in Bedrag:</label>
+          <div class="buyin-input-row">
+            <input type="number" id="poker-buyin-amount" min="2000" max="10000" step="100" value="5000" class="bank-input poker-num-input">
+            <span class="input-suffix">fiches</span>
+          </div>
+          <input type="range" id="poker-buyin-slider" min="2000" max="10000" step="100" value="5000" class="poker-range-slider">
+        </div>
+
+        <div class="quick-chips-row buyin-presets-row">
+          <button type="button" class="btn-quick-chip" id="btn-buyin-min">Min (20 BB)</button>
+          <button type="button" class="btn-quick-chip" id="btn-buyin-mid">Standaard (50 BB)</button>
+          <button type="button" class="btn-quick-chip chip-all" id="btn-buyin-max">Max (100 BB)</button>
+        </div>
+
+        <div class="poker-buyin-error-msg hidden" id="poker-buyin-error"></div>
+
+        <div class="modal-actions-row">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-poker-buyin">Annuleren</button>
+          <button type="button" class="btn btn-gold btn-lg" id="btn-confirm-poker-buyin">Neem Plaats met 5.000 fiches</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Floating Toast Notifications -->
     <div id="toast-container"></div>
 
@@ -869,6 +1193,7 @@
   <script src="js/network.js"></script>
   <script src="js/bank.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/poker.js"></script>
   <script src="js/app.js"></script>
 
 </body>

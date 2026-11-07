@@ -12,12 +12,17 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer(app);
-const { engine, blackjackTables, playerManager } = setupSocket(server);
+const { engine, blackjackTables, pokerTables, playerManager } = setupSocket(server);
 
 // Start game loop engines
 engine.start();
 for (const tbl of blackjackTables.values()) {
   tbl.start();
+}
+if (pokerTables) {
+  for (const tbl of pokerTables.values()) {
+    tbl.start();
+  }
 }
 
 server.listen(PORT, HOST, () => {
@@ -63,6 +68,16 @@ function shutdown() {
     try {
       tbl.stop();
     } catch (e) {}
+  }
+  if (pokerTables) {
+    for (const tbl of pokerTables.values()) {
+      try {
+        if (typeof tbl.cashoutAllPlayersSync === 'function') {
+          tbl.cashoutAllPlayersSync();
+        }
+        tbl.stop();
+      } catch (e) {}
+    }
   }
   if (playerManager && typeof playerManager.flushToDiskSync === 'function') {
     playerManager.flushToDiskSync();

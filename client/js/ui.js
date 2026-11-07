@@ -141,8 +141,12 @@
         // View Panes & Game Switcher
         viewRoulette: document.getElementById('roulette-view'),
         viewBlackjack: document.getElementById('blackjack-view'),
+        viewPoker: document.getElementById('poker-view'),
         pillRoulette: document.getElementById('pill-roulette'),
         pillBlackjack: document.getElementById('pill-blackjack'),
+        pillPoker: document.getElementById('pill-poker'),
+        pokerFeltStage: document.getElementById('poker-felt-stage'),
+        pokerBuyinModal: document.getElementById('poker-buyin-modal'),
         gamePills: document.querySelectorAll('.game-pill'),
 
         // Board & Controls (Roulette)
@@ -1185,6 +1189,10 @@
       const curTable = this.currentTableId || 'roulette';
       if (curTable === 'roulette') {
         this.elements.labelChatTable.textContent = 'Roulette Chat';
+      } else if (curTable === 'poker_2') {
+        this.elements.labelChatTable.textContent = 'Poker Tafel 2';
+      } else if (curTable.startsWith('poker')) {
+        this.elements.labelChatTable.textContent = 'Poker Tafel 1';
       } else if (curTable === 'table_2') {
         this.elements.labelChatTable.textContent = 'Blackjack Tafel 2';
       } else {
@@ -1203,6 +1211,10 @@
         const curTable = this.currentTableId || 'roulette';
         if (curTable === 'roulette') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Roulette Chat...';
+        } else if (curTable === 'poker_2') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Poker Tafel 2...';
+        } else if (curTable.startsWith('poker')) {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Poker Tafel 1...';
         } else if (curTable === 'table_2') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Blackjack Tafel 2...';
         } else {
@@ -1228,6 +1240,7 @@
             itemTable === 'all' ||
             itemTable === curTable ||
             (curTable.startsWith('table_') && itemTable === 'blackjack') ||
+            (curTable.startsWith('poker') && (itemTable === 'poker' || itemTable === curTable)) ||
             (curTable === 'roulette' && itemTable === 'roulette')
           );
           item.style.display = matches ? '' : 'none';
@@ -1341,6 +1354,7 @@
           itemTable === 'all' ||
           itemTable === curTable ||
           (curTable.startsWith('table_') && itemTable === 'blackjack') ||
+          (curTable.startsWith('poker') && (itemTable === 'poker' || itemTable === curTable)) ||
           (curTable === 'roulette' && itemTable === 'roulette')
         );
         if (!isVisibleInCurrentTable) {
@@ -1355,6 +1369,7 @@
         // Clean typography categories formatting (Strict Zero Emojis)
         const text = this.decodeHtmlEntities(String(msg.text || ''));
         const categories = [
+          { prefix: '[POKER]', className: 'tag-poker' },
           { prefix: '[BLACKJACK]', className: 'tag-blackjack' },
           { prefix: '[GRAND WIN]', className: 'tag-grand-win' },
           { prefix: '[DEALER]', className: 'tag-dealer' },
@@ -2097,27 +2112,45 @@
     }
 
     /**
-     * Switches between Roulette and Blackjack table viewports.
-     * @param {'roulette'|'blackjack'} [gameName='roulette']
+     * Switches between Roulette, Blackjack and Poker table viewports.
+     * @param {'roulette'|'blackjack'|'poker'} [gameName='roulette']
      * @param {string} [subTableId=null]
      */
     switchGameView(gameName = 'roulette', subTableId = null) {
-      const isRoulette = (gameName || '').toLowerCase() === 'roulette';
+      const g = (gameName || '').toLowerCase();
+      const isRoulette = g === 'roulette';
+      const isBlackjack = g === 'blackjack';
+      const isPoker = g === 'poker';
+
       if (isRoulette) {
         this.currentTableId = 'roulette';
+      } else if (isPoker) {
+        this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('poker_') ? this.currentTableId : 'poker_1');
       } else {
         this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('table_') ? this.currentTableId : 'table_1');
       }
 
-      if (this.elements.viewRoulette && this.elements.viewBlackjack) {
+      if (this.elements.viewRoulette) {
         this.elements.viewRoulette.classList.toggle('active', isRoulette);
         this.elements.viewRoulette.classList.toggle('hidden', !isRoulette);
-        this.elements.viewBlackjack.classList.toggle('active', !isRoulette);
-        this.elements.viewBlackjack.classList.toggle('hidden', isRoulette);
       }
-      if (this.elements.pillRoulette && this.elements.pillBlackjack) {
+      if (this.elements.viewBlackjack) {
+        this.elements.viewBlackjack.classList.toggle('active', isBlackjack);
+        this.elements.viewBlackjack.classList.toggle('hidden', !isBlackjack);
+      }
+      if (this.elements.viewPoker) {
+        this.elements.viewPoker.classList.toggle('active', isPoker);
+        this.elements.viewPoker.classList.toggle('hidden', !isPoker);
+      }
+
+      if (this.elements.pillRoulette) {
         this.elements.pillRoulette.classList.toggle('active', isRoulette);
-        this.elements.pillBlackjack.classList.toggle('active', !isRoulette);
+      }
+      if (this.elements.pillBlackjack) {
+        this.elements.pillBlackjack.classList.toggle('active', isBlackjack);
+      }
+      if (this.elements.pillPoker) {
+        this.elements.pillPoker.classList.toggle('active', isPoker);
       }
 
       if (this.elements.historyStrip) {

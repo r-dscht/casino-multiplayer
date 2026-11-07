@@ -218,5 +218,45 @@
     "seatIndex": 2,
     "createdAt": 1793987237480,
     "lastSeen": 1793987799087
+  },
+  "ply_d76d84be432d2b2c": {
+    "id": "ply_d76d84be432d2b2c",
+    "sessionToken": "cst_e332fd53025170085796a86adab8679f",
+    "usernameKey": "alice1",
+    "name": "Alice1",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#f59e0b",
+    "chips": 7950,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Poker",
+    "location": "POKER",
+    "seatIndex": 0,
+    "createdAt": 1794080086747,
+    "lastSeen": 1794080103198
+  },
+  "ply_28fbcc8f86a158e2": {
+    "id": "ply_28fbcc8f86a158e2",
+    "sessionToken": "cst_b4ba9c98ecd921b588b5c1041e0d4ab2",
+    "usernameKey": "bob1",
+    "name": "Bob1",
+    "passwordHash": "",
+    "avatar": "avatar_1",
+    "color": "#ec4899",
+    "chips": 7900,
+    "stats": {
+      "roundsPlayed": 0,
+      "totalWon": 0,
+      "biggestWin": 0
+    },
+    "currentGame": "Poker",
+    "location": "POKER",
+    "seatIndex": 1,
+    "createdAt": 1794080086750,
+    "lastSeen": 1794080103202
   }
 }

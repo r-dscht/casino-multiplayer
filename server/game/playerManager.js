@@ -890,7 +890,7 @@ class PlayerManager {
     let cleanLoc = 'ROULETTE';
     if (typeof location === 'string') {
       const upper = location.trim().toUpperCase();
-      if (['LOBBY', 'ROULETTE', 'BLACKJACK'].includes(upper)) {
+      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER'].includes(upper)) {
         cleanLoc = upper;
       }
     }
@@ -929,7 +929,7 @@ class PlayerManager {
     player.currentGame = cleanGame;
 
     const upper = cleanGame.toUpperCase();
-    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK'].includes(upper) ? upper : 'ROULETTE';
+    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER'].includes(upper) ? upper : 'ROULETTE';
 
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
       const acc = this.accounts.get(player.usernameKey);
