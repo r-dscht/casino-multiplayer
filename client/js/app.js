@@ -303,8 +303,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.updateHistoryStrip(data.history);
     }
 
-    // Show victory banner
+    // Show victory banner & trigger golden win celebration
     ui.showRoundResult(data.winningNumber, data.winningColor, myResult);
+    if (myResult && myResult.totalWon > 0) {
+      const netWin = typeof myResult.net === 'number' ? myResult.net : myResult.totalWon;
+      ui.triggerWinShimmer(netWin >= 1000 ? 3500 : 2500);
+    }
     currentActiveBets = [];
     ui.setNavigationLocked(hasUnsettledBets());
   });

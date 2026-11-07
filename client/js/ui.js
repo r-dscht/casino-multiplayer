@@ -932,6 +932,9 @@
       document.querySelectorAll('.chip-badge').forEach((badge) => {
         badge.parentNode.removeChild(badge);
       });
+      document.querySelectorAll('.spot-winning-highlight').forEach((el) => {
+        el.classList.remove('spot-winning-highlight');
+      });
       this.allBetsBySpot.clear();
       this.myBets = [];
     }
@@ -1018,30 +1021,112 @@
       if (!this.elements.resultBanner) return;
 
       const colorCap = winningColor ? winningColor.charAt(0).toUpperCase() + winningColor.slice(1) : '';
+      const isWin = Boolean(myResult && myResult.totalWon > 0);
+      const netWin = (myResult && typeof myResult.net === 'number') ? myResult.net : (myResult && myResult.totalWon ? myResult.totalWon : 0);
+      const isGrand = Boolean(isWin && (netWin >= 1000 || myResult.totalWon >= 2000));
+      const isJackpot = Boolean(isWin && (netWin >= 5000 || myResult.totalWon >= 10000));
+
       let headline = `WINNING NUMBER: ${winningNumber} ${colorCap}`;
+      if (isJackpot) {
+        headline = `JACKPOT! NUMMER ${winningNumber} ${colorCap.toUpperCase()}`;
+      } else if (isGrand) {
+        headline = `GROTE WINST! NUMMER ${winningNumber} ${colorCap.toUpperCase()}`;
+      } else if (isWin) {
+        headline = `GEWONNEN! NUMMER ${winningNumber} ${colorCap.toUpperCase()}`;
+      }
 
       let subline = '';
       if (myResult) {
         if (myResult.totalWon > 0) {
-          subline = `Gewonnen: +${myResult.totalWon.toLocaleString()} fiches (Netto: +${myResult.net.toLocaleString()})`;
+          subline = `Uitbetaling: +${myResult.totalWon.toLocaleString()} fiches (Netto: +${myResult.net.toLocaleString()})`;
         } else if (myResult.totalBet > 0) {
           subline = `Volgende ronde meer geluk (-${myResult.totalBet.toLocaleString()} fiches)`;
         }
       }
 
+      this.elements.resultBanner.className = 'result-banner' + (isWin ? ' has-win win-celebration' : '');
       this.elements.resultBanner.innerHTML = `
-        <div class="result-number result-${winningColor}">${winningNumber}</div>
+        <div class="result-number result-${winningColor} ${isWin ? 'result-pulse-gold' : ''}">${winningNumber}</div>
         <div class="result-text">
-          <div class="result-headline">${headline}</div>
+          <div class="result-headline ${isWin ? 'headline-gold' : ''}">${headline}</div>
           ${subline ? `<div class="result-subline">${subline}</div>` : ''}
         </div>
       `;
       this.elements.resultBanner.classList.remove('hidden');
+
+      // Highlight winning spots on the felt
+      this.highlightWinningFeltSpots(winningNumber, winningColor);
+
+      // Pulse chip counter in HUD if won
+      if (isWin && this.elements.playerChips) {
+        this.elements.playerChips.classList.remove('chips-won-pulse');
+        void this.elements.playerChips.offsetWidth;
+        this.elements.playerChips.classList.add('chips-won-pulse');
+        setTimeout(() => {
+          if (this.elements.playerChips) this.elements.playerChips.classList.remove('chips-won-pulse');
+        }, 3000);
+      }
+    }
+
+    /**
+     * Highlights winning spots on the roulette betting felt with a golden glow.
+     * @param {number} winningNumber 
+     * @param {string} winningColor 
+     */
+    highlightWinningFeltSpots(winningNumber, winningColor) {
+      if (!this.elements.gridContainer) return;
+
+      // Remove existing highlights
+      const existing = this.elements.gridContainer.querySelectorAll('.spot-winning-highlight');
+      existing.forEach(el => el.classList.remove('spot-winning-highlight'));
+
+      // 1. Straight number
+      const straightEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="straight_${winningNumber}"]`);
+      if (straightEl) straightEl.classList.add('spot-winning-highlight');
+
+      if (winningNumber > 0) {
+        // 2. Color (red or black)
+        const colorEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="color_${winningColor}"]`);
+        if (colorEl) colorEl.classList.add('spot-winning-highlight');
+
+        // 3. Even / Odd
+        const parity = winningNumber % 2 === 0 ? 'even' : 'odd';
+        const parityEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="parity_${parity}"]`);
+        if (parityEl) parityEl.classList.add('spot-winning-highlight');
+
+        // 4. Low (1-18) / High (19-36)
+        const range = winningNumber <= 18 ? 'low' : 'high';
+        const rangeEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="range_${range}"]`);
+        if (rangeEl) rangeEl.classList.add('spot-winning-highlight');
+
+        // 5. Dozen (1-12, 13-24, 25-36)
+        const dozen = Math.ceil(winningNumber / 12);
+        const dozenEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="dozen_${dozen}"]`);
+        if (dozenEl) dozenEl.classList.add('spot-winning-highlight');
+
+        // 6. Column (1, 2, 3)
+        const col = ((winningNumber - 1) % 3) + 1;
+        const colEl = this.elements.gridContainer.querySelector(`.grid-cell[data-spot="column_${col}"]`);
+        if (colEl) colEl.classList.add('spot-winning-highlight');
+      }
+
+      // Auto-clear highlight after 5 seconds
+      setTimeout(() => {
+        if (this.elements.gridContainer) {
+          const highlights = this.elements.gridContainer.querySelectorAll('.spot-winning-highlight');
+          highlights.forEach(el => el.classList.remove('spot-winning-highlight'));
+        }
+      }, 5000);
     }
 
     hideResultBanner() {
       if (this.elements.resultBanner) {
         this.elements.resultBanner.classList.add('hidden');
+        this.elements.resultBanner.className = 'result-banner hidden';
+      }
+      if (this.elements.gridContainer) {
+        const highlights = this.elements.gridContainer.querySelectorAll('.spot-winning-highlight');
+        highlights.forEach(el => el.classList.remove('spot-winning-highlight'));
       }
     }
 

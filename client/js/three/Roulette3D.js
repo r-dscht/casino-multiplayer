@@ -61,6 +61,10 @@
       this.targetPocketAngle = 0;
       this.currentWinningNumber = 0;
 
+      // Dynamic suspense camera tracking
+      this.defaultCameraPos = null;
+      this.goldPointLight = null;
+
       // Animation loop handle
       this.animationFrameId = null;
 
@@ -80,6 +84,8 @@
       // 2. Camera
       this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
       this.updateCamera(width, height);
+      this.defaultCameraPos = this.camera.position.clone();
+      this.cameraLookAtTarget = new THREE.Vector3(0, 0.22, 0);
 
       // 3. WebGL Renderer with Thermal Protections
       this.renderer = new THREE.WebGLRenderer({
@@ -100,9 +106,9 @@
       dirLight.position.set(3, 8, 4);
       this.scene.add(dirLight);
 
-      const goldPointLight = new THREE.PointLight(0xd4af37, 0.9, 8);
-      goldPointLight.position.set(0, 2.8, 0);
-      this.scene.add(goldPointLight);
+      this.goldPointLight = new THREE.PointLight(0xd4af37, 0.9, 8);
+      this.goldPointLight.position.set(0, 2.8, 0);
+      this.scene.add(this.goldPointLight);
 
       // 5. Build Procedural 3D Geometry (<4,000 triangles total)
       this.buildTableAndWheel();
@@ -343,6 +349,9 @@
       }
       this.camera.lookAt(0, 0.22, 0);
       this.camera.updateProjectionMatrix();
+      if (!this.isSpinning) {
+        this.defaultCameraPos = this.camera.position.clone();
+      }
     }
 
     onResize() {
@@ -403,6 +412,13 @@
         targetBallEnd += Math.PI * 2;
       }
       this.ballEndAngle = targetBallEnd;
+
+      // Reset light to standard ambient position
+      if (this.goldPointLight) {
+        this.goldPointLight.position.set(0, 2.8, 0);
+        this.goldPointLight.intensity = 0.9;
+        this.goldPointLight.distance = 8.0;
+      }
     }
 
     /**
@@ -433,33 +449,123 @@
         // Get exact real-time world position of the winning pocket
         const targetWorldPos = this.targetPocketLocal.clone().applyMatrix4(this.rotor.matrixWorld);
 
-        if (p < 0.65) {
-          // Phase 1: High-speed rim spin
+        // Dynamic Suspense Camera Zoom into the wheel as the ball begins its descent
+        if (this.defaultCameraPos) {
+          if (p >= 0.52 && p < 1.0) {
+            const zoomP = Math.sin(Math.min(1.0, (p - 0.52) / 0.40) * (Math.PI / 2));
+            const targetCamPos = this.defaultCameraPos.clone().multiplyScalar(0.80);
+            targetCamPos.y = this.defaultCameraPos.y * 0.82;
+            this.camera.position.lerpVectors(this.defaultCameraPos, targetCamPos, zoomP);
+            this.camera.lookAt(0, 0.16, 0.15 * zoomP);
+          } else if (p >= 1.0) {
+            // Held steady in close view
+            const targetCamPos = this.defaultCameraPos.clone().multiplyScalar(0.80);
+            targetCamPos.y = this.defaultCameraPos.y * 0.82;
+            this.camera.position.copy(targetCamPos);
+            this.camera.lookAt(0, 0.16, 0.15);
+          } else {
+            this.camera.position.copy(this.defaultCameraPos);
+            this.camera.lookAt(0, 0.22, 0);
+          }
+        }
+
+        // Realistic 3-Phase Multi-Hop Ball Trajectory with dramatic bounces & chatter
+        if (p < 0.52) {
+          // Phase 1: High-speed rim spin with micro track vibration
           const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
+          const wobble = Math.sin(ballAngle * 6) * 0.005;
           this.ball.position.set(
             Math.cos(ballAngle) * 2.40,
-            0.45,
+            0.45 + wobble,
             Math.sin(ballAngle) * 2.40
+          );
+        } else if (p < 0.76) {
+          // Phase 2: Inward descent down the bowl & brass deflector ricochet strike
+          const t2 = (p - 0.52) / 0.24;
+          const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
+          
+          const radius = 2.40 - (2.40 - 1.85) * Math.pow(t2, 1.4);
+          let height = 0.45 - (0.45 - 0.18) * t2;
+
+          // Brass Deflector Ricochet Strike at mid-descent (~t2 = 0.42..0.68)
+          let ricochetRadial = 0;
+          if (t2 >= 0.42 && t2 <= 0.68) {
+            const strikeProgress = (t2 - 0.42) / 0.26;
+            const pop = Math.sin(strikeProgress * Math.PI);
+            height += 0.13 * pop;
+            ricochetRadial = 0.05 * Math.sin(strikeProgress * Math.PI * 2);
+          }
+
+          const currentR = radius + ricochetRadial;
+          this.ball.position.set(
+            Math.cos(ballAngle) * currentR,
+            height,
+            Math.sin(ballAngle) * currentR
           );
         } else if (p < 1.0) {
-          // Phase 2: Inward descent directly towards targetWorldPos with natural deflector bounce
-          const u = (p - 0.65) / 0.35;
-          const ballAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
-          const rimPos = new this.THREE.Vector3(
-            Math.cos(ballAngle) * 2.40,
-            0.45,
-            Math.sin(ballAngle) * 2.40
-          );
+          // Phase 3: The Climax — Pocket frets chatter, high-dopamine jumps & near-miss bounces
+          const t3 = (p - 0.76) / 0.24;
           
-          this.ball.position.lerpVectors(rimPos, targetWorldPos, u);
-          // Add small diminishing bounce
-          const bounce = 0.08 * (1.0 - u) * Math.abs(Math.sin(u * 5 * Math.PI));
-          this.ball.position.y += bounce;
+          // Compute smooth base entry position to target pocket lerp
+          const ballAngleAtEntry = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * (1.0 - Math.pow(1.0 - 0.76, 3));
+          const entryPos = new this.THREE.Vector3(
+            Math.cos(ballAngleAtEntry) * 1.85,
+            0.18,
+            Math.sin(ballAngleAtEntry) * 1.85
+          );
+
+          // Smooth base progression towards exact target pocket
+          const smoothProgress = 1.0 - Math.pow(1.0 - t3, 2.4);
+          const currentBase = new this.THREE.Vector3().lerpVectors(entryPos, targetWorldPos, smoothProgress);
+
+          // Multi-hop bounce physics over frets:
+          // Hop 1 (0.00..0.40): Big leap over 2 neighboring pockets
+          // Hop 2 (0.40..0.76): Sharp rebound bounce against the neighboring fret
+          // Hop 3 (0.76..1.00): Rapid chatter into final resting pocket
+          let bounceY = 0;
+          let lateralOffset = 0;
+
+          if (t3 < 0.40) {
+            const h1 = t3 / 0.40;
+            bounceY = 0.16 * Math.sin(h1 * Math.PI);
+            lateralOffset = 0.14 * (1.0 - h1);
+          } else if (t3 < 0.76) {
+            const h2 = (t3 - 0.40) / 0.36;
+            bounceY = 0.09 * Math.sin(h2 * Math.PI);
+            lateralOffset = -0.08 * Math.sin(h2 * Math.PI);
+          } else {
+            const h3 = (t3 - 0.76) / 0.24;
+            const chatter = (1.0 - h3);
+            bounceY = 0.035 * Math.abs(Math.sin(h3 * 4 * Math.PI)) * chatter;
+            lateralOffset = 0.02 * Math.sin(h3 * 6 * Math.PI) * chatter;
+          }
+
+          // Apply hops in coordinate space tangent to pocket circle
+          const tangentAngle = Math.atan2(currentBase.z, currentBase.x) + Math.PI / 2;
+          this.ball.position.set(
+            currentBase.x + Math.cos(tangentAngle) * lateralOffset,
+            currentBase.y + bounceY,
+            currentBase.z + Math.sin(tangentAngle) * lateralOffset
+          );
+
+          // Golden illumination on winning pocket at climax
+          if (t3 > 0.75 && this.goldPointLight) {
+            this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
+            this.goldPointLight.intensity = 1.5 + t3 * 1.5;
+            this.goldPointLight.distance = 3.6;
+          }
         } else {
-          // Spin complete: lock ball directly into pocket
+          // Spin complete: lock ball directly into pocket with 100% precision
           this.isSpinning = false;
           this.targetFps = 30; // Reduce power consumption by >60%
           this.ball.position.copy(targetWorldPos);
+
+          // Full golden spotlight on victorious winning pocket
+          if (this.goldPointLight) {
+            this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
+            this.goldPointLight.intensity = 3.0;
+            this.goldPointLight.distance = 3.8;
+          }
         }
       } else {
         // Idle phase: STAY STILL! Wheel and ball remain firmly stationary in the pocket.
