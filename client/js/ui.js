@@ -1524,12 +1524,18 @@
      * Renders a 3D perspective playing card with luxury vector graphics. Zero emojis.
      * @param {{ suit: string, rank: string, value: number, hidden?: boolean, isBlackjack?: boolean }} card 
      * @param {boolean} [isDealerHole=false] 
+     * @param {Object} [opts={}]
+     * @param {number} [opts.dealDelay=0]
+     * @param {string} [opts.cardSig=null]
      * @returns {string} HTML string
      */
-    renderBlackjackCardHtml(card, isDealerHole = false) {
+    renderBlackjackCardHtml(card, isDealerHole = false, opts = {}) {
+      const dealDelay = (opts && typeof opts.dealDelay === 'number') ? opts.dealDelay : 0;
+      const delayStyle = dealDelay > 0 ? `style="--deal-delay: ${dealDelay}s;"` : '';
       if (!card || card.hidden || isDealerHole) {
+        const sig = (opts && opts.cardSig) || 'hole_card';
         return `
-          <div class="bj-card face-down">
+          <div class="bj-card face-down deal-animating" data-card-sig="${sig}" ${delayStyle}>
             <div class="bj-card-inner">
               <div class="bj-card-back"></div>
               <div class="bj-card-front"></div>
@@ -1544,9 +1550,10 @@
       const isRed = suitKey === 'heart' || suitKey === 'diamond';
       const colorClass = isRed ? 'card-red' : 'card-black';
       const highlightClass = card.isBlackjack ? ' card-highlight-gold' : '';
+      const sig = (opts && opts.cardSig) || `${rank}_${suitKey}`;
 
       return `
-        <div class="bj-card face-up ${colorClass}${highlightClass}">
+        <div class="bj-card face-up ${colorClass}${highlightClass} deal-animating" data-card-sig="${sig}" ${delayStyle}>
           <div class="bj-card-inner">
             <div class="bj-card-back"></div>
             <div class="bj-card-front">
@@ -1566,6 +1573,106 @@
     }
 
     /**
+     * Incrementally updates a card dock with luxury staggered animations and persistence.
+     * Prevents cards from re-animating or dealing twice when state updates fire.
+     * @param {HTMLElement} dock 
+     * @param {Array<Object>} cards 
+     * @param {Object} [options={}]
+     * @param {boolean} [options.isDealer=false]
+     * @param {boolean} [options.isHoleMasked=false]
+     * @param {string} [options.phase='BETTING']
+     */
+    updateCardDock(dock, cards = [], { isDealer = false, isHoleMasked = false, phase = 'BETTING' } = {}) {
+      if (!dock) return;
+
+      if (!Array.isArray(cards) || cards.length === 0) {
+        dock.innerHTML = '';
+        return;
+      }
+
+      const existingCards = Array.from(dock.querySelectorAll('.bj-card'));
+
+      // If dock has more cards than the new state, remove excess cards
+      while (existingCards.length > cards.length) {
+        const excess = existingCards.pop();
+        if (excess && excess.parentNode) {
+          excess.parentNode.removeChild(excess);
+        }
+      }
+
+      cards.forEach((card, idx) => {
+        const isHole = Boolean(isDealer && (card.hidden || (idx === 1 && isHoleMasked)));
+        const rawSuit = ((card && card.suit) || 'spades').toLowerCase();
+        const suitKey = rawSuit.endsWith('s') ? rawSuit.slice(0, -1) : rawSuit;
+        const rank = (card && card.rank) || 'A';
+        const cardSig = isHole ? 'hole_card' : `${rank}_${suitKey}`;
+
+        if (idx < existingCards.length) {
+          const cardEl = existingCards[idx];
+          const existingSig = cardEl.getAttribute('data-card-sig');
+
+          // If this was a hidden hole card and is now revealed as a face-up card:
+          if (existingSig === 'hole_card' && !isHole) {
+            cardEl.setAttribute('data-card-sig', cardSig);
+            const isRed = suitKey === 'heart' || suitKey === 'diamond';
+            const colorClass = isRed ? 'card-red' : 'card-black';
+            const highlightClass = card.isBlackjack ? ' card-highlight-gold' : '';
+            cardEl.className = `bj-card face-up card-flip-reveal ${colorClass}${highlightClass}`;
+            const frontEl = cardEl.querySelector('.bj-card-front');
+            if (frontEl) {
+              frontEl.innerHTML = `
+                <div class="card-corner-top">
+                  <span class="card-rank">${rank}</span>
+                  <svg class="card-suit-svg" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
+                </div>
+                <svg class="card-center-suit" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
+                <div class="card-corner-bottom">
+                  <span class="card-rank">${rank}</span>
+                  <svg class="card-suit-svg" viewBox="0 0 24 24"><use href="#suit-${suitKey}"></use></svg>
+                </div>
+              `;
+            }
+            setTimeout(() => {
+              if (cardEl.parentNode) {
+                cardEl.classList.remove('card-flip-reveal');
+                cardEl.classList.add('card-settled');
+              }
+            }, 750);
+          } else {
+            // Already dealt card - keep it settled so it NEVER slides or flashes again
+            if (!cardEl.classList.contains('deal-animating') && !cardEl.classList.contains('card-flip-reveal')) {
+              cardEl.classList.add('card-settled');
+            }
+          }
+        } else {
+          // New card being dealt!
+          let dealDelay = 0;
+          if (phase === 'DEALING') {
+            if (isDealer) {
+              dealDelay = idx === 0 ? 0.22 : 0.62;
+            } else {
+              dealDelay = idx === 0 ? 0.06 : 0.42;
+            }
+          }
+
+          const cardHtml = this.renderBlackjackCardHtml(card, isHole, { dealDelay, cardSig });
+          const temp = document.createElement('div');
+          temp.innerHTML = cardHtml.trim();
+          const newCardEl = temp.firstElementChild;
+          if (newCardEl) {
+            dock.appendChild(newCardEl);
+            setTimeout(() => {
+              if (newCardEl.parentNode) {
+                newCardEl.classList.remove('deal-animating');
+                newCardEl.classList.add('card-settled');
+              }
+            }, Math.round((dealDelay + 0.75) * 1000));
+          }
+        }
+      });
+    }
+
+    /**
      * Renders dealer area cards and score pill.
      * @param {Array<Object>} [cards=[]]
      * @param {number|Object} [score=0]
@@ -1582,19 +1689,8 @@
         return;
       }
 
-      let cardsHtml = '';
-      let isHoleMasked = false;
-
-      cards.forEach((c, idx) => {
-        if (c.hidden || (idx === 1 && c.hidden)) {
-          isHoleMasked = true;
-          cardsHtml += this.renderBlackjackCardHtml(c, true);
-        } else {
-          cardsHtml += this.renderBlackjackCardHtml(c, false);
-        }
-      });
-
-      this.elements.bjDealerCards.innerHTML = cardsHtml;
+      const isHoleMasked = cards.some((c, idx) => c && (c.hidden || (idx === 1 && c.hidden)));
+      this.updateCardDock(this.elements.bjDealerCards, cards, { isDealer: true, isHoleMasked, phase });
 
       if (this.elements.bjDealerScore) {
         if (isHoleMasked) {
@@ -1707,13 +1803,8 @@
             : (Array.isArray(seat.cards) ? seat.cards : []);
 
           if (dock0) {
+            this.updateCardDock(dock0, cards0, { isDealer: false, phase: currentPhase });
             if (cards0.length > 0) {
-              let h0Html = '';
-              cards0.forEach(c => {
-                h0Html += this.renderBlackjackCardHtml(c, false);
-              });
-              dock0.innerHTML = h0Html;
-
               if (score0) {
                 const scoreVal = (hand0 && typeof hand0.value === 'number' && hand0.value > 0)
                   ? hand0.value
@@ -1726,7 +1817,6 @@
                 score0.classList.remove('hidden');
               }
             } else {
-              dock0.innerHTML = '';
               if (score0) score0.classList.add('hidden');
             }
           }
@@ -1735,27 +1825,22 @@
           const hand1 = seat.hands && seat.hands[1];
           if (handBlock1 && dock1) {
             const cards1 = (hand1 && Array.isArray(hand1.cards) && hand1.cards.length > 0) ? hand1.cards : [];
+            this.updateCardDock(dock1, cards1, { isDealer: false, phase: currentPhase });
             if (cards1.length > 0) {
               handBlock1.classList.remove('hidden');
-              let h1Html = '';
-              cards1.forEach(c => {
-                h1Html += this.renderBlackjackCardHtml(c, false);
-              });
-              dock1.innerHTML = h1Html;
-
               if (score1) {
                 const scoreVal = (hand1 && typeof hand1.value === 'number' && hand1.value > 0)
                   ? hand1.value
                   : this.computeCardsScore(cards1);
                 let scoreText = `${scoreVal}`;
                 if (scoreVal > 21) scoreText = `BUST ${scoreVal}`;
+                else if (scoreVal === 21 && cards1.length === 2 && !(hand1 && hand1.isSplitHand)) scoreText = 'BJ 21';
                 else if (hand1 && hand1.isSoft) scoreText = `Soft ${scoreVal}`;
                 score1.textContent = scoreText;
                 score1.classList.remove('hidden');
               }
             } else {
               handBlock1.classList.add('hidden');
-              dock1.innerHTML = '';
               if (score1) score1.classList.add('hidden');
             }
           }

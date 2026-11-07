@@ -2187,12 +2187,30 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   margin-right: -24px;
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.65);
   border-radius: 6px;
-  animation: cardDealSlide 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
   user-select: none;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .bj-card:last-child {
   margin-right: 0;
+}
+
+.bj-card.deal-animating {
+  animation: cardDealSlide 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--deal-delay, 0s);
+  will-change: transform, opacity;
+}
+
+.bj-card.card-settled {
+  animation: none !important;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+}
+
+.bj-card.card-flip-reveal {
+  animation: cardHoleFlip 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform;
 }
 
 .bj-card-inner {
@@ -2312,18 +2330,40 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   transform: rotate(180deg);
 }
 
-/* Sliding Deal Animation from Dealer Shoe */
+/* Sliding Deal Animation from Dealer Shoe with authentic physical deceleration */
 @keyframes cardDealSlide {
   0% {
     opacity: 0;
-    transform: translate3d(180px, -180px, 0) rotate(20deg) scale(0.65);
+    transform: translate3d(160px, -150px, 0) rotate(22deg) scale(0.6);
+    box-shadow: 0 22px 32px rgba(0, 0, 0, 0.75);
   }
-  75% {
+  60% {
+    opacity: 1;
     transform: translate3d(-3px, 2px, 0) rotate(-2deg) scale(1.03);
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.6);
+  }
+  85% {
+    transform: translate3d(1px, -1px, 0) rotate(0.8deg) scale(1);
   }
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.65);
+  }
+}
+
+/* 3D Dealer Hole Card Reveal Flip */
+@keyframes cardHoleFlip {
+  0% {
+    transform: rotateY(180deg) scale(0.98);
+  }
+  50% {
+    transform: rotateY(90deg) scale(1.08) translateY(-6px);
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.8);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1) translateY(0);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.65);
   }
 }
 

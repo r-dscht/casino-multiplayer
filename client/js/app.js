@@ -908,16 +908,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (Array.isArray(data.hands)) {
           seat.hands = data.hands;
+          if (seat.hands[0] && Array.isArray(seat.hands[0].cards)) {
+            seat.cards = [...seat.hands[0].cards];
+          }
         } else if (data.hand && typeof data.handIndex === 'number') {
           if (!Array.isArray(seat.hands)) seat.hands = [];
           seat.hands[data.handIndex] = data.hand;
+          if (data.handIndex === 0 && Array.isArray(data.hand.cards)) {
+            seat.cards = [...data.hand.cards];
+          }
         } else if (data.card) {
-          if (!seat.cards) seat.cards = [];
-          seat.cards.push(data.card);
           const hIdx = typeof data.handIndex === 'number' ? data.handIndex : 0;
           if (seat.hands && seat.hands[hIdx]) {
             if (!seat.hands[hIdx].cards) seat.hands[hIdx].cards = [];
-            seat.hands[hIdx].cards.push(data.card);
+            const lastCard = seat.hands[hIdx].cards[seat.hands[hIdx].cards.length - 1];
+            if (!lastCard || lastCard.suit !== data.card.suit || lastCard.rank !== data.card.rank) {
+              seat.hands[hIdx].cards.push(data.card);
+            }
+          }
+          if (!seat.cards) seat.cards = [];
+          const lastSeatCard = seat.cards[seat.cards.length - 1];
+          if (!lastSeatCard || lastSeatCard.suit !== data.card.suit || lastSeatCard.rank !== data.card.rank) {
+            seat.cards.push(data.card);
           }
         }
       }
