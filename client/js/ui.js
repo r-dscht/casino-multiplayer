@@ -1772,6 +1772,12 @@
             avatarDisc.classList.toggle('is-active-turn', !!isTurn);
           }
 
+          const handBlock0 = document.getElementById(`seat-hand-${i}-0`);
+          const isHand0Active = Boolean(isTurn && (!activeTurn || typeof activeTurn.handIndex !== 'number' || activeTurn.handIndex === 0));
+          const isHand1Active = Boolean(isTurn && activeTurn && activeTurn.handIndex === 1);
+          if (handBlock0) handBlock0.classList.toggle('is-active-hand', isHand0Active);
+          if (handBlock1) handBlock1.classList.toggle('is-active-hand', isHand1Active);
+
           // Betting spot chips & label
           const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
           if (betSpot) {
@@ -1859,9 +1865,14 @@
           if (chipsDock) chipsDock.innerHTML = '';
           const betLabel = betSpot ? betSpot.querySelector('.bet-spot-label') : null;
           if (betLabel) betLabel.textContent = 'INZET';
+          const handBlock0 = document.getElementById(`seat-hand-${i}-0`);
+          if (handBlock0) handBlock0.classList.remove('is-active-hand');
           if (dock0) dock0.innerHTML = '';
           if (score0) score0.classList.add('hidden');
-          if (handBlock1) handBlock1.classList.add('hidden');
+          if (handBlock1) {
+            handBlock1.classList.add('hidden');
+            handBlock1.classList.remove('is-active-hand');
+          }
           if (dock1) dock1.innerHTML = '';
           if (score1) score1.classList.add('hidden');
         }
