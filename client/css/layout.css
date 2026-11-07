@@ -1461,6 +1461,28 @@
   margin: 12px 0 16px;
 }
 
+.buyin-highlight-default {
+  color: #f9e79f;
+  background: rgba(212, 175, 55, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.btn-quick-chip.is-default-preset {
+  border-color: rgba(212, 175, 55, 0.75);
+  color: #f9e79f;
+  background: rgba(212, 175, 55, 0.12);
+  font-weight: 600;
+}
+
+.btn-quick-chip.active-preset {
+  border-color: #d4af37 !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.35) 0%, rgba(161, 98, 7, 0.45) 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
 .poker-buyin-error-msg {
   color: #ef4444;
   font-size: 0.82rem;

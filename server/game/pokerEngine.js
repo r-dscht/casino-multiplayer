@@ -48,6 +48,7 @@ class PokerEngine extends EventEmitter {
     this.bigBlindAmount = options.bigBlind || DEFAULT_STAKES.BIG_BLIND;
     this.minBuyIn = options.minBuyIn || this.bigBlindAmount * 20;
     this.maxBuyIn = options.maxBuyIn || this.bigBlindAmount * 100;
+    this.defaultBuyIn = options.defaultBuyIn || DEFAULT_STAKES.DEFAULT_BUY_IN || Math.min(this.bigBlindAmount * 50, this.maxBuyIn);
 
     // Game components
     this.deck = new PokerDeck();
@@ -179,11 +180,11 @@ class PokerEngine extends EventEmitter {
    * Deducts from playerManager bankroll atomically if available.
    * @param {number} seatIndex (0..5)
    * @param {string} playerId
-   * @param {number} [buyInAmount]
+   * @param {number} [buyInAmount] Defaults to table default buy-in (50 BB)
    * @param {Object} [playerInfo]
    * @returns {{ success: boolean, code?: string, reason?: string, stack?: number }}
    */
-  takeSeat(seatIndex, playerId, buyInAmount = this.minBuyIn, playerInfo = {}) {
+  takeSeat(seatIndex, playerId, buyInAmount = this.defaultBuyIn, playerInfo = {}) {
     if (seatIndex < 0 || seatIndex >= this.maxSeats) {
       return { success: false, code: 'INVALID_SEAT', reason: 'Seat index out of bounds' };
     }
@@ -1240,6 +1241,9 @@ class PokerEngine extends EventEmitter {
       bigBlindSeat: this.bigBlindSeat,
       smallBlindAmount: this.smallBlindAmount,
       bigBlindAmount: this.bigBlindAmount,
+      minBuyIn: this.minBuyIn,
+      maxBuyIn: this.maxBuyIn,
+      defaultBuyIn: this.defaultBuyIn,
       currentBet: this.currentBet,
       minRaise: this.minRaise,
       pot: this.potManager.getTotalPot(),

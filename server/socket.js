@@ -161,6 +161,7 @@ function setupSocket(httpServer, options = {}) {
     smallBlind: 50,
     bigBlind: 100,
     minBuyIn: 2000,
+    defaultBuyIn: 5000,
     maxBuyIn: 10000,
     autoStart: true
   });
@@ -172,6 +173,7 @@ function setupSocket(httpServer, options = {}) {
     smallBlind: 100,
     bigBlind: 200,
     minBuyIn: 4000,
+    defaultBuyIn: 10000,
     maxBuyIn: 20000,
     autoStart: true
   });
@@ -1562,7 +1564,7 @@ function setupSocket(httpServer, options = {}) {
         seatIndex = parseInt(payload.seat, 10);
       }
 
-      const buyInAmount = (payload && (payload.buyInAmount || payload.amount)) || table.minBuyIn;
+      const buyInAmount = (payload && (payload.buyInAmount || payload.amount)) || table.defaultBuyIn || table.minBuyIn;
 
       const res = table.takeSeat(seatIndex, player.id, buyInAmount, {
         name: player.name,

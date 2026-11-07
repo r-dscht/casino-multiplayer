@@ -86,6 +86,7 @@
         buyinSeatTitle: document.getElementById('poker-modal-seat-title'),
         buyinBankroll: document.getElementById('poker-buyin-bankroll'),
         buyinBlindsLabel: document.getElementById('poker-buyin-blinds-label'),
+        buyinDefaultLabel: document.getElementById('poker-buyin-default-label'),
         buyinMinLabel: document.getElementById('poker-buyin-min-label'),
         buyinMaxLabel: document.getElementById('poker-buyin-max-label'),
         buyinAmount: document.getElementById('poker-buyin-amount'),
@@ -173,10 +174,14 @@
       }
       if (this.elements.btnBuyinMid) {
         this.elements.btnBuyinMid.addEventListener('click', () => {
-          const minVal = parseInt(this.elements.buyinSlider.min, 10) || 2000;
-          const maxVal = parseInt(this.elements.buyinSlider.max, 10) || 10000;
-          const midVal = Math.round((minVal + maxVal) / 2 / 100) * 100;
-          this.setBuyinAmount(midVal);
+          const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
+          const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
+          const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
+          const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10) || (bb * 20);
+          const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10) || (bb * 100);
+          let target = defaultBuyIn;
+          if (bankroll >= minVal && bankroll < target) target = bankroll;
+          this.setBuyinAmount(Math.min(Math.max(target, minVal), maxVal));
         });
       }
       if (this.elements.btnBuyinMax) {
@@ -195,6 +200,27 @@
       }
       if (this.elements.btnCloseModal) {
         this.elements.btnCloseModal.addEventListener('click', () => this.closeBuyInModal());
+      }
+
+      // Keyboard shortcuts for Buy-In modal (Enter confirms default/chosen buy-in, Escape cancels)
+      if (this.elements.buyinModal) {
+        this.elements.buyinModal.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.confirmBuyIn();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.closeBuyInModal();
+          }
+        });
+      }
+      if (this.elements.buyinAmount) {
+        this.elements.buyinAmount.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.confirmBuyIn();
+          }
+        });
       }
 
       // Raise Sizing Slider & Input
@@ -369,9 +395,10 @@
       if (this.elements.tableStakes) {
         const sb = state.smallBlindAmount || 50;
         const bb = state.bigBlindAmount || 100;
-        const minB = bb * 20;
-        const maxB = bb * 100;
-        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Buy-in: ${minB.toLocaleString()} - ${maxB.toLocaleString()}`;
+        const minB = state.minBuyIn || (bb * 20);
+        const maxB = state.maxBuyIn || (bb * 100);
+        const defB = state.defaultBuyIn || (bb * 50);
+        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Standaard Buy-in: ${defB.toLocaleString()} (${minB.toLocaleString()} - ${maxB.toLocaleString()})`;
       }
       if (this.elements.handNumber) {
         this.elements.handNumber.textContent = `#${state.handId || 1}`;
@@ -947,8 +974,10 @@
       this.pendingBuyInSeat = seatIndex;
       const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
-      const minBuyIn = bb * 20;
-      const maxBuyIn = bb * 100;
+      const sb = (this.currentTableState && this.currentTableState.smallBlindAmount) || (bb / 2);
+      const minBuyIn = (this.currentTableState && this.currentTableState.minBuyIn) || (bb * 20);
+      const maxBuyIn = (this.currentTableState && this.currentTableState.maxBuyIn) || (bb * 100);
+      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
 
       if (this.elements.buyinSeatTitle) {
         this.elements.buyinSeatTitle.textContent = `Stoel ${seatIndex + 1} • ${this.currentTableId === 'poker_2' ? 'High-Roller Hold\'em' : 'No-Limit Hold\'em'}`;
@@ -957,13 +986,26 @@
         this.elements.buyinBankroll.textContent = `${bankroll.toLocaleString()} fiches`;
       }
       if (this.elements.buyinBlindsLabel) {
-        this.elements.buyinBlindsLabel.innerHTML = `Blinds: <strong>${bb / 2} / ${bb} fiches</strong>`;
+        this.elements.buyinBlindsLabel.innerHTML = `Blinds: <strong>${sb.toLocaleString()} / ${bb.toLocaleString()} fiches</strong>`;
+      }
+      if (this.elements.buyinDefaultLabel) {
+        this.elements.buyinDefaultLabel.innerHTML = `Standaard: <strong>${defaultBuyIn.toLocaleString()} fiches</strong> (50 BB)`;
       }
       if (this.elements.buyinMinLabel) {
         this.elements.buyinMinLabel.innerHTML = `Min: <strong>${minBuyIn.toLocaleString()} fiches</strong> (20 BB)`;
       }
       if (this.elements.buyinMaxLabel) {
         this.elements.buyinMaxLabel.innerHTML = `Max: <strong>${maxBuyIn.toLocaleString()} fiches</strong> (100 BB)`;
+      }
+
+      if (this.elements.btnBuyinMid) {
+        this.elements.btnBuyinMid.textContent = `Standaard (${defaultBuyIn.toLocaleString()})`;
+      }
+      if (this.elements.btnBuyinMin) {
+        this.elements.btnBuyinMin.textContent = `Min (${minBuyIn.toLocaleString()})`;
+      }
+      if (this.elements.btnBuyinMax) {
+        this.elements.btnBuyinMax.textContent = `Max (${maxBuyIn.toLocaleString()})`;
       }
 
       if (this.elements.buyinSlider && this.elements.buyinAmount) {
@@ -974,9 +1016,14 @@
         this.elements.buyinAmount.max = maxBuyIn;
         this.elements.buyinAmount.step = bb;
 
-        // Default to 50 BB or bankroll
-        const defaultVal = Math.max(minBuyIn, Math.min(bb * 50, bankroll, maxBuyIn));
-        this.setBuyinAmount(defaultVal);
+        // Default to standard buy-in amount (50 BB), clamped safely to bankroll if bankroll >= minBuyIn
+        let initialAmount = defaultBuyIn;
+        if (bankroll >= minBuyIn && bankroll < initialAmount) {
+          initialAmount = bankroll;
+        } else if (bankroll < minBuyIn) {
+          initialAmount = minBuyIn;
+        }
+        this.setBuyinAmount(initialAmount);
       }
 
       if (this.elements.buyinError) {
@@ -986,6 +1033,9 @@
 
       if (this.elements.buyinModal) {
         this.elements.buyinModal.classList.remove('hidden');
+        if (this.elements.btnConfirmBuyin) {
+          setTimeout(() => this.elements.btnConfirmBuyin.focus(), 50);
+        }
       }
     }
 
@@ -1005,7 +1055,25 @@
     updateBuyinConfirmButtonText() {
       if (!this.elements.btnConfirmBuyin || !this.elements.buyinAmount) return;
       const amt = parseInt(this.elements.buyinAmount.value, 10) || 0;
-      this.elements.btnConfirmBuyin.textContent = `Neem Plaats met ${amt.toLocaleString()} fiches`;
+      const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
+      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
+      const isDefault = amt === defaultBuyIn;
+
+      this.elements.btnConfirmBuyin.textContent = isDefault
+        ? `Neem Plaats met Standaard Buy-In (${amt.toLocaleString()} fiches)`
+        : `Neem Plaats met ${amt.toLocaleString()} fiches`;
+
+      if (this.elements.btnBuyinMid) {
+        this.elements.btnBuyinMid.classList.toggle('active-preset', isDefault);
+      }
+      if (this.elements.btnBuyinMin) {
+        const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
+        this.elements.btnBuyinMin.classList.toggle('active-preset', amt === minVal);
+      }
+      if (this.elements.btnBuyinMax) {
+        const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
+        this.elements.btnBuyinMax.classList.toggle('active-preset', amt === maxVal);
+      }
     }
 
     /**
