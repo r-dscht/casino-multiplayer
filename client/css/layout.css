@@ -354,3 +354,309 @@
     height: 30px;
   }
 }
+
+/* ==========================================================================
+   Height-Based Responsive Architecture ("Fit-to-Screen" for Laptops & Displays)
+   Guarantees zero-scroll visibility for bottom chips and action buttons
+   ========================================================================== */
+
+/* Standard Laptops & 1080p @ 125% Display Scaling (Viewport Height <= 900px) */
+@media (max-height: 900px) {
+  .master-header {
+    height: 52px;
+  }
+
+  .social-sidebar {
+    height: calc(100vh - 52px);
+    top: 52px;
+  }
+
+  .play-area {
+    padding-bottom: 8px;
+  }
+
+  /* Blackjack Viewport Fit */
+  #blackjack-view {
+    padding: 10px 18px;
+  }
+
+  .bj-table-header {
+    padding: 6px 14px;
+    margin-bottom: 8px;
+  }
+
+  .bj-felt-stage {
+    min-height: 390px;
+    padding: 14px 16px 16px;
+  }
+
+  .bj-seats-arc {
+    margin: 14px auto 6px;
+    gap: 10px;
+  }
+
+  .bj-seat {
+    max-width: 155px;
+    min-width: 125px;
+  }
+
+  #bj-seat-0 { transform: translateY(22px) rotate(-8deg); }
+  #bj-seat-1 { transform: translateY(6px) rotate(-4deg); }
+  #bj-seat-2 { transform: translateY(0px) rotate(-1deg); }
+  #bj-seat-3 { transform: translateY(0px) rotate(1deg); }
+  #bj-seat-4 { transform: translateY(6px) rotate(4deg); }
+  #bj-seat-5 { transform: translateY(22px) rotate(8deg); }
+
+  .betting-spot {
+    width: 56px;
+    height: 56px;
+  }
+
+  .seat-betting-area {
+    margin: 6px 0 4px;
+  }
+
+  .bj-card {
+    width: 60px;
+    height: 86px;
+    margin-right: -20px;
+  }
+
+  .card-rank {
+    font-size: 0.92rem;
+  }
+
+  .card-suit-svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .card-center-suit {
+    width: 22px;
+    height: 22px;
+  }
+
+  .seat-cards-container {
+    min-height: 88px;
+    gap: 4px;
+  }
+
+  .avatar-badge.avatar-md {
+    width: 34px;
+    height: 34px;
+    font-size: 0.82rem;
+  }
+
+  .bj-controls-panel {
+    padding: 8px 16px;
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  .chip-selector .chip-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 0.74rem;
+  }
+
+  .btn-action {
+    padding: 8px 18px;
+    font-size: 0.82rem;
+  }
+
+  .bj-quick-bet-actions .btn {
+    padding: 5px 12px;
+    font-size: 0.75rem;
+  }
+
+  /* Roulette Viewport Fit */
+  #roulette-canvas-container {
+    height: clamp(230px, 30vh, 290px);
+  }
+
+  .board-section {
+    padding: 8px 16px;
+  }
+
+  .number-row {
+    height: 44px;
+  }
+
+  .cell-zero {
+    min-height: 132px;
+  }
+
+  .grid-cell {
+    font-size: 1rem;
+  }
+
+  .chip-dock {
+    padding: 6px 12px;
+    margin-top: 8px;
+  }
+
+  .controls-bar {
+    margin-top: 8px;
+  }
+
+  .chip-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 0.76rem;
+  }
+}
+
+/* Compact Laptop Screens & Constrained Viewports (Viewport Height <= 760px) */
+@media (max-height: 760px) {
+  .master-header {
+    height: 46px;
+    padding: 4px 12px;
+  }
+
+  .social-sidebar {
+    height: calc(100vh - 46px);
+    top: 46px;
+  }
+
+  .play-area {
+    padding-bottom: 4px;
+  }
+
+  /* Compact Blackjack */
+  #blackjack-view {
+    padding: 6px 12px;
+  }
+
+  .bj-table-header {
+    padding: 4px 10px;
+    margin-bottom: 6px;
+  }
+
+  .bj-felt-stage {
+    min-height: 320px;
+    padding: 10px 12px 12px;
+  }
+
+  .bj-seats-arc {
+    margin: 8px auto 4px;
+    gap: 8px;
+  }
+
+  #bj-seat-0 { transform: translateY(16px) rotate(-6deg); }
+  #bj-seat-1 { transform: translateY(4px) rotate(-3deg); }
+  #bj-seat-2 { transform: translateY(0px); }
+  #bj-seat-3 { transform: translateY(0px); }
+  #bj-seat-4 { transform: translateY(4px) rotate(3deg); }
+  #bj-seat-5 { transform: translateY(16px) rotate(6deg); }
+
+  .bj-seat {
+    max-width: 135px;
+    min-width: 110px;
+  }
+
+  .betting-spot {
+    width: 48px;
+    height: 48px;
+  }
+
+  .seat-betting-area {
+    margin: 4px 0 2px;
+  }
+
+  .bj-card {
+    width: 52px;
+    height: 74px;
+    margin-right: -17px;
+  }
+
+  .card-rank {
+    font-size: 0.82rem;
+  }
+
+  .card-suit-svg {
+    width: 9px;
+    height: 9px;
+  }
+
+  .card-center-suit {
+    width: 18px;
+    height: 18px;
+  }
+
+  .seat-cards-container {
+    min-height: 76px;
+    gap: 2px;
+  }
+
+  .avatar-badge.avatar-md {
+    width: 28px;
+    height: 28px;
+    font-size: 0.72rem;
+  }
+
+  .seat-username {
+    font-size: 0.72rem;
+  }
+
+  .seat-chips-count {
+    font-size: 0.65rem;
+  }
+
+  .bj-controls-panel {
+    padding: 6px 12px;
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .chip-selector .chip-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.68rem;
+  }
+
+  .btn-action {
+    padding: 6px 14px;
+    font-size: 0.76rem;
+  }
+
+  .bj-quick-bet-actions .btn {
+    padding: 4px 8px;
+    font-size: 0.70rem;
+  }
+
+  /* Compact Roulette */
+  #roulette-canvas-container {
+    height: clamp(180px, 25vh, 220px);
+  }
+
+  .board-section {
+    padding: 4px 10px;
+  }
+
+  .number-row {
+    height: 38px;
+  }
+
+  .cell-zero {
+    min-height: 114px;
+  }
+
+  .grid-cell {
+    font-size: 0.90rem;
+  }
+
+  .chip-dock {
+    padding: 4px 8px;
+    margin-top: 6px;
+  }
+
+  .controls-bar {
+    margin-top: 6px;
+  }
+
+  .chip-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.68rem;
+  }
+}

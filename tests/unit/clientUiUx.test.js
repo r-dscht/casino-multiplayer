@@ -147,6 +147,11 @@ describe('Client UI, Avatar Presence & Game Feel (Milestone 3)', () => {
       assert.ok(layoutCss.includes('#bj-seat-5'));
       assert.ok(layoutCss.includes('transform: translateY('));
     });
+
+    it('layout.css must provide height-based media queries for laptop zero-scroll fit', () => {
+      assert.ok(layoutCss.includes('@media (max-height: 900px)'));
+      assert.ok(layoutCss.includes('@media (max-height: 760px)'));
+    });
   });
 
   describe('4. Tabbed Chat Architecture', () => {
