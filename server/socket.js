@@ -161,7 +161,7 @@ function setupSocket(httpServer, options = {}) {
     smallBlind: 50,
     bigBlind: 100,
     minBuyIn: 2000,
-    defaultBuyIn: 5000,
+    defaultBuyIn: 2000,
     maxBuyIn: 10000,
     autoStart: true
   });

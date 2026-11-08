@@ -48,7 +48,7 @@ class PokerEngine extends EventEmitter {
     this.bigBlindAmount = options.bigBlind || DEFAULT_STAKES.BIG_BLIND;
     this.minBuyIn = options.minBuyIn || this.bigBlindAmount * 20;
     this.maxBuyIn = options.maxBuyIn || this.bigBlindAmount * 100;
-    this.defaultBuyIn = options.defaultBuyIn || DEFAULT_STAKES.DEFAULT_BUY_IN || Math.min(this.bigBlindAmount * 50, this.maxBuyIn);
+    this.defaultBuyIn = options.defaultBuyIn || DEFAULT_STAKES.DEFAULT_BUY_IN || this.minBuyIn;
 
     // Game components
     this.deck = new PokerDeck();

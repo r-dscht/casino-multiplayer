@@ -174,12 +174,11 @@
       }
       if (this.elements.btnBuyinMid) {
         this.elements.btnBuyinMid.addEventListener('click', () => {
-          const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
-          const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
+          const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
+          const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
+          const midVal = Math.round((minVal + maxVal) / 2 / 100) * 100;
           const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
-          const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10) || (bb * 20);
-          const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10) || (bb * 100);
-          let target = defaultBuyIn;
+          let target = midVal;
           if (bankroll >= minVal && bankroll < target) target = bankroll;
           this.setBuyinAmount(Math.min(Math.max(target, minVal), maxVal));
         });
@@ -397,8 +396,8 @@
         const bb = state.bigBlindAmount || 100;
         const minB = state.minBuyIn || (bb * 20);
         const maxB = state.maxBuyIn || (bb * 100);
-        const defB = state.defaultBuyIn || (bb * 50);
-        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Standaard Buy-in: ${defB.toLocaleString()} (${minB.toLocaleString()} - ${maxB.toLocaleString()})`;
+        const defB = state.defaultBuyIn || (bb * 20);
+        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Entry: ${defB.toLocaleString()} (${minB.toLocaleString()} - ${maxB.toLocaleString()})`;
       }
       if (this.elements.handNumber) {
         this.elements.handNumber.textContent = `#${state.handId || 1}`;
@@ -977,7 +976,7 @@
       const sb = (this.currentTableState && this.currentTableState.smallBlindAmount) || (bb / 2);
       const minBuyIn = (this.currentTableState && this.currentTableState.minBuyIn) || (bb * 20);
       const maxBuyIn = (this.currentTableState && this.currentTableState.maxBuyIn) || (bb * 100);
-      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
+      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 20);
 
       if (this.elements.buyinSeatTitle) {
         this.elements.buyinSeatTitle.textContent = `Stoel ${seatIndex + 1} • ${this.currentTableId === 'poker_2' ? 'High-Roller Hold\'em' : 'No-Limit Hold\'em'}`;
@@ -989,7 +988,8 @@
         this.elements.buyinBlindsLabel.innerHTML = `Blinds: <strong>${sb.toLocaleString()} / ${bb.toLocaleString()} fiches</strong>`;
       }
       if (this.elements.buyinDefaultLabel) {
-        this.elements.buyinDefaultLabel.innerHTML = `Standaard: <strong>${defaultBuyIn.toLocaleString()} fiches</strong> (50 BB)`;
+        const kStr = defaultBuyIn >= 1000 ? (defaultBuyIn / 1000) + 'k' : defaultBuyIn;
+        this.elements.buyinDefaultLabel.innerHTML = `Entry: <strong>${defaultBuyIn.toLocaleString()} fiches (${kStr})</strong>`;
       }
       if (this.elements.buyinMinLabel) {
         this.elements.buyinMinLabel.innerHTML = `Min: <strong>${minBuyIn.toLocaleString()} fiches</strong> (20 BB)`;
@@ -998,14 +998,18 @@
         this.elements.buyinMaxLabel.innerHTML = `Max: <strong>${maxBuyIn.toLocaleString()} fiches</strong> (100 BB)`;
       }
 
-      if (this.elements.btnBuyinMid) {
-        this.elements.btnBuyinMid.textContent = `Standaard (${defaultBuyIn.toLocaleString()})`;
-      }
       if (this.elements.btnBuyinMin) {
-        this.elements.btnBuyinMin.textContent = `Min (${minBuyIn.toLocaleString()})`;
+        const kStr = minBuyIn >= 1000 ? (minBuyIn / 1000) + 'k' : minBuyIn;
+        this.elements.btnBuyinMin.textContent = `Entry (${kStr})`;
+      }
+      if (this.elements.btnBuyinMid) {
+        const midVal = Math.round((minBuyIn + maxBuyIn) / 2 / 100) * 100;
+        const kStr = midVal >= 1000 ? (midVal / 1000) + 'k' : midVal;
+        this.elements.btnBuyinMid.textContent = `${kStr} (50 BB)`;
       }
       if (this.elements.btnBuyinMax) {
-        this.elements.btnBuyinMax.textContent = `Max (${maxBuyIn.toLocaleString()})`;
+        const kStr = maxBuyIn >= 1000 ? (maxBuyIn / 1000) + 'k' : maxBuyIn;
+        this.elements.btnBuyinMax.textContent = `Max (${kStr})`;
       }
 
       if (this.elements.buyinSlider && this.elements.buyinAmount) {
@@ -1016,7 +1020,7 @@
         this.elements.buyinAmount.max = maxBuyIn;
         this.elements.buyinAmount.step = bb;
 
-        // Default to standard buy-in amount (50 BB), clamped safely to bankroll if bankroll >= minBuyIn
+        // Default to standard entry amount (2k), clamped safely to bankroll if bankroll >= minBuyIn
         let initialAmount = defaultBuyIn;
         if (bankroll >= minBuyIn && bankroll < initialAmount) {
           initialAmount = bankroll;
@@ -1056,22 +1060,25 @@
       if (!this.elements.btnConfirmBuyin || !this.elements.buyinAmount) return;
       const amt = parseInt(this.elements.buyinAmount.value, 10) || 0;
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
-      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 50);
+      const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 20);
       const isDefault = amt === defaultBuyIn;
 
+      const kStr = amt >= 1000 ? (amt / 1000) + 'k' : amt;
       this.elements.btnConfirmBuyin.textContent = isDefault
-        ? `Neem Plaats met Standaard Buy-In (${amt.toLocaleString()} fiches)`
+        ? `Neem Plaats met Entry van ${amt.toLocaleString()} fiches (${kStr})`
         : `Neem Plaats met ${amt.toLocaleString()} fiches`;
 
-      if (this.elements.btnBuyinMid) {
-        this.elements.btnBuyinMid.classList.toggle('active-preset', isDefault);
-      }
+      const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
+      const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
+      const midVal = Math.round((minVal + maxVal) / 2 / 100) * 100;
+
       if (this.elements.btnBuyinMin) {
-        const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
         this.elements.btnBuyinMin.classList.toggle('active-preset', amt === minVal);
       }
+      if (this.elements.btnBuyinMid) {
+        this.elements.btnBuyinMid.classList.toggle('active-preset', amt === midVal);
+      }
       if (this.elements.btnBuyinMax) {
-        const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
         this.elements.btnBuyinMax.classList.toggle('active-preset', amt === maxVal);
       }
     }

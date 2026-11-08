@@ -51,20 +51,20 @@ describe('PokerEngine Unit Tests (6-Seat Lifecycle, No-Limit Rules & Security)',
       assert.equal(res2.code, 'SEAT_OCCUPIED');
     });
 
-    it('should default to standard buy-in amount (50 BB) when buy-in amount is omitted', () => {
+    it('should default to standard buy-in amount (2k entry) when buy-in amount is omitted', () => {
       const p = playerManager.registerPlayer('sock_default', { name: 'DefaultPlayer' });
       const res = engine.takeSeat(3, p.id); // no buy-in amount specified
       assert.equal(res.success, true);
-      assert.equal(res.stack, 5000); // 50 * 100 BB = 5000 default
-      assert.equal(engine.seats[3].stack, 5000);
-      assert.equal(playerManager.getPlayerById(p.id).chips, 5000); // 10k - 5k = 5k
+      assert.equal(res.stack, 2000); // 2k default entry
+      assert.equal(engine.seats[3].stack, 2000);
+      assert.equal(playerManager.getPlayerById(p.id).chips, 8000); // 10k - 2k = 8k
     });
 
-    it('getTableState() should include minBuyIn, maxBuyIn, and defaultBuyIn', () => {
+    it('getTableState() should include minBuyIn, maxBuyIn, and defaultBuyIn (2k entry)', () => {
       const state = engine.getTableState();
       assert.equal(state.minBuyIn, 2000);
       assert.equal(state.maxBuyIn, 10000);
-      assert.equal(state.defaultBuyIn, 5000);
+      assert.equal(state.defaultBuyIn, 2000);
     });
 
     it('should reject buy-ins outside [minBuyIn, maxBuyIn]', () => {

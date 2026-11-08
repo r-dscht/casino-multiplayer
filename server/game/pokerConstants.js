@@ -11,16 +11,16 @@ const DEFAULT_STAKES = Object.freeze({
   SMALL_BLIND: 50,
   BIG_BLIND: 100,
   MIN_BUY_IN: 2000, // 20 * BB
-  DEFAULT_BUY_IN: 5000, // 50 * BB standard cash game buy-in
+  DEFAULT_BUY_IN: 2000, // 2k entry (20 * BB standard entry)
   MAX_BUY_IN: 10000 // 100 * BB
 });
 
 const TABLE_PRESETS = Object.freeze({
   LOW: { name: 'Low Stakes', smallBlind: 10, bigBlind: 20, minBuyIn: 400, defaultBuyIn: 1000, maxBuyIn: 2000 },
   STANDARD: { name: 'Standard Stakes', smallBlind: 25, bigBlind: 50, minBuyIn: 1000, defaultBuyIn: 2500, maxBuyIn: 5000 },
-  DEFAULT: { name: 'Monte Carlo Grand', smallBlind: 50, bigBlind: 100, minBuyIn: 2000, defaultBuyIn: 5000, maxBuyIn: 10000 },
-  HIGH: { name: 'High Roller', smallBlind: 100, bigBlind: 200, minBuyIn: 4000, defaultBuyIn: 10000, maxBuyIn: 20000 },
-  VIP: { name: 'VIP Salon', smallBlind: 500, bigBlind: 1000, minBuyIn: 20000, defaultBuyIn: 50000, maxBuyIn: 100000 }
+  DEFAULT: { name: 'Monte Carlo Grand', smallBlind: 50, bigBlind: 100, minBuyIn: 2000, defaultBuyIn: 2000, maxBuyIn: 10000 },
+  HIGH: { name: 'High Roller', smallBlind: 100, bigBlind: 200, minBuyIn: 4000, defaultBuyIn: 4000, maxBuyIn: 20000 },
+  VIP: { name: 'VIP Salon', smallBlind: 500, bigBlind: 1000, minBuyIn: 20000, defaultBuyIn: 20000, maxBuyIn: 100000 }
 });
 
 const PHASES = Object.freeze({

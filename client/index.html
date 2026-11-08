@@ -1149,7 +1149,7 @@
 
         <div class="buyin-stakes-info">
           <span id="poker-buyin-blinds-label">Blinds: <strong>50 / 100 fiches</strong></span>
-          <span id="poker-buyin-default-label" class="buyin-highlight-default">Standaard: <strong>5.000 fiches</strong> (50 BB)</span>
+          <span id="poker-buyin-default-label" class="buyin-highlight-default">Entry: <strong>2.000 fiches (2k)</strong></span>
           <span id="poker-buyin-min-label">Min: <strong>2.000 fiches</strong> (20 BB)</span>
           <span id="poker-buyin-max-label">Max: <strong>10.000 fiches</strong> (100 BB)</span>
         </div>
@@ -1157,23 +1157,23 @@
         <div class="form-group buyin-input-group">
           <label for="poker-buyin-amount" class="field-label">Kies je Buy-in Bedrag:</label>
           <div class="buyin-input-row">
-            <input type="number" id="poker-buyin-amount" min="2000" max="10000" step="100" value="5000" class="bank-input poker-num-input">
+            <input type="number" id="poker-buyin-amount" min="2000" max="10000" step="100" value="2000" class="bank-input poker-num-input">
             <span class="input-suffix">fiches</span>
           </div>
-          <input type="range" id="poker-buyin-slider" min="2000" max="10000" step="100" value="5000" class="poker-range-slider">
+          <input type="range" id="poker-buyin-slider" min="2000" max="10000" step="100" value="2000" class="poker-range-slider">
         </div>
 
         <div class="quick-chips-row buyin-presets-row">
-          <button type="button" class="btn-quick-chip" id="btn-buyin-min">Min (20 BB)</button>
-          <button type="button" class="btn-quick-chip is-default-preset active-preset" id="btn-buyin-mid">Standaard (50 BB)</button>
-          <button type="button" class="btn-quick-chip chip-all" id="btn-buyin-max">Max (100 BB)</button>
+          <button type="button" class="btn-quick-chip is-default-preset active-preset" id="btn-buyin-min">Entry (2k)</button>
+          <button type="button" class="btn-quick-chip" id="btn-buyin-mid">5k (50 BB)</button>
+          <button type="button" class="btn-quick-chip chip-all" id="btn-buyin-max">Max (10k)</button>
         </div>
 
         <div class="poker-buyin-error-msg hidden" id="poker-buyin-error"></div>
 
         <div class="modal-actions-row">
           <button type="button" class="btn btn-secondary" id="btn-cancel-poker-buyin">Annuleren</button>
-          <button type="button" class="btn btn-gold btn-lg" id="btn-confirm-poker-buyin">Neem Plaats met Standaard Buy-In (5.000 fiches)</button>
+          <button type="button" class="btn btn-gold btn-lg" id="btn-confirm-poker-buyin">Neem Plaats met Entry van 2.000 fiches (2k)</button>
         </div>
       </div>
     </div>
