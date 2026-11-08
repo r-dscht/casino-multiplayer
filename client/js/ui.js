@@ -264,19 +264,25 @@
       if (!this.elements.palette) return;
       this.elements.palette.innerHTML = '';
 
-      const savedColor = localStorage.getItem('roulette_player_color') || '#D4AF37';
+      const savedColor = localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color') || '#D4AF37';
 
       LUXURY_SWATCHES.forEach((swatch, idx) => {
         const div = document.createElement('div');
-        div.className = 'color-swatch' + (swatch.color === savedColor ? ' active' : '');
+        div.className = 'color-swatch' + ((swatch.color.toLowerCase() === savedColor.toLowerCase()) ? ' active' : '');
         div.dataset.color = swatch.color;
         div.title = swatch.name;
         div.style.backgroundColor = swatch.color;
 
         div.addEventListener('click', () => {
-          document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+          document.querySelectorAll('#color-palette .color-swatch').forEach(s => s.classList.remove('active'));
           div.classList.add('active');
           this.myPlayer.color = swatch.color;
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('casino_player_color', swatch.color);
+              localStorage.setItem('roulette_player_color', swatch.color);
+            }
+          } catch (e) {}
         });
 
         this.elements.palette.appendChild(div);
@@ -287,6 +293,7 @@
       const savedName = localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name') || '';
       const savedPassword = localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password') || '';
       const savedColor = localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color') || '#D4AF37';
+      const savedToken = localStorage.getItem('casino_session_token');
 
       if (this.elements.inputName && savedName) {
         this.elements.inputName.value = savedName;
@@ -295,6 +302,11 @@
         this.elements.inputPassword.value = savedPassword;
       }
       this.myPlayer.color = savedColor;
+
+      // Auto-hide modal initially if account session exists to avoid jarring popup on reload
+      if ((savedToken || savedName) && this.elements.modal) {
+        this.elements.modal.classList.add('hidden');
+      }
 
       if (this.elements.btnEnterTable) {
         this.elements.btnEnterTable.addEventListener('click', () => this.handleOnboardingSubmit());
@@ -355,10 +367,19 @@
     }
 
     showLoginError(msg) {
+      if (this.elements.modal) {
+        this.elements.modal.classList.remove('hidden');
+      }
       if (this.elements.loginErrorMsg) {
         this.elements.loginErrorMsg.textContent = msg;
         this.elements.loginErrorMsg.classList.add('visible');
         this.elements.loginErrorMsg.classList.remove('hidden');
+      }
+    }
+
+    showLoginModal() {
+      if (this.elements.modal) {
+        this.elements.modal.classList.remove('hidden');
       }
     }
 
@@ -459,9 +480,11 @@
       if (!this.elements.profileColorPalette) return;
       this.elements.profileColorPalette.innerHTML = '';
 
+      const currentColor = (this.myPlayer.color || '#D4AF37').toLowerCase();
+
       LUXURY_SWATCHES.forEach(swatch => {
         const div = document.createElement('div');
-        div.className = 'color-swatch' + (swatch.color === this.myPlayer.color ? ' active' : '');
+        div.className = 'color-swatch' + (swatch.color.toLowerCase() === currentColor ? ' active' : '');
         div.dataset.color = swatch.color;
         div.title = swatch.name;
         div.style.backgroundColor = swatch.color;
@@ -470,6 +493,15 @@
           document.querySelectorAll('#profile-color-palette .color-swatch').forEach(s => s.classList.remove('active'));
           div.classList.add('active');
           this.myPlayer.color = swatch.color;
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('casino_player_color', swatch.color);
+              localStorage.setItem('roulette_player_color', swatch.color);
+            }
+          } catch (e) {}
+          if (this.elements.profileAvatarDisc) {
+            this.elements.profileAvatarDisc.style.backgroundColor = swatch.color;
+          }
           this.updatePlayerHUD();
           if (typeof this.options.onUpdateCustomization === 'function') {
             this.options.onUpdateCustomization({ color: swatch.color });
@@ -486,6 +518,14 @@
       const color = profileData.color || this.myPlayer.color || '#D4AF37';
       const name = profileData.name || this.myPlayer.name;
       const game = profileData.currentGame || this.myPlayer.currentGame || 'Roulette';
+
+      this.myPlayer.color = color;
+      try {
+        if (typeof localStorage !== 'undefined' && color) {
+          localStorage.setItem('casino_player_color', color);
+          localStorage.setItem('roulette_player_color', color);
+        }
+      } catch (e) {}
 
       if (this.elements.profileAvatarDisc) {
         this.elements.profileAvatarDisc.style.backgroundColor = color;
@@ -515,6 +555,18 @@
         const ts = profileData.createdAt || this.myPlayer.createdAt;
         const d = ts ? new Date(ts) : new Date();
         this.elements.profileMemberDate.textContent = d.toLocaleDateString('nl-NL');
+      }
+
+      // Synchronize active swatch in profile palette
+      if (this.elements.profileColorPalette) {
+        const targetColor = color.toLowerCase();
+        this.elements.profileColorPalette.querySelectorAll('.color-swatch').forEach(sw => {
+          if ((sw.dataset.color || '').toLowerCase() === targetColor) {
+            sw.classList.add('active');
+          } else {
+            sw.classList.remove('active');
+          }
+        });
       }
     }
 

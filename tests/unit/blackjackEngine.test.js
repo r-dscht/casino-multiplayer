@@ -112,9 +112,10 @@ describe('BlackjackEngine Unit Tests (6-Seat Lifecycle & State Machine)', () => 
     engine.placeBet(0, p1.id, 100);
 
     engine.transitionToDealing();
-    // Force player cards to 16
+    // Force player cards to 16 and dealer cards to 15 (no natural BJ)
     engine.seats[0].hands[0].cards = [{ rank: '10' }, { rank: '6' }];
     engine.seats[0].hands[0].status = 'active';
+    engine.dealerCards = [{ rank: '7' }, { rank: '8' }];
 
     engine.transitionToPlayerTurns();
     assert.ok(engine.activeTurn);

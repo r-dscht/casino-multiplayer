@@ -104,7 +104,9 @@ class PlayerManager {
   _ingestRecord(key, val) {
     if (!val || typeof val !== 'object') return;
     const cleanName = sanitizeName(val.name) || key;
-    const normKey = (val.usernameKey || cleanName).toLowerCase();
+    const cleanNormKey = cleanName.toLowerCase();
+    const rawUsernameKey = (val.usernameKey && typeof val.usernameKey === 'string') ? val.usernameKey.toLowerCase() : null;
+    const normKey = cleanNormKey || rawUsernameKey;
     const id = val.id || (key.startsWith('ply_') ? key : `ply_${crypto.randomBytes(8).toString('hex')}`);
     const sessionToken = val.sessionToken || (key.startsWith('cst_') ? key : `cst_${crypto.randomBytes(16).toString('hex')}`);
     const chips = (typeof val.chips === 'number' && Number.isInteger(val.chips)) ? val.chips : STARTING_CHIPS;
@@ -141,6 +143,9 @@ class PlayerManager {
     this.players.set(id, record);
     this.tokenToPlayerId.set(sessionToken, id);
     this.accounts.set(normKey, record);
+    if (rawUsernameKey && rawUsernameKey !== normKey) {
+      this.accounts.set(rawUsernameKey, record);
+    }
   }
 
   /**
@@ -214,16 +219,33 @@ class PlayerManager {
     const data = {};
     const isAccountsFormat = typeof this.storagePath === 'string' && this.storagePath.includes('account');
 
+    // Merge both this.accounts and this.players so no persistent account is ever dropped from disk!
+    const allRecords = new Map();
+    for (const acc of this.accounts.values()) {
+      if (acc && acc.id) {
+        allRecords.set(acc.id, acc);
+      } else if (acc && acc.usernameKey) {
+        allRecords.set(acc.usernameKey, acc);
+      }
+    }
     for (const player of this.players.values()) {
+      if (player && player.id) {
+        allRecords.set(player.id, player);
+      }
+    }
+
+    for (const player of allRecords.values()) {
+      const cleanName = sanitizeName(player.name) || player.id || 'Player';
+      const normKey = (player.usernameKey || cleanName).toLowerCase();
       const record = {
         id: player.id,
         sessionToken: player.sessionToken,
-        usernameKey: player.usernameKey,
-        name: player.name,
-        passwordHash: player.passwordHash || (player.usernameKey && this.accounts.has(player.usernameKey) ? this.accounts.get(player.usernameKey).passwordHash : '') || '',
+        usernameKey: normKey,
+        name: cleanName,
+        passwordHash: player.passwordHash || (normKey && this.accounts.has(normKey) ? this.accounts.get(normKey).passwordHash : '') || '',
         avatar: player.avatar || 'avatar_1',
-        color: player.color,
-        chips: player.chips,
+        color: player.color || DEFAULT_COLORS[0],
+        chips: typeof player.chips === 'number' ? player.chips : STARTING_CHIPS,
         stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
         currentGame: player.currentGame || 'Roulette',
         location: player.location || 'ROULETTE',
@@ -233,7 +255,7 @@ class PlayerManager {
       };
 
       if (isAccountsFormat) {
-        data[player.usernameKey || player.name.toLowerCase()] = record;
+        data[normKey] = record;
       } else {
         data[player.id] = record;
       }
@@ -361,11 +383,19 @@ class PlayerManager {
           }
           player.connected = true;
           player.lastSeen = Date.now();
-          if (opts.color && typeof opts.color === 'string' && opts.color.startsWith('#')) {
+          // Retain server-saved color: only use opts.color if player currently has no color
+          if (!player.color && opts.color && typeof opts.color === 'string' && opts.color.startsWith('#')) {
             player.color = opts.color;
           }
-          if (opts.avatar && typeof opts.avatar === 'string') {
+          if (!player.avatar && opts.avatar && typeof opts.avatar === 'string') {
             player.avatar = opts.avatar;
+          }
+          const currentNormKey = (player.usernameKey || player.name || '').toLowerCase();
+          if (currentNormKey && this.accounts.has(currentNormKey)) {
+            const acc = this.accounts.get(currentNormKey);
+            acc.color = player.color;
+            acc.avatar = player.avatar;
+            acc.lastSeen = Date.now();
           }
 
           this.scheduleSave();
@@ -384,7 +414,18 @@ class PlayerManager {
     const normKey = cleanName.toLowerCase();
     const providedPassword = typeof opts.password === 'string' ? opts.password.trim() : '';
 
-    const existingAccount = this.accounts.get(normKey);
+    let existingAccount = this.accounts.get(normKey);
+    if (!existingAccount) {
+      for (const p of this.players.values()) {
+        if ((p.usernameKey && p.usernameKey.toLowerCase() === normKey) ||
+            (p.name && p.name.toLowerCase() === normKey)) {
+          existingAccount = p;
+          this.accounts.set(normKey, p);
+          break;
+        }
+      }
+    }
+
     if (existingAccount) {
       if (existingAccount.passwordHash) {
         if (!providedPassword) {
@@ -405,7 +446,7 @@ class PlayerManager {
       let player = this.players.get(existingAccount.id);
       if (!player) {
         for (const p of this.players.values()) {
-          if (p.usernameKey === normKey) {
+          if (p.usernameKey === normKey || (p.name && p.name.toLowerCase() === normKey)) {
             player = p;
             break;
           }
@@ -413,7 +454,7 @@ class PlayerManager {
       }
 
       if (!player) {
-        // Reconstruct active player session from saved account, preserving exact chips
+        // Reconstruct active player session from saved account, preserving exact chips and color
         player = {
           id: existingAccount.id,
           sessionToken: existingAccount.sessionToken || `cst_${crypto.randomBytes(16).toString('hex')}`,
@@ -421,8 +462,8 @@ class PlayerManager {
           usernameKey: normKey,
           name: existingAccount.name || cleanName,
           passwordHash: existingAccount.passwordHash || '',
-          avatar: opts.avatar || existingAccount.avatar || 'avatar_1',
-          color: opts.color || existingAccount.color || DEFAULT_COLORS[0],
+          avatar: existingAccount.avatar || opts.avatar || 'avatar_1',
+          color: existingAccount.color || opts.color || DEFAULT_COLORS[0],
           chips: (typeof existingAccount.chips === 'number') ? existingAccount.chips : STARTING_CHIPS,
           stats: existingAccount.stats ? { ...existingAccount.stats } : { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
           currentGame: existingAccount.currentGame || 'Roulette',
@@ -446,8 +487,19 @@ class PlayerManager {
         }
         player.connected = true;
         player.lastSeen = Date.now();
-        if (opts.color) player.color = opts.color;
-        if (opts.avatar) player.avatar = opts.avatar;
+        // Preserve player's existing server color
+        if (!player.color) {
+          player.color = existingAccount.color || opts.color || DEFAULT_COLORS[0];
+        }
+        if (!player.avatar) {
+          player.avatar = existingAccount.avatar || opts.avatar || 'avatar_1';
+        }
+        if (player.usernameKey && this.accounts.has(player.usernameKey)) {
+          const acc = this.accounts.get(player.usernameKey);
+          acc.color = player.color;
+          acc.avatar = player.avatar;
+          acc.lastSeen = Date.now();
+        }
       }
 
       if (socketId) {
@@ -560,10 +612,24 @@ class PlayerManager {
       existingPlayer.lastSeen = Date.now();
       if (opts.name) {
         const cleanName = sanitizeName(opts.name);
-        if (cleanName) existingPlayer.name = cleanName;
+        if (cleanName) {
+          const oldNormKey = existingPlayer.usernameKey;
+          existingPlayer.name = cleanName;
+          existingPlayer.usernameKey = cleanName.toLowerCase();
+          this.accounts.set(existingPlayer.usernameKey, existingPlayer);
+          if (oldNormKey && oldNormKey !== existingPlayer.usernameKey) {
+            this.accounts.set(oldNormKey, existingPlayer);
+          }
+        }
       }
-      if (opts.color) existingPlayer.color = opts.color;
+      if (!existingPlayer.color && opts.color) existingPlayer.color = opts.color;
       if (opts.avatar) existingPlayer.avatar = opts.avatar;
+      if (existingPlayer.usernameKey && this.accounts.has(existingPlayer.usernameKey)) {
+        const acc = this.accounts.get(existingPlayer.usernameKey);
+        acc.color = existingPlayer.color;
+        acc.avatar = existingPlayer.avatar;
+        acc.lastSeen = Date.now();
+      }
 
       this.socketToPlayer.set(socketId, existingPlayer.id);
       this.scheduleSave();
@@ -577,6 +643,16 @@ class PlayerManager {
 
     // Check account in persistent storage
     let savedAccount = this.accounts.get(normKey);
+    if (!savedAccount) {
+      for (const p of this.players.values()) {
+        if ((p.usernameKey && p.usernameKey.toLowerCase() === normKey) ||
+            (p.name && p.name.toLowerCase() === normKey)) {
+          savedAccount = p;
+          this.accounts.set(normKey, p);
+          break;
+        }
+      }
+    }
 
     if (savedAccount) {
       if (savedAccount.passwordHash) {
@@ -599,7 +675,7 @@ class PlayerManager {
 
       savedAccount.lastLogin = Date.now();
       savedAccount.lastSeen = Date.now();
-      if (opts.color) savedAccount.color = opts.color;
+      if (!savedAccount.color && opts.color) savedAccount.color = opts.color;
       this.scheduleSave();
     } else {
       const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
@@ -672,7 +748,7 @@ class PlayerManager {
     let existingPlayer = this.players.get(savedAccount.id);
     if (!existingPlayer) {
       for (const p of this.players.values()) {
-        if (p.usernameKey === normKey) {
+        if (p.usernameKey === normKey || (p.name && p.name.toLowerCase() === normKey)) {
           existingPlayer = p;
           break;
         }
@@ -693,8 +769,14 @@ class PlayerManager {
       existingPlayer.location = savedAccount.location || 'ROULETTE';
       existingPlayer.seatIndex = savedAccount.seatIndex;
       existingPlayer.lastSeen = Date.now();
-      if (opts.color) existingPlayer.color = opts.color;
+      if (!existingPlayer.color) existingPlayer.color = savedAccount.color || opts.color;
       if (opts.avatar) existingPlayer.avatar = opts.avatar;
+      if (existingPlayer.usernameKey && this.accounts.has(existingPlayer.usernameKey)) {
+        const acc = this.accounts.get(existingPlayer.usernameKey);
+        acc.color = existingPlayer.color;
+        acc.avatar = existingPlayer.avatar;
+        acc.lastSeen = Date.now();
+      }
 
       this.socketToPlayer.set(socketId, existingPlayer.id);
       this.scheduleSave();
@@ -711,7 +793,7 @@ class PlayerManager {
       name: savedAccount.name || cleanName,
       passwordHash: savedAccount.passwordHash || (providedPassword ? this.hashPassword(providedPassword) : ''),
       avatar: opts.avatar || savedAccount.avatar || 'avatar_1',
-      color: opts.color || savedAccount.color,
+      color: savedAccount.color || opts.color || DEFAULT_COLORS[0],
       chips: savedAccount.chips,
       stats: savedAccount.stats,
       currentGame: savedAccount.currentGame || 'Roulette',
@@ -725,6 +807,7 @@ class PlayerManager {
 
     this.players.set(id, newPlayer);
     this.tokenToPlayerId.set(savedAccount.sessionToken, id);
+    this.accounts.set(normKey, newPlayer);
     this.socketToPlayer.set(socketId, id);
     this.scheduleSave();
     return newPlayer;
@@ -955,10 +1038,16 @@ class PlayerManager {
     if (typeof avatar === 'string' && avatar.trim()) {
       player.avatar = avatar.trim().slice(0, 24);
     }
-    if (player.usernameKey && this.accounts.has(player.usernameKey)) {
-      const acc = this.accounts.get(player.usernameKey);
-      if (player.color) acc.color = player.color;
-      if (player.avatar) acc.avatar = player.avatar;
+    const normKey = (player.usernameKey || player.name || '').toLowerCase();
+    if (normKey) {
+      if (this.accounts.has(normKey)) {
+        const acc = this.accounts.get(normKey);
+        if (player.color) acc.color = player.color;
+        if (player.avatar) acc.avatar = player.avatar;
+        acc.lastSeen = Date.now();
+      } else {
+        this.accounts.set(normKey, player);
+      }
     }
     this.scheduleSave();
     return player;

@@ -411,6 +411,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.myPlayer.color = profile.color;
       ui.myPlayer.createdAt = profile.createdAt;
       ui.myPlayer.currentGame = profile.currentGame;
+      try {
+        if (typeof localStorage !== 'undefined' && profile.color) {
+          localStorage.setItem('casino_player_color', profile.color);
+          localStorage.setItem('roulette_player_color', profile.color);
+        }
+      } catch (e) {}
+      network.saveClientBackup({ color: profile.color, avatar: profile.avatar });
       ui.updatePlayerHUD();
       ui.renderMyProfile(profile);
       ui.showToast('Profielkleur bijgewerkt!', 'success');

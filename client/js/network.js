@@ -141,18 +141,19 @@
         this.isConnected = true;
         this.emitInternal('connection_change', { connected: true, id: this.socket.id });
 
-        // Auto authenticate session on socket connect if stored bearer token exists
+        // Auto authenticate session on socket connect if stored bearer token or account name exists
         const token = this.getStoredToken();
-        if (token) {
-          const storedName = (typeof localStorage !== 'undefined')
-            ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
-            : null;
-          const storedColor = (typeof localStorage !== 'undefined')
-            ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
-            : null;
-          const storedPassword = (typeof localStorage !== 'undefined')
-            ? (localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password'))
-            : null;
+        const storedName = (typeof localStorage !== 'undefined')
+          ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
+          : null;
+        const storedColor = (typeof localStorage !== 'undefined')
+          ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
+          : null;
+        const storedPassword = (typeof localStorage !== 'undefined')
+          ? (localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password'))
+          : null;
+
+        if (token || storedName) {
           this.authSession({ sessionToken: token, name: storedName, color: storedColor, password: storedPassword });
         }
       });
@@ -323,6 +324,15 @@
       });
 
       this.socket.on('profile_updated', (data) => {
+        if (data && data.color) {
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('casino_player_color', data.color);
+              localStorage.setItem('roulette_player_color', data.color);
+            }
+          } catch (e) {}
+          this.saveClientBackup({ color: data.color, avatar: data.avatar });
+        }
         this.emitInternal('profile_updated', data);
       });
 

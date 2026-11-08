@@ -124,6 +124,46 @@ describe('Milestone 1: Session Persistence & Multi-Game Player Presence', () => 
       assert.equal(reloaded.player.color, '#8b5cf6');
     });
 
+    it('should NEVER overwrite custom profile color when client sends default or stale color on reconnect', () => {
+      const pm = new PlayerManager({ storagePath: testPlayersPath, debounceMs: 0 });
+      const auth = pm.authSession('sock_color_1', { name: 'ColorMaster', color: '#10b981' });
+      assert.equal(auth.player.color, '#10b981');
+
+      // Player changes color in profile tab to sapphire blue
+      pm.updatePlayerCustomization(auth.player.id, { color: '#3b82f6' });
+      assert.equal(auth.player.color, '#3b82f6');
+
+      // Reconnect with old stale default color sent by client (#D4AF37)
+      const reloaded = pm.authSession('sock_color_2', {
+        sessionToken: auth.sessionToken,
+        name: 'ColorMaster',
+        color: '#D4AF37' // Stale default from client localStorage
+      });
+      assert.equal(reloaded.player.color, '#3b82f6', 'Custom chosen color must NOT be overwritten by stale default color!');
+
+      // Reconnect via registerPlayer with username fallback
+      const byName = pm.registerPlayer('sock_color_3', {
+        name: 'ColorMaster',
+        color: '#D4AF37'
+      });
+      assert.equal(byName.color, '#3b82f6', 'Saved custom color must be retained when logging in by name!');
+    });
+
+    it('should restore existing account and exact chips by name if bearer token is missing', () => {
+      const pm = new PlayerManager({ storagePath: testPlayersPath, debounceMs: 0 });
+      const auth = pm.authSession('sock_acc_1', { name: 'PersistentUser', color: '#ec4899' });
+      pm.addChips(auth.player.id, 8000); // balance = 18,000
+
+      // Simulate client opening with no token (e.g. cleared session token) but knowing username
+      const recovered = pm.authSession('sock_acc_2', {
+        name: 'PersistentUser'
+      });
+      assert.equal(recovered.isNew, false);
+      assert.equal(recovered.player.id, auth.player.id);
+      assert.equal(recovered.player.chips, 18000, 'Chips must be preserved across username recovery');
+      assert.equal(recovered.player.color, '#ec4899', 'Color must be preserved across username recovery');
+    });
+
     it('should generate a new player with 10k chips if provided token is unknown or expired', () => {
       const pm = new PlayerManager({ storagePath: testPlayersPath, debounceMs: 0 });
       const auth = pm.authSession('sock_invalid', { sessionToken: 'cst_invalid_fake_token_12345' });
