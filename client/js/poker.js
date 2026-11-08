@@ -503,6 +503,15 @@
         if (bundle.emptyBadge) bundle.emptyBadge.classList.remove('hidden');
         if (bundle.occupiedWrap) bundle.occupiedWrap.classList.add('hidden');
         if (bundle.cardsDock) bundle.cardsDock.innerHTML = '';
+        if (bundle.btnSit) {
+          if (this.mySeatIndex !== -1) {
+            bundle.btnSit.classList.add('btn-seat-disabled');
+            bundle.btnSit.title = `Je zit al op stoel ${this.mySeatIndex + 1}`;
+          } else {
+            bundle.btnSit.classList.remove('btn-seat-disabled');
+            bundle.btnSit.title = 'Neem plaats aan tafel';
+          }
+        }
         return;
       }
 
@@ -970,6 +979,15 @@
      * @param {number} seatIndex
      */
     openBuyInModal(seatIndex) {
+      if (this.mySeatIndex !== -1) {
+        if (this.mySeatIndex === seatIndex) {
+          this.ui.showToast(`Je zit al op stoel ${seatIndex + 1}`, 'info');
+        } else {
+          this.ui.showToast(`Je zit al op stoel ${this.mySeatIndex + 1}. Verlaat eerst je huidige stoel om van plaats te wisselen.`, 'warning');
+        }
+        return;
+      }
+
       this.pendingBuyInSeat = seatIndex;
       const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
@@ -1096,6 +1114,12 @@
      * Validates buy-in amount and submits poker_take_seat socket emit.
      */
     confirmBuyIn() {
+      if (this.mySeatIndex !== -1) {
+        this.closeBuyInModal();
+        this.ui.showToast(`Je zit al op stoel ${this.mySeatIndex + 1}. Verlaat eerst je huidige stoel om van plaats te wisselen.`, 'warning');
+        return;
+      }
+
       const amount = parseInt(this.elements.buyinAmount ? this.elements.buyinAmount.value : 0, 10);
       const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
@@ -1117,7 +1141,6 @@
 
       this.network.pokerTakeSeat(this.pendingBuyInSeat, amount, this.currentTableId);
       this.closeBuyInModal();
-      this.ui.showToast(`Plaatsgenomen op stoel ${this.pendingBuyInSeat + 1} met ${amount.toLocaleString()} fiches`, 'success');
     }
 
     /**
@@ -1174,10 +1197,20 @@
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       this.mySeatIndex = data.seatIndex;
       this.closeBuyInModal();
+      const stack = typeof data.stack === 'number' ? data.stack : 0;
+      this.ui.showToast(`Plaatsgenomen op stoel ${data.seatIndex + 1} met ${stack.toLocaleString()} fiches`, 'success');
+      if (this.currentTableState) {
+        this.renderTable(this.currentTableState);
+      }
     }
 
     onSeatError(data) {
-      const msg = (data && (data.reason || data.message)) || 'Fout bij plaatsnemen';
+      let msg = (data && (data.reason || data.message)) || 'Fout bij plaatsnemen';
+      if (data && data.code === 'ALREADY_SEATED') {
+        msg = `Je zit al aan deze tafel op stoel ${this.mySeatIndex !== -1 ? this.mySeatIndex + 1 : ''}. Verlaat eerst je huidige stoel.`;
+      } else if (data && data.code === 'SEAT_OCCUPIED') {
+        msg = 'Deze stoel is al bezet door een andere speler';
+      }
       this.ui.showToast(msg, 'error');
       if (this.elements.buyinModal && !this.elements.buyinModal.classList.contains('hidden')) {
         this.showBuyinError(msg);

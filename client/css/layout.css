@@ -876,6 +876,19 @@
   box-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
 }
 
+.btn-poker-sit.btn-seat-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dotted;
+}
+
+.btn-poker-sit.btn-seat-disabled:hover {
+  background: rgba(14, 28, 22, 0.75);
+  border-color: rgba(212, 175, 55, 0.3);
+  color: #c5a059;
+  box-shadow: none;
+}
+
 .poker-seat-occupied-wrap {
   position: relative;
   width: 100%;
