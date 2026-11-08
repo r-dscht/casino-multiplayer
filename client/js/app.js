@@ -424,6 +424,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Profile Password Save
+  const btnSavePass = document.getElementById('btn-save-profile-password');
+  const inputPass = document.getElementById('profile-new-password');
+  const msgPass = document.getElementById('profile-password-msg');
+
+  if (btnSavePass && inputPass) {
+    btnSavePass.addEventListener('click', () => {
+      const pw = inputPass.value.trim();
+      if (!pw || pw.length < 3) {
+        if (msgPass) {
+          msgPass.textContent = 'Wachtwoord moet minimaal 3 tekens bevatten';
+          msgPass.style.color = '#ff6b6b';
+          msgPass.classList.remove('hidden');
+        }
+        return;
+      }
+      network.setPassword(pw);
+    });
+  }
+
+  network.on('player_password_result', (res) => {
+    if (msgPass) {
+      if (res && res.success) {
+        msgPass.textContent = 'Wachtwoord succesvol ingesteld!';
+        msgPass.style.color = '#10b981';
+        msgPass.classList.remove('hidden');
+        if (inputPass) inputPass.value = '';
+        setTimeout(() => msgPass.classList.add('hidden'), 4000);
+      } else {
+        msgPass.textContent = (res && res.reason) || 'Fout bij opslaan van wachtwoord';
+        msgPass.style.color = '#ff6b6b';
+        msgPass.classList.remove('hidden');
+      }
+    }
+  });
+
   // Game Presence & Table View switcher pills
   document.querySelectorAll('.game-pill').forEach(btn => {
     btn.addEventListener('click', () => {

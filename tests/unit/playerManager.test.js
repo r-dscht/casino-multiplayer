@@ -228,5 +228,28 @@ describe('PlayerManager Lifecycle & Bankroll Ledger', () => {
       assert.equal(summary.currentGame, 'Roulette');
       assert.ok(summary.stats);
     });
+
+    it('should allow setting and changing passwords via updatePlayerPassword', () => {
+      const p = pm.registerPlayer('s_pw', { name: 'SecretAgent' });
+      assert.equal(p.passwordHash, '');
+
+      // Set new password
+      const res1 = pm.updatePlayerPassword(p.id, { newPassword: 'vault-code-42' });
+      assert.equal(res1.success, true);
+      assert.ok(p.passwordHash.length > 0);
+
+      // Attempt change with wrong old password
+      const res2 = pm.updatePlayerPassword(p.id, { oldPassword: 'wrong-guess', newPassword: 'new-code-99' });
+      assert.equal(res2.success, false);
+      assert.equal(res2.reason, 'Huidig wachtwoord is onjuist');
+
+      // Attempt change with correct old password
+      const res3 = pm.updatePlayerPassword(p.id, { oldPassword: 'vault-code-42', newPassword: 'new-code-99' });
+      assert.equal(res3.success, true);
+
+      // Short password rejection
+      const res4 = pm.updatePlayerPassword(p.id, { oldPassword: 'new-code-99', newPassword: '1' });
+      assert.equal(res4.success, false);
+    });
   });
 });

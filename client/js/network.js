@@ -344,6 +344,10 @@
         this.emitInternal('game_switched', data);
       });
 
+      this.socket.on('player_password_result', (data) => {
+        this.emitInternal('player_password_result', data);
+      });
+
       // Multiplayer 6-Seat Blackjack Protocol Events
       this.socket.on('bj_table_state', (data) => {
         this.emitInternal('bj_table_state', data);
@@ -708,6 +712,16 @@
     updateProfile(customization) {
       if (!this.socket) return;
       this.socket.emit('profile_update', customization);
+    }
+
+    /**
+     * Updates or sets account password.
+     * @param {string} newPassword
+     * @param {string} [oldPassword='']
+     */
+    setPassword(newPassword, oldPassword = '') {
+      if (!this.socket) return;
+      this.socket.emit('player_set_password', { newPassword, oldPassword });
     }
 
     /**

@@ -197,5 +197,8 @@ describe('Navigation Bet Lock & Presence Integration (Roulette & Blackjack)', ()
     clientSocket.emit('player_set_game', { game: 'Roulette' });
     const switched = await switchPromise;
     assert.equal(switched.game, 'Roulette');
+
+    // Verify Blackjack seat is automatically vacated when switching away
+    assert.equal(bjTable.seats[2].player, null);
   });
 });

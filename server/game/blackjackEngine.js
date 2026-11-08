@@ -276,7 +276,7 @@ class BlackjackEngine extends EventEmitter {
    * @param {string} playerId 
    * @returns {{ success: boolean, code?: string, reason?: string }}
    */
-  leaveSeat(seatIndex, playerId) {
+  leaveSeat(seatIndex, playerId, { updatePresence = true } = {}) {
     if (typeof seatIndex !== 'number' || seatIndex < 0 || seatIndex >= this.maxSeats) {
       return { success: false, code: 'INVALID_SEAT', reason: 'Invalid seat index' };
     }
@@ -317,7 +317,12 @@ class BlackjackEngine extends EventEmitter {
       }
     ];
 
-    this.playerManager.setPlayerPresence(playerId, 'LOBBY', null);
+    if (updatePresence && this.playerManager) {
+      const cur = this.playerManager.getPlayerById(playerId);
+      if (cur && cur.location === 'BLACKJACK') {
+        this.playerManager.setPlayerPresence(playerId, 'LOBBY', null);
+      }
+    }
 
     this.emit('seat_left', {
       tableId: this.tableId,

@@ -1215,6 +1215,19 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
+    socket.on('player_set_password', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('player_password_result', { success: false, reason: 'Speler niet gevonden' });
+        return;
+      }
+      const res = playerManager.updatePlayerPassword(player.id, {
+        oldPassword: payload.oldPassword,
+        newPassword: payload.newPassword
+      });
+      socket.emit('player_password_result', res);
+    });
+
     socket.on('player_set_game', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
@@ -1241,6 +1254,15 @@ function setupSocket(httpServer, options = {}) {
           const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
           if (seat && !tbl.hasActiveBets(player.id)) {
             tbl.leaveSeat(seat.seatIndex, player.id);
+          }
+        }
+      }
+
+      if (player.location !== 'BLACKJACK') {
+        for (const tbl of blackjackTables.values()) {
+          const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+          if (seat && !tbl.hasActiveBets(player.id)) {
+            tbl.leaveSeat(seat.seatIndex, player.id, { updatePresence: false });
           }
         }
       }
@@ -1294,6 +1316,15 @@ function setupSocket(httpServer, options = {}) {
           const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
           if (seat && !tbl.hasActiveBets(player.id)) {
             tbl.leaveSeat(seat.seatIndex, player.id);
+          }
+        }
+      }
+
+      if (player.location !== 'BLACKJACK') {
+        for (const tbl of blackjackTables.values()) {
+          const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
+          if (seat && !tbl.hasActiveBets(player.id)) {
+            tbl.leaveSeat(seat.seatIndex, player.id, { updatePresence: false });
           }
         }
       }

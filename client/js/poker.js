@@ -97,7 +97,10 @@
         buyinError: document.getElementById('poker-buyin-error'),
         btnConfirmBuyin: document.getElementById('btn-confirm-poker-buyin'),
         btnCancelBuyin: document.getElementById('btn-cancel-poker-buyin'),
-        btnCloseModal: document.getElementById('btn-close-poker-modal')
+        btnCloseModal: document.getElementById('btn-close-poker-modal'),
+        btnRebuyHeader: document.getElementById('btn-poker-rebuy-header'),
+        buyinTitle: document.getElementById('poker-buyin-title'),
+        buyinLabel: document.getElementById('poker-buyin-label')
       };
 
       // Seat element bundles (0..5)
@@ -154,6 +157,15 @@
         }
       });
 
+      // Header Rebuy / Top-up Button
+      if (this.elements.btnRebuyHeader) {
+        this.elements.btnRebuyHeader.addEventListener('click', () => {
+          if (this.mySeatIndex !== -1) {
+            this.openBuyInModal(this.mySeatIndex, { isRebuy: true });
+          }
+        });
+      }
+
       // Buy-In Modal Controls
       if (this.elements.buyinSlider && this.elements.buyinAmount) {
         this.elements.buyinSlider.addEventListener('input', () => {
@@ -168,19 +180,31 @@
 
       if (this.elements.btnBuyinMin) {
         this.elements.btnBuyinMin.addEventListener('click', () => {
-          const minVal = parseInt(this.elements.buyinSlider.min, 10) || 2000;
-          this.setBuyinAmount(minVal);
+          if (this.isRebuyMode) {
+            const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || 100;
+            const maxVal = parseInt(this.elements.buyinSlider.max, 10) || 5000;
+            this.setBuyinAmount(Math.min(bb * 5, maxVal));
+          } else {
+            const minVal = parseInt(this.elements.buyinSlider.min, 10) || 2000;
+            this.setBuyinAmount(minVal);
+          }
         });
       }
       if (this.elements.btnBuyinMid) {
         this.elements.btnBuyinMid.addEventListener('click', () => {
-          const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
-          const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
-          const midVal = Math.round((minVal + maxVal) / 2 / 100) * 100;
-          const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
-          let target = midVal;
-          if (bankroll >= minVal && bankroll < target) target = bankroll;
-          this.setBuyinAmount(Math.min(Math.max(target, minVal), maxVal));
+          if (this.isRebuyMode) {
+            const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || 100;
+            const maxVal = parseInt(this.elements.buyinSlider.max, 10) || 5000;
+            this.setBuyinAmount(Math.min(bb * 20, maxVal));
+          } else {
+            const minVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.min : 2000, 10);
+            const maxVal = parseInt(this.elements.buyinSlider ? this.elements.buyinSlider.max : 10000, 10);
+            const midVal = Math.round((minVal + maxVal) / 2 / 100) * 100;
+            const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
+            let target = midVal;
+            if (bankroll >= minVal && bankroll < target) target = bankroll;
+            this.setBuyinAmount(Math.min(Math.max(target, minVal), maxVal));
+          }
         });
       }
       if (this.elements.btnBuyinMax) {
@@ -305,6 +329,8 @@
       this.network.on('poker_hand_ended', (data) => this.onHandEnd(data));
       this.network.on('poker_showdown', (data) => this.onShowdown(data));
       this.network.on('poker_stack_update', (data) => this.onStackUpdate(data));
+      this.network.on('poker_rebuy_success', (data) => this.onRebuySuccess(data));
+      this.network.on('poker_rebuy_error', (data) => this.onRebuyError(data));
     }
 
     /**
@@ -450,6 +476,11 @@
 
       // 6. Player Action Controls
       this.renderActionControls(state);
+
+      // 7. Header Rebuy Button (active when hero is seated)
+      if (this.elements.btnRebuyHeader) {
+        this.elements.btnRebuyHeader.classList.toggle('hidden', this.mySeatIndex === -1);
+      }
     }
 
     /**
@@ -537,7 +568,29 @@
       }
       if (bundle.stack) {
         const stackNum = typeof seatData.stack === 'number' ? seatData.stack : (player.tableStack || 0);
-        bundle.stack.textContent = `${stackNum.toLocaleString()} fiches`;
+        const pendingStr = seatData.pendingRebuy > 0 ? ` (+${seatData.pendingRebuy.toLocaleString()})` : '';
+        bundle.stack.textContent = `${stackNum.toLocaleString()}${pendingStr} fiches`;
+        if (isHero && stackNum === 0 && (!seatData.pendingRebuy || seatData.pendingRebuy === 0)) {
+          bundle.stack.innerHTML = `<span style="color: #ff6b6b; font-weight: bold;">0 fiches</span> <span style="text-decoration: underline; color: #f9e79f; cursor: pointer; margin-left: 4px;">(+ Bijkopen)</span>`;
+        }
+      }
+
+      // Player Box interaction: allow hero to click their box to rebuy/top-up
+      if (bundle.playerBox) {
+        if (isHero) {
+          bundle.playerBox.style.cursor = 'pointer';
+          bundle.playerBox.title = 'Klik om fiches bij te kopen (Rebuy)';
+          if (!bundle.playerBox._rebuyBound) {
+            bundle.playerBox._rebuyBound = true;
+            bundle.playerBox.addEventListener('click', (e) => {
+              if (e.target.closest('.btn-seat-leave')) return;
+              this.openBuyInModal(this.mySeatIndex, { isRebuy: true });
+            });
+          }
+        } else {
+          bundle.playerBox.style.cursor = 'default';
+          bundle.playerBox.title = '';
+        }
       }
 
       // Dealer & Blind Badges
@@ -976,10 +1029,12 @@
 
     /**
      * Opens the Cash Game Buy-In Modal for the specified seat index.
+     * Supports both initial buy-in and subsequent rebuy / top-up.
      * @param {number} seatIndex
+     * @param {{ isRebuy?: boolean }} [options]
      */
-    openBuyInModal(seatIndex) {
-      if (this.mySeatIndex !== -1) {
+    openBuyInModal(seatIndex, { isRebuy = false } = {}) {
+      if (!isRebuy && this.mySeatIndex !== -1) {
         if (this.mySeatIndex === seatIndex) {
           this.ui.showToast(`Je zit al op stoel ${seatIndex + 1}`, 'info');
         } else {
@@ -988,6 +1043,7 @@
         return;
       }
 
+      this.isRebuyMode = !!isRebuy;
       this.pendingBuyInSeat = seatIndex;
       const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
@@ -996,8 +1052,27 @@
       const maxBuyIn = (this.currentTableState && this.currentTableState.maxBuyIn) || (bb * 100);
       const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 20);
 
+      const currentSeat = isRebuy && this.currentTableState && this.currentTableState.seats && this.currentTableState.seats[seatIndex];
+      const currentStack = currentSeat ? ((currentSeat.stack || 0) + (currentSeat.pendingRebuy || 0)) : 0;
+      const maxRebuy = Math.max(0, maxBuyIn - currentStack);
+
+      if (isRebuy && maxRebuy <= 0) {
+        this.ui.showToast(`Je stack is al maximaal (${maxBuyIn.toLocaleString()} fiches)`, 'info');
+        return;
+      }
+
+      const tableTitle = this.currentTableId === 'poker_2' ? 'High-Roller Hold\'em' : 'No-Limit Hold\'em';
+
+      if (this.elements.buyinTitle) {
+        this.elements.buyinTitle.textContent = isRebuy ? 'Fiches Bijkopen (Rebuy)' : 'Plaatsnemen aan Tafel';
+      }
+      if (this.elements.buyinLabel) {
+        this.elements.buyinLabel.textContent = isRebuy ? 'Kies het gewenste bijkoop bedrag:' : 'Kies je Buy-in Bedrag:';
+      }
       if (this.elements.buyinSeatTitle) {
-        this.elements.buyinSeatTitle.textContent = `Stoel ${seatIndex + 1} • ${this.currentTableId === 'poker_2' ? 'High-Roller Hold\'em' : 'No-Limit Hold\'em'}`;
+        this.elements.buyinSeatTitle.textContent = isRebuy
+          ? `Stoel ${seatIndex + 1} • Huidige stack: ${currentStack.toLocaleString()} fiches (${tableTitle})`
+          : `Stoel ${seatIndex + 1} • ${tableTitle}`;
       }
       if (this.elements.buyinBankroll) {
         this.elements.buyinBankroll.textContent = `${bankroll.toLocaleString()} fiches`;
@@ -1006,44 +1081,76 @@
         this.elements.buyinBlindsLabel.innerHTML = `Blinds: <strong>${sb.toLocaleString()} / ${bb.toLocaleString()} fiches</strong>`;
       }
       if (this.elements.buyinDefaultLabel) {
-        const kStr = defaultBuyIn >= 1000 ? (defaultBuyIn / 1000) + 'k' : defaultBuyIn;
-        this.elements.buyinDefaultLabel.innerHTML = `Entry: <strong>${defaultBuyIn.toLocaleString()} fiches (${kStr})</strong>`;
+        if (isRebuy) {
+          this.elements.buyinDefaultLabel.innerHTML = `Max Stack: <strong>${maxBuyIn.toLocaleString()} fiches</strong>`;
+        } else {
+          const kStr = defaultBuyIn >= 1000 ? (defaultBuyIn / 1000) + 'k' : defaultBuyIn;
+          this.elements.buyinDefaultLabel.innerHTML = `Entry: <strong>${defaultBuyIn.toLocaleString()} fiches (${kStr})</strong>`;
+        }
       }
       if (this.elements.buyinMinLabel) {
-        this.elements.buyinMinLabel.innerHTML = `Min: <strong>${minBuyIn.toLocaleString()} fiches</strong> (20 BB)`;
+        if (isRebuy) {
+          const minRebuy = Math.min(100, maxRebuy);
+          this.elements.buyinMinLabel.innerHTML = `Min Rebuy: <strong>${minRebuy.toLocaleString()} fiches</strong>`;
+        } else {
+          this.elements.buyinMinLabel.innerHTML = `Min: <strong>${minBuyIn.toLocaleString()} fiches</strong> (20 BB)`;
+        }
       }
       if (this.elements.buyinMaxLabel) {
-        this.elements.buyinMaxLabel.innerHTML = `Max: <strong>${maxBuyIn.toLocaleString()} fiches</strong> (100 BB)`;
+        if (isRebuy) {
+          this.elements.buyinMaxLabel.innerHTML = `Max Rebuy: <strong>${maxRebuy.toLocaleString()} fiches</strong>`;
+        } else {
+          this.elements.buyinMaxLabel.innerHTML = `Max: <strong>${maxBuyIn.toLocaleString()} fiches</strong> (100 BB)`;
+        }
       }
 
+      const effectiveMin = isRebuy ? Math.min(100, maxRebuy) : minBuyIn;
+      const effectiveMax = isRebuy ? maxRebuy : maxBuyIn;
+
       if (this.elements.btnBuyinMin) {
-        const kStr = minBuyIn >= 1000 ? (minBuyIn / 1000) + 'k' : minBuyIn;
-        this.elements.btnBuyinMin.textContent = `Entry (${kStr})`;
+        if (isRebuy) {
+          const p1 = Math.min(bb * 5, effectiveMax);
+          const kStr = p1 >= 1000 ? (p1 / 1000) + 'k' : p1;
+          this.elements.btnBuyinMin.textContent = `+${kStr}`;
+        } else {
+          const kStr = minBuyIn >= 1000 ? (minBuyIn / 1000) + 'k' : minBuyIn;
+          this.elements.btnBuyinMin.textContent = `Entry (${kStr})`;
+        }
       }
       if (this.elements.btnBuyinMid) {
-        const midVal = Math.round((minBuyIn + maxBuyIn) / 2 / 100) * 100;
-        const kStr = midVal >= 1000 ? (midVal / 1000) + 'k' : midVal;
-        this.elements.btnBuyinMid.textContent = `${kStr} (50 BB)`;
+        if (isRebuy) {
+          const p2 = Math.min(bb * 20, effectiveMax);
+          const kStr = p2 >= 1000 ? (p2 / 1000) + 'k' : p2;
+          this.elements.btnBuyinMid.textContent = `+${kStr}`;
+        } else {
+          const midVal = Math.round((minBuyIn + maxBuyIn) / 2 / 100) * 100;
+          const kStr = midVal >= 1000 ? (midVal / 1000) + 'k' : midVal;
+          this.elements.btnBuyinMid.textContent = `${kStr} (50 BB)`;
+        }
       }
       if (this.elements.btnBuyinMax) {
-        const kStr = maxBuyIn >= 1000 ? (maxBuyIn / 1000) + 'k' : maxBuyIn;
-        this.elements.btnBuyinMax.textContent = `Max (${kStr})`;
+        if (isRebuy) {
+          const kStr = effectiveMax >= 1000 ? (effectiveMax / 1000) + 'k' : effectiveMax;
+          this.elements.btnBuyinMax.textContent = `Max (+${kStr})`;
+        } else {
+          const kStr = maxBuyIn >= 1000 ? (maxBuyIn / 1000) + 'k' : maxBuyIn;
+          this.elements.btnBuyinMax.textContent = `Max (${kStr})`;
+        }
       }
 
       if (this.elements.buyinSlider && this.elements.buyinAmount) {
-        this.elements.buyinSlider.min = minBuyIn;
-        this.elements.buyinSlider.max = maxBuyIn;
+        this.elements.buyinSlider.min = effectiveMin;
+        this.elements.buyinSlider.max = effectiveMax;
         this.elements.buyinSlider.step = bb;
-        this.elements.buyinAmount.min = minBuyIn;
-        this.elements.buyinAmount.max = maxBuyIn;
+        this.elements.buyinAmount.min = effectiveMin;
+        this.elements.buyinAmount.max = effectiveMax;
         this.elements.buyinAmount.step = bb;
 
-        // Default to standard entry amount (2k), clamped safely to bankroll if bankroll >= minBuyIn
-        let initialAmount = defaultBuyIn;
-        if (bankroll >= minBuyIn && bankroll < initialAmount) {
+        let initialAmount = isRebuy ? Math.min(bb * 20, effectiveMax) : defaultBuyIn;
+        if (bankroll >= effectiveMin && bankroll < initialAmount) {
           initialAmount = bankroll;
-        } else if (bankroll < minBuyIn) {
-          initialAmount = minBuyIn;
+        } else if (bankroll < effectiveMin) {
+          initialAmount = effectiveMin;
         }
         this.setBuyinAmount(initialAmount);
       }
@@ -1077,6 +1184,12 @@
     updateBuyinConfirmButtonText() {
       if (!this.elements.btnConfirmBuyin || !this.elements.buyinAmount) return;
       const amt = parseInt(this.elements.buyinAmount.value, 10) || 0;
+
+      if (this.isRebuyMode) {
+        this.elements.btnConfirmBuyin.textContent = `Koop ${amt.toLocaleString()} Fiches Bij`;
+        return;
+      }
+
       const bb = (this.currentTableState && this.currentTableState.bigBlindAmount) || (this.currentTableId === 'poker_2' ? 200 : 100);
       const defaultBuyIn = (this.currentTableState && this.currentTableState.defaultBuyIn) || (bb * 20);
       const isDefault = amt === defaultBuyIn;
@@ -1114,6 +1227,32 @@
      * Validates buy-in amount and submits poker_take_seat socket emit.
      */
     confirmBuyIn() {
+      if (this.isRebuyMode) {
+        const amount = parseInt(this.elements.buyinAmount ? this.elements.buyinAmount.value : 0, 10);
+        const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
+        const currentSeat = this.currentTableState && this.currentTableState.seats && this.currentTableState.seats[this.pendingBuyInSeat];
+        const currentStack = currentSeat ? ((currentSeat.stack || 0) + (currentSeat.pendingRebuy || 0)) : 0;
+        const maxBuyIn = (this.currentTableState && this.currentTableState.maxBuyIn) || 10000;
+        const maxRebuy = maxBuyIn - currentStack;
+
+        if (isNaN(amount) || amount <= 0) {
+          this.showBuyinError('Voer een geldig bijkoop bedrag in');
+          return;
+        }
+        if (amount > maxRebuy) {
+          this.showBuyinError(`Maximaal bijkopen is ${maxRebuy.toLocaleString()} fiches (totale stack max ${maxBuyIn.toLocaleString()})`);
+          return;
+        }
+        if (amount > bankroll) {
+          this.showBuyinError(`Onvoldoende saldo in je bank (${bankroll.toLocaleString()} fiches beschikbaar)`);
+          return;
+        }
+
+        this.network.pokerRebuy(amount, this.pendingBuyInSeat, this.currentTableId);
+        this.closeBuyInModal();
+        return;
+      }
+
       if (this.mySeatIndex !== -1) {
         this.closeBuyInModal();
         this.ui.showToast(`Je zit al op stoel ${this.mySeatIndex + 1}. Verlaat eerst je huidige stoel om van plaats te wisselen.`, 'warning');
@@ -1367,6 +1506,29 @@
           stackEl.textContent = `${data.newStack.toLocaleString()} fiches`;
         }
       }
+    }
+
+    onRebuySuccess(data) {
+      if (!data) return;
+      const amount = data.amount || 0;
+      if (data.pending) {
+        this.ui.showToast(`Rebuy van ${amount.toLocaleString()} fiches ontvangen! Wordt toegevoegd aan het begin van de volgende hand.`, 'success');
+      } else {
+        this.ui.showToast(`Rebuy van ${amount.toLocaleString()} fiches succesvol toegevoegd aan je stack!`, 'success');
+      }
+      if (this.currentTableState && this.currentTableState.seats && typeof data.seatIndex === 'number') {
+        const s = this.currentTableState.seats[data.seatIndex];
+        if (s) {
+          if (typeof data.stack === 'number') s.stack = data.stack;
+          if (typeof data.pendingRebuy === 'number') s.pendingRebuy = data.pendingRebuy;
+          this.renderTable(this.currentTableState);
+        }
+      }
+    }
+
+    onRebuyError(data) {
+      if (!data) return;
+      this.ui.showToast(data.reason || 'Bijkopen mislukt', 'error');
     }
 
     /**

@@ -1054,6 +1054,41 @@ class PlayerManager {
   }
 
   /**
+   * Updates or sets account password for an authenticated player.
+   * If an existing passwordHash is set, oldPassword must be supplied and match.
+   * @param {string} playerId
+   * @param {{ oldPassword?: string, newPassword: string }} params
+   * @returns {{ success: boolean, reason?: string }}
+   */
+  updatePlayerPassword(playerId, { oldPassword = '', newPassword = '' } = {}) {
+    const player = this.players.get(playerId);
+    if (!player) return { success: false, reason: 'Speler niet gevonden' };
+
+    const normKey = (player.usernameKey || player.name || '').toLowerCase();
+    const account = normKey && this.accounts.has(normKey) ? this.accounts.get(normKey) : null;
+    const currentHash = (account && account.passwordHash) || player.passwordHash || '';
+
+    if (currentHash) {
+      if (!oldPassword || this.hashPassword(oldPassword) !== currentHash) {
+        return { success: false, reason: 'Huidig wachtwoord is onjuist' };
+      }
+    }
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 3) {
+      return { success: false, reason: 'Nieuw wachtwoord moet minimaal 3 tekens bevatten' };
+    }
+
+    const newHash = this.hashPassword(newPassword.trim());
+    player.passwordHash = newHash;
+    if (account) {
+      account.passwordHash = newHash;
+      account.lastSeen = Date.now();
+    }
+    this.scheduleSave();
+    return { success: true };
+  }
+
+  /**
    * Returns comprehensive public player profile with monogram and statistics.
    * Sensitive data (passwordHash, sessionToken) is strictly omitted.
    * @param {string} playerId 
