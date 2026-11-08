@@ -39,8 +39,9 @@ Render offers a 100% free web service tier with native WebSocket support. Hostin
 3. **Deploy using the Blueprint (`render.yaml`)**:
    - In your Render dashboard, click **New +** and select **Blueprint**.
    - Connect your GitHub repository.
-   - Render will automatically detect `render.yaml` in the root folder, configure the web service (`node`, `free` plan, `npm ci --omit=dev`, `npm start`), and apply the required environment variables:
+   - Render will automatically detect `render.yaml` in the root folder, configure the web service (`node`, `free` plan, `npm ci --omit=dev --ignore-scripts`, `npm start`), and apply the required environment variables:
      * `NODE_ENV`: `production`
+     * `NODE_VERSION`: `20`
      * `ENABLE_TUNNEL`: `false`
    - Click **Apply**.
 
@@ -48,11 +49,12 @@ Render offers a 100% free web service tier with native WebSocket support. Hostin
    - In Render, click **New +** -> **Web Service**.
    - Choose **Build and deploy from a Git repository**.
    - Select runtime **Node**.
-   - Build Command: `npm ci --omit=dev`
+   - Build Command: `npm ci --omit=dev --ignore-scripts`
    - Start Command: `npm start`
    - Instance Type: **Free**
    - Under **Environment Variables**, set:
      * `NODE_ENV` = `production`
+     * `NODE_VERSION` = `20`
      * `ENABLE_TUNNEL` = `false`
    - Click **Create Web Service**.
 

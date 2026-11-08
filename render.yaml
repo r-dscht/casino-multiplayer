@@ -6,10 +6,13 @@ services:
     name: casino-multiplayer
     env: node
     plan: free
-    buildCommand: npm ci --omit=dev
+    buildCommand: npm ci --omit=dev --ignore-scripts
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20
       - key: ENABLE_TUNNEL
         value: "false"
