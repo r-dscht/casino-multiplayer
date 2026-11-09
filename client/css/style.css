@@ -1373,12 +1373,73 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   min-width: 0;
 }
 
-/* Right: Bank Button & Player Profile */
+/* Right: Rad van Fortuin, Bank Button & Player Profile */
 .header-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.btn-wheel-hud {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(183, 121, 31, 0.32) 100%);
+  border: 1px solid var(--gold-primary);
+  color: var(--gold-bright);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-wheel-hud:hover {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.38) 0%, rgba(183, 121, 31, 0.48) 100%);
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-wheel-hud.ready .wheel-hud-icon {
+  animation: hudWheelSlowSpin 9s linear infinite;
+  color: #fde047;
+}
+
+@keyframes hudWheelSlowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.btn-wheel-hud.cooldown {
+  background: rgba(8, 22, 16, 0.78);
+  border-color: rgba(212, 175, 55, 0.35);
+  color: #cbd5e1;
+}
+
+.wheel-hud-label {
+  color: #ffffff;
+}
+
+.wheel-hud-cooldown {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+  letter-spacing: 0.04em;
+}
+
+.btn-wheel-hud.cooldown .wheel-hud-cooldown {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: rgba(212, 175, 55, 0.35);
+  color: var(--gold-bright);
 }
 
 .btn-bank {

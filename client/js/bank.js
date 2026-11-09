@@ -119,6 +119,8 @@
 
     _cacheElements() {
       this.btnOpenBank = document.getElementById('btn-open-bank');
+      this.btnOpenWheel = document.getElementById('btn-open-wheel');
+      this.hudWheelCooldown = document.getElementById('hud-wheel-cooldown');
       this.bankBadge = document.getElementById('bank-badge');
       this.bankTabBadge = document.getElementById('bank-tab-badge');
       this.wheelTabBadge = document.getElementById('wheel-tab-badge');
@@ -176,6 +178,9 @@
       // Open / Close Modal
       if (this.btnOpenBank) {
         this.btnOpenBank.addEventListener('click', () => this.open());
+      }
+      if (this.btnOpenWheel) {
+        this.btnOpenWheel.addEventListener('click', () => this.open('wheel'));
       }
       if (this.btnCloseBankModal) {
         this.btnCloseBankModal.addEventListener('click', () => this.close());
@@ -347,9 +352,12 @@
       if (this.calcTotalOwed) this.calcTotalOwed.textContent = `${totalOwed.toLocaleString()} fiches`;
     }
 
-    open() {
+    open(initialTab = null) {
       if (this.bankModal) {
         this.bankModal.classList.remove('hidden');
+        if (initialTab && typeof initialTab === 'string') {
+          this.switchTab(initialTab);
+        }
         let backup = null;
         try {
           if (typeof localStorage !== 'undefined') {
@@ -513,14 +521,12 @@
         wheelStatus: reconciledWheelStatus
       };
 
-      // Update badge counters (incoming proposals + wheel ready)
+      // Update badge counters
       const incomingCount = (data.incomingProposals || []).length;
-      const wheelReadyCount = reconciledWheelStatus.canSpin ? 1 : 0;
-      const totalBadgeCount = incomingCount + wheelReadyCount;
 
       if (this.bankBadge) {
-        this.bankBadge.textContent = totalBadgeCount;
-        this.bankBadge.classList.toggle('hidden', totalBadgeCount === 0);
+        this.bankBadge.textContent = incomingCount;
+        this.bankBadge.classList.toggle('hidden', incomingCount === 0);
       }
       if (this.bankTabBadge) {
         this.bankTabBadge.textContent = incomingCount;
@@ -826,11 +832,10 @@
       const incomingCount = (this.currentBankData && Array.isArray(this.currentBankData.incomingProposals))
         ? this.currentBankData.incomingProposals.length
         : 0;
-      const totalBadge = incomingCount + (canSpin ? 1 : 0);
 
       if (this.bankBadge) {
-        this.bankBadge.textContent = totalBadge;
-        this.bankBadge.classList.toggle('hidden', totalBadge === 0);
+        this.bankBadge.textContent = incomingCount;
+        this.bankBadge.classList.toggle('hidden', incomingCount === 0);
       }
       if (this.wheelTabBadge) {
         this.wheelTabBadge.textContent = '1';
@@ -838,6 +843,11 @@
       }
 
       if (this.isWheelSpinning) {
+        if (this.btnOpenWheel) {
+          this.btnOpenWheel.classList.remove('ready');
+          this.btnOpenWheel.classList.add('cooldown');
+        }
+        if (this.hudWheelCooldown) this.hudWheelCooldown.textContent = 'DRAAIT';
         if (this.wheelStatusText) this.wheelStatusText.textContent = 'Het Rad van Fortuin draait...';
         if (this.wheelTimerVal) this.wheelTimerVal.textContent = 'BEZIG...';
         if (this.btnSpinWheel) {
@@ -848,6 +858,11 @@
       }
 
       if (canSpin) {
+        if (this.btnOpenWheel) {
+          this.btnOpenWheel.classList.add('ready');
+          this.btnOpenWheel.classList.remove('cooldown');
+        }
+        if (this.hudWheelCooldown) this.hudWheelCooldown.textContent = 'KLAAR';
         if (this.wheelStatusText) this.wheelStatusText.textContent = 'Klaar om te draaien!';
         if (this.wheelTimerVal) this.wheelTimerVal.textContent = 'NU KLAAR';
         if (this.wheelTimerPill) this.wheelTimerPill.classList.add('ready');
@@ -860,6 +875,11 @@
         const mins = Math.floor(totalSecs / 60);
         const secs = totalSecs % 60;
         const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        if (this.btnOpenWheel) {
+          this.btnOpenWheel.classList.remove('ready');
+          this.btnOpenWheel.classList.add('cooldown');
+        }
+        if (this.hudWheelCooldown) this.hudWheelCooldown.textContent = formatted;
         if (this.wheelStatusText) this.wheelStatusText.textContent = 'Volgende gratis draai over:';
         if (this.wheelTimerVal) this.wheelTimerVal.textContent = formatted;
         if (this.wheelTimerPill) this.wheelTimerPill.classList.remove('ready');
