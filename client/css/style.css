@@ -290,17 +290,11 @@ h1, h2, h3, h4, .brand-title, .phase-title {
 
 #roulette-canvas-container {
   width: 100%;
-  max-width: 1080px;
-  height: 320px;
-  margin: 0 auto;
+  height: 380px;
   position: relative;
-  background: radial-gradient(ellipse at 50% 50%, #0d3b2e 0%, #061a12 70%, #020c08 100%);
+  background: radial-gradient(circle at center, #0a261c 0%, #030a07 100%);
   overflow: hidden;
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  border-bottom: none;
-  border-radius: 16px 16px 0 0;
-  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.7);
-  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-gold);
 }
 
 #roulette-canvas-container canvas {
@@ -458,15 +452,13 @@ h1, h2, h3, h4, .brand-title, .phase-title {
    ========================================================================== */
 
 .board-container {
-  padding: 16px 20px;
-  background: radial-gradient(ellipse at 50% 30%, #0d3b2e 0%, #07251a 65%, #03140e 100%);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  border-top: 1px solid rgba(212, 175, 55, 0.25);
-  border-radius: 0 0 16px 16px;
+  padding: 20px;
+  background: radial-gradient(circle at center, #0e4530 0%, #07251a 100%);
+  border: 2px solid var(--border-gold);
+  border-radius: 16px;
   box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.7), 0 15px 40px rgba(0, 0, 0, 0.6);
   user-select: none;
   -webkit-user-select: none;
-  box-sizing: border-box;
 }
 
 .roulette-board {

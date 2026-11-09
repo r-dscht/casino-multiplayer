@@ -138,18 +138,6 @@
         metalness: 0.08
       });
 
-      // Luxury Emerald Table Felt Floor (anchoring wheel into casino table)
-      const feltFloorGeo = new THREE.PlaneGeometry(16, 16);
-      const feltFloorMat = new THREE.MeshStandardMaterial({
-        color: 0x09281c,
-        roughness: 0.90,
-        metalness: 0.02
-      });
-      const feltFloor = new THREE.Mesh(feltFloorGeo, feltFloorMat);
-      feltFloor.rotation.x = -Math.PI / 2;
-      feltFloor.position.y = 0.0;
-      tableGroup.add(feltFloor);
-
       // Bowl sloping base
       const bowlGeo = new THREE.CylinderGeometry(2.6, 2.0, 0.5, 36, 1, true);
       const bowlMesh = new THREE.Mesh(bowlGeo, mahoganyMat);
@@ -163,25 +151,12 @@
       rimMesh.position.y = 0.5;
       tableGroup.add(rimMesh);
 
-      // Polished Mahogany Outer Surround / Table Collar
-      const collarGeo = new THREE.CylinderGeometry(3.3, 2.6, 0.28, 48, 1, false);
-      const collarMesh = new THREE.Mesh(collarGeo, mahoganyMat);
-      collarMesh.position.y = 0.36;
-      tableGroup.add(collarMesh);
-
       // 8 Brass Rhombus Deflectors
       const brassMat = new THREE.MeshStandardMaterial({
         color: 0xd4af37,
         roughness: 0.22,
         metalness: 0.88
       });
-
-      // Outer Polished Brass Bezel Trim
-      const outerBrassRimGeo = new THREE.TorusGeometry(3.3, 0.07, 12, 48);
-      const outerBrassRimMesh = new THREE.Mesh(outerBrassRimGeo, brassMat);
-      outerBrassRimMesh.rotation.x = Math.PI / 2;
-      outerBrassRimMesh.position.y = 0.5;
-      tableGroup.add(outerBrassRimMesh);
       const deflectorGeo = new THREE.OctahedronGeometry(0.065);
       for (let i = 0; i < 8; i++) {
         const a = (i * Math.PI * 2) / 8;
@@ -365,33 +340,17 @@
       this.camera.aspect = width / height;
       if (width < 768) {
         // Mobile portrait layout: elevated angle
-        this.camera.fov = 54;
+        this.camera.fov = 56;
         this.camera.position.set(0, 5.0, 3.4);
       } else {
-        // Desktop / landscape layout: luxury casino perspective
-        this.camera.fov = 44;
-        this.camera.position.set(0, 4.3, 3.6);
+        // Desktop / landscape layout
+        this.camera.fov = 42;
+        this.camera.position.set(0, 4.2, 3.8);
       }
-      this.camera.lookAt(0, 0.20, 0);
+      this.camera.lookAt(0, 0.22, 0);
       this.camera.updateProjectionMatrix();
       if (!this.isSpinning) {
         this.defaultCameraPos = this.camera.position.clone();
-      }
-    }
-
-    /**
-     * Resets camera and lighting back to standard wide ambient view for betting phase.
-     */
-    resetCamera() {
-      if (this.defaultCameraPos) {
-        this.camera.position.copy(this.defaultCameraPos);
-        this.camera.lookAt(0, 0.20, 0);
-        this.camera.updateProjectionMatrix();
-      }
-      if (this.goldPointLight) {
-        this.goldPointLight.position.set(0, 2.8, 0);
-        this.goldPointLight.intensity = 0.9;
-        this.goldPointLight.distance = 8.0;
       }
     }
 
@@ -589,10 +548,10 @@
             currentBase.z + Math.sin(tangentAngle) * lateralOffset
           );
 
-          // Warm golden illumination on winning pocket at climax
+          // Golden illumination on winning pocket at climax
           if (t3 > 0.75 && this.goldPointLight) {
-            this.goldPointLight.position.set(targetWorldPos.x * 0.82, 0.75, targetWorldPos.z * 0.82);
-            this.goldPointLight.intensity = 0.9 + t3 * 0.45;
+            this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
+            this.goldPointLight.intensity = 1.5 + t3 * 1.5;
             this.goldPointLight.distance = 3.6;
           }
         } else {
@@ -601,11 +560,11 @@
           this.targetFps = 30; // Reduce power consumption by >60%
           this.ball.position.copy(targetWorldPos);
 
-          // Warm, focused golden spotlight on victorious winning pocket (crisp without glare blowout)
+          // Full golden spotlight on victorious winning pocket
           if (this.goldPointLight) {
-            this.goldPointLight.position.set(targetWorldPos.x * 0.82, 0.75, targetWorldPos.z * 0.82);
-            this.goldPointLight.intensity = 1.35;
-            this.goldPointLight.distance = 3.6;
+            this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
+            this.goldPointLight.intensity = 3.0;
+            this.goldPointLight.distance = 3.8;
           }
         }
       } else {
