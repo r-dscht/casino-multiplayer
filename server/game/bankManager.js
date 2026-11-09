@@ -73,6 +73,12 @@ class BankManager {
     /** @type {Set<string>} Active spin mutex locks */
     this.spinningLocks = new Set();
 
+    /** @type {Map<string, Array<Object>>} playerKey/id -> unread inbox notifications */
+    this.inboxNotifications = new Map();
+
+    /** @type {Set<string>} Tombstones of dismissed notification IDs */
+    this.dismissedNotificationIds = new Set();
+
     /** @type {Array<Object>} Recent bank transactions */
     this.transactions = [];
 
@@ -117,6 +123,21 @@ class BankManager {
               for (const [k, v] of Object.entries(data.wheelSpins)) {
                 if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
                   this.wheelSpins.set(k, Math.min(Date.now(), v));
+                }
+              }
+            }
+            if (Array.isArray(data.dismissedNotificationIds)) {
+              data.dismissedNotificationIds.forEach(id => {
+                if (typeof id === 'string') this.dismissedNotificationIds.add(id);
+              });
+            }
+            if (data.inboxNotifications && typeof data.inboxNotifications === 'object') {
+              for (const [k, list] of Object.entries(data.inboxNotifications)) {
+                if (Array.isArray(list)) {
+                  const filtered = list.filter(n => n && n.id && !this.dismissedNotificationIds.has(n.id)).slice(-30);
+                  if (filtered.length > 0) {
+                    this.inboxNotifications.set(k, filtered);
+                  }
                 }
               }
             }
@@ -436,6 +457,8 @@ class BankManager {
         repaidLoanIds: Array.from(this.repaidLoanIds),
         bailouts: Object.fromEntries(this.bailouts.entries()),
         wheelSpins: Object.fromEntries(this.wheelSpins.entries()),
+        inboxNotifications: Object.fromEntries(this.inboxNotifications.entries()),
+        dismissedNotificationIds: Array.from(this.dismissedNotificationIds).slice(-300),
         transactions: this.transactions.slice(-50)
       };
       fs.writeFileSync(this.storagePath, JSON.stringify(data, null, 2), 'utf8');
@@ -496,14 +519,100 @@ class BankManager {
 
     const tx = this._recordTransaction('transfer', fromPlayer.name, toPlayer.name, cleanAmount, 'Directe overboeking');
 
+    const notification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      type: 'donation',
+      fromId: fromPlayer.id,
+      fromName: fromPlayer.name,
+      toId: toPlayer.id,
+      toName: toPlayer.name,
+      toKey: (toPlayer.usernameKey || toPlayer.name || '').trim().toLowerCase(),
+      amount: cleanAmount,
+      message: `${fromPlayer.name} heeft je ${cleanAmount.toLocaleString()} fiches gedoneerd!`,
+      timestamp: Date.now()
+    };
+    this._addInboxNotification(toPlayer, notification);
+
     return {
       success: true,
       fromPlayer,
       toPlayer,
       fromChips: fromPlayer.chips,
       toChips: toPlayer.chips,
-      transaction: tx
+      transaction: tx,
+      notification
     };
+  }
+
+  /**
+   * Stores an unread inbox notification for a recipient player.
+   * @param {Object} toPlayer
+   * @param {Object} notif
+   */
+  _addInboxNotification(toPlayer, notif) {
+    if (!toPlayer || !notif || !notif.id) return;
+    const uKey = (toPlayer.usernameKey || toPlayer.name || '').trim().toLowerCase();
+    const key = uKey || toPlayer.id;
+    const list = this.inboxNotifications.get(key) || [];
+    if (!list.some(n => n.id === notif.id)) {
+      list.unshift(notif);
+      if (list.length > 25) list.length = 25;
+      this.inboxNotifications.set(key, list);
+    }
+    this.saveState();
+  }
+
+  /**
+   * Returns unread inbox notifications for a player.
+   * @param {Object} player
+   * @returns {Array<Object>}
+   */
+  getPlayerNotifications(player) {
+    if (!player) return [];
+    const uKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const byKey = uKey ? (this.inboxNotifications.get(uKey) || []) : [];
+    const byId = player.id ? (this.inboxNotifications.get(player.id) || []) : [];
+    const merged = new Map();
+    for (const n of [...byKey, ...byId]) {
+      if (n && n.id && !this.dismissedNotificationIds.has(n.id)) {
+        merged.set(n.id, n);
+      }
+    }
+    return Array.from(merged.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }
+
+  /**
+   * Dismisses a single inbox notification or all notifications for a player.
+   * @param {string} playerId
+   * @param {string} [notificationId='all']
+   * @returns {{ success: boolean }}
+   */
+  dismissNotification(playerId, notificationId = 'all') {
+    const player = this.playerManager ? this.playerManager.getPlayerById(playerId) : null;
+    if (!player) return { success: false };
+    const uKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const keys = [uKey, player.id].filter(Boolean);
+
+    for (const k of keys) {
+      const list = this.inboxNotifications.get(k);
+      if (!Array.isArray(list)) continue;
+      if (!notificationId || notificationId === 'all') {
+        list.forEach(n => {
+          if (n && n.id) this.dismissedNotificationIds.add(n.id);
+        });
+        this.inboxNotifications.delete(k);
+      } else {
+        this.dismissedNotificationIds.add(notificationId);
+        const remaining = list.filter(n => n && n.id !== notificationId);
+        if (remaining.length > 0) {
+          this.inboxNotifications.set(k, remaining);
+        } else {
+          this.inboxNotifications.delete(k);
+        }
+      }
+    }
+    this.saveState();
+    return { success: true };
   }
 
   /**
@@ -1146,6 +1255,7 @@ class BankManager {
     return {
       incomingProposals,
       outgoingProposals,
+      inboxNotifications: this.getPlayerNotifications(player),
       activeDebts,
       activeLoansGiven,
       repaidLoanIds: Array.from(this.repaidLoanIds),

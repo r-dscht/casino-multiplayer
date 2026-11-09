@@ -30,10 +30,10 @@
       this.currentTableState = null;
       this.mySeatIndex = -1;
       this.privateHoleCards = [];
-      this.isPeekRevealed = true;
+      this.isPeekRevealed = false;
       this.turnTimerInterval = null;
-      this.turnTimeLeft = 15;
-      this.turnTimeTotal = 15;
+      this.turnTimeLeft = 30;
+      this.turnTimeTotal = 30;
       this.selectedRaiseAmount = 200;
       this.pendingBuyInSeat = null;
       this.currentCheckCallAction = 'check';
@@ -149,13 +149,20 @@
         this.elements.tableBtn2.addEventListener('click', () => this.switchTable('poker_2'));
       }
 
-      // Seat Sit & Leave Buttons
+      // Seat Sit & Leave Buttons (1-click equal starting stack sit-down; click own cards dock to peek/hide)
       this.seatElements.forEach((seatBundle, idx) => {
         if (seatBundle.btnSit) {
-          seatBundle.btnSit.addEventListener('click', () => this.openBuyInModal(idx));
+          seatBundle.btnSit.addEventListener('click', () => this.handleSitDown(idx));
         }
         if (seatBundle.btnLeave) {
           seatBundle.btnLeave.addEventListener('click', () => this.handleLeaveSeat(idx));
+        }
+        if (seatBundle.cardsDock) {
+          seatBundle.cardsDock.addEventListener('click', () => {
+            if (this.mySeatIndex === idx && this.privateHoleCards.length > 0) {
+              this.togglePeekRevealed();
+            }
+          });
         }
       });
 
@@ -424,11 +431,7 @@
           this.privateHoleCards = [];
         }
       }
-
-      // Update presence if seated
-      if (this.network && typeof this.network.setPlayerPresence === 'function') {
-        this.network.setPlayerPresence('POKER', this.mySeatIndex !== -1 ? this.mySeatIndex : null);
-      }
+      // Do NOT call setPlayerPresence('POKER') on passive broadcasts — that caused all players to be teleported to the Poker screen!
     }
 
     /**
@@ -445,10 +448,8 @@
       if (this.elements.tableStakes) {
         const sb = state.smallBlindAmount || 50;
         const bb = state.bigBlindAmount || 100;
-        const minB = state.minBuyIn || (bb * 20);
-        const maxB = state.maxBuyIn || (bb * 100);
-        const defB = state.defaultBuyIn || (bb * 20);
-        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Entry: ${defB.toLocaleString()} (${minB.toLocaleString()} - ${maxB.toLocaleString()})`;
+        const equalStart = state.tableId === 'poker_2' ? 2000 : 1000;
+        this.elements.tableStakes.textContent = `Blinds: ${sb} / ${bb} fiches • Gelijke Start-inzet: ${equalStart.toLocaleString()} fiches`;
       }
       if (this.elements.handNumber) {
         this.elements.handNumber.textContent = `#${state.handId || 1}`;
@@ -479,8 +480,12 @@
 
       // 3. Phase Indicator
       if (this.elements.phaseText) {
-        const phaseName = (state.currentPhase || 'WAITING_FOR_PLAYERS').replace(/_/g, ' ');
-        this.elements.phaseText.textContent = phaseName;
+        if (state.currentPhase === 'WAITING_FOR_PLAYERS' && state.preHandCountdownSec > 0) {
+          this.elements.phaseText.textContent = `HAND START OVER ${state.preHandCountdownSec}S...`;
+        } else {
+          const phaseName = (state.currentPhase || 'WAITING_FOR_PLAYERS').replace(/_/g, ' ');
+          this.elements.phaseText.textContent = phaseName;
+        }
       }
 
       // 4. Community Cards (5 slots)
@@ -671,6 +676,14 @@
           ? this.privateHoleCards
           : (seatData.cards || []);
 
+        if (isHero && cardsToRender.length > 0) {
+          bundle.cardsDock.style.cursor = 'pointer';
+          bundle.cardsDock.title = this.isPeekRevealed ? 'Klik om kaarten te verbergen' : 'Klik om kaarten te tonen';
+        } else {
+          bundle.cardsDock.style.cursor = 'default';
+          bundle.cardsDock.title = '';
+        }
+
         this.renderHoleCards(bundle.cardsDock, cardsToRender, isHero, seatData.folded);
       }
     }
@@ -770,14 +783,14 @@
       if (!this.elements.btnPeek) return;
       const isRevealed = !!this.isPeekRevealed;
       this.elements.btnPeek.setAttribute('aria-pressed', isRevealed ? 'true' : 'false');
-      this.elements.btnPeek.title = isRevealed ? 'Spiek / Verberg Kaarten (P)' : 'Spiek / Toon Kaarten (P)';
+      this.elements.btnPeek.title = isRevealed ? 'Verberg Kaarten (P of Spatie)' : 'Toon Kaarten (P of Spatie)';
       const iconUse = this.elements.btnPeek.querySelector('use');
       if (iconUse) {
         iconUse.setAttribute('href', isRevealed ? '#icon-eye-open' : '#icon-eye-closed');
       }
       const label = this.elements.btnPeek.querySelector('.action-btn-text');
       if (label) {
-        label.textContent = isRevealed ? 'Verberg' : 'Spiek';
+        label.textContent = isRevealed ? 'Verberg Kaarten' : 'Toon Kaarten';
       }
     }
 
@@ -1025,13 +1038,14 @@
     }
 
     /**
-     * Starts the 15-second visual countdown timer bar with urgent warning states.
+     * Starts the 30-second visual countdown timer bar with urgent warning states.
      * @param {number} seconds
      */
-    startTurnTimer(seconds = 15) {
+    startTurnTimer(seconds = 30) {
       this.stopTurnTimer();
+      const total = (this.currentTableState && this.currentTableState.turnDuration) || 30;
       this.turnTimeLeft = seconds;
-      this.turnTimeTotal = 15;
+      this.turnTimeTotal = Math.max(total, seconds, 15);
       this.updateTimerBar();
 
       this.turnTimerInterval = setInterval(() => {
@@ -1053,9 +1067,9 @@
       this.elements.timerText.textContent = `${this.turnTimeLeft}s`;
 
       this.elements.timerBarFill.classList.remove('timer-warning', 'timer-urgent');
-      if (this.turnTimeLeft <= 3) {
+      if (this.turnTimeLeft <= 5) {
         this.elements.timerBarFill.classList.add('timer-urgent');
-      } else if (this.turnTimeLeft <= 6) {
+      } else if (this.turnTimeLeft <= 10) {
         this.elements.timerBarFill.classList.add('timer-warning');
       }
     }
@@ -1073,7 +1087,8 @@
         this.elements.timerBarFill.classList.remove('timer-warning', 'timer-urgent');
       }
       if (this.elements.timerText) {
-        this.elements.timerText.textContent = '15s';
+        const total = (this.currentTableState && this.currentTableState.turnDuration) || 30;
+        this.elements.timerText.textContent = `${total}s`;
       }
     }
 
@@ -1093,6 +1108,27 @@
       this.setPresetsDisabled(true);
 
       this.network.pokerAction(action, amount, this.mySeatIndex, this.currentTableId);
+    }
+
+    /**
+     * 1-Click sit-down with equal starting stack (no 2k buy-in modal popup).
+     * Everyone enters with the same starting stack (1,000 fiches on Table 1, 2,000 on Table 2, or remaining chips if lower).
+     * @param {number} seatIndex
+     */
+    handleSitDown(seatIndex) {
+      if (this.mySeatIndex !== -1) {
+        if (this.mySeatIndex === seatIndex) {
+          this.ui.showToast(`Je zit al op stoel ${seatIndex + 1}`, 'info');
+        } else {
+          this.ui.showToast(`Je zit al op stoel ${this.mySeatIndex + 1}. Verlaat eerst je huidige stoel om van plaats te wisselen.`, 'warning');
+        }
+        return;
+      }
+      this.network.pokerTakeSeat({
+        seatIndex,
+        fixedEntry: true,
+        tableId: this.currentTableId
+      });
     }
 
     /**
@@ -1436,7 +1472,7 @@
       const cards = data.cards || data.holeCards;
       if (Array.isArray(cards) && cards.length > 0) {
         this.privateHoleCards = cards;
-        this.isPeekRevealed = true;
+        this.isPeekRevealed = false;
         this.updatePeekButton();
         if (this.mySeatIndex !== -1 && this.seatElements[this.mySeatIndex]) {
           const dock = this.seatElements[this.mySeatIndex].cardsDock;
@@ -1462,14 +1498,25 @@
           seatIndex: data.activeSeatIndex !== undefined ? data.activeSeatIndex : data.seatIndex,
           playerId: data.playerId
         };
-        this.currentTableState.turnTimeLeft = data.turnTimeLeft !== undefined ? data.turnTimeLeft : 15;
+        this.currentTableState.turnTimeLeft = data.turnTimeLeft !== undefined ? data.turnTimeLeft : 30;
         this.renderTable(this.currentTableState);
       }
     }
 
     onPhaseTick(data) {
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
-      const timeLeft = (data.turnTimeLeft !== undefined) ? data.turnTimeLeft : (data.timeLeft !== undefined ? data.timeLeft : 15);
+      if (data.phase === 'WAITING_FOR_PLAYERS' && typeof data.countdownSec === 'number') {
+        if (this.currentTableState) {
+          this.currentTableState.preHandCountdownSec = data.countdownSec;
+        }
+        if (this.elements.phaseText) {
+          this.elements.phaseText.textContent = data.countdownSec > 0
+            ? `HAND START OVER ${data.countdownSec}S...`
+            : 'WAITING FOR PLAYERS';
+        }
+        return;
+      }
+      const timeLeft = (data.turnTimeLeft !== undefined) ? data.turnTimeLeft : (data.timeLeft !== undefined ? data.timeLeft : 30);
       this.turnTimeLeft = timeLeft;
       this.updateTimerBar();
     }
@@ -1510,7 +1557,7 @@
 
     onHandStart(data) {
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
-      this.isPeekRevealed = true;
+      this.isPeekRevealed = false;
       this.updatePeekButton();
       this.lastSeatActions.clear();
       this.stopTurnTimer();

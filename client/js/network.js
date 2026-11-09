@@ -714,6 +714,15 @@
     }
 
     /**
+     * Marks a bank inbox notification (or all) as read/dismissed.
+     * @param {string} [notificationId='all']
+     */
+    dismissBankNotification(notificationId = 'all') {
+      if (!this.socket) return;
+      this.socket.emit('bank_dismiss_notification', { notificationId });
+    }
+
+    /**
      * Proposes a loan (borrow or lend).
      * @param {{ toPlayerId: string, type: 'borrow'|'lend', amount: number, interestPct: number, winDeductionPct: number }} params 
      */
@@ -960,25 +969,28 @@
      * @param {number} [arg2=2000]
      * @param {string} [arg3='poker_1']
      */
-    pokerTakeSeat(arg1, arg2 = 2000, arg3 = 'poker_1') {
+    pokerTakeSeat(arg1, arg2 = null, arg3 = 'poker_1') {
       if (!this.socket) return;
       let seatIndex = null;
-      let buyInAmount = 2000;
+      let buyInAmount = null;
+      let fixedEntry = false;
       let tableId = 'poker_1';
       if (typeof arg1 === 'object' && arg1 !== null) {
         seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : (arg1.seatIndex !== undefined && arg1.seatIndex !== null ? parseInt(arg1.seatIndex, 10) : null);
-        buyInAmount = typeof arg1.buyInAmount === 'number' ? arg1.buyInAmount : (typeof arg1.amount === 'number' ? arg1.amount : 2000);
+        buyInAmount = typeof arg1.buyInAmount === 'number' ? arg1.buyInAmount : (typeof arg1.amount === 'number' ? arg1.amount : null);
+        fixedEntry = !!arg1.fixedEntry || buyInAmount === null;
         tableId = arg1.tableId || 'poker_1';
       } else {
         seatIndex = typeof arg1 === 'number' ? arg1 : (arg1 !== undefined && arg1 !== null ? parseInt(arg1, 10) : null);
-        buyInAmount = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
+        buyInAmount = typeof arg2 === 'number' ? arg2 : (arg2 !== null && arg2 !== undefined ? parseInt(arg2, 10) : null);
+        fixedEntry = buyInAmount === null || isNaN(buyInAmount);
         tableId = typeof arg3 === 'string' ? arg3 : 'poker_1';
       }
       if (typeof seatIndex !== 'number' || isNaN(seatIndex) || seatIndex < 0 || seatIndex > 5) {
         console.warn('pokerTakeSeat rejected: explicit seatIndex (0-5) required');
         return;
       }
-      this.socket.emit('poker_take_seat', { seatIndex, buyInAmount, tableId });
+      this.socket.emit('poker_take_seat', { seatIndex, buyInAmount, fixedEntry, tableId });
     }
 
     /**

@@ -1120,6 +1120,14 @@ function setupSocket(httpServer, options = {}) {
       });
     });
 
+    socket.on('bank_dismiss_notification', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const notificationId = (payload && payload.notificationId) || 'all';
+      bankManager.dismissNotification(player.id, notificationId);
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+    });
+
     socket.on('bank_loan_propose', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
@@ -1676,6 +1684,7 @@ function setupSocket(httpServer, options = {}) {
 
       const tableId = (payload && payload.tableId) || 'poker_1';
       const table = getPokerTable(tableId);
+      socket.join('table:' + table.tableId);
 
       let seatIndex = -1;
       if (payload && typeof payload.seatIndex === 'number') {
@@ -1688,13 +1697,19 @@ function setupSocket(httpServer, options = {}) {
         seatIndex = parseInt(payload.seat, 10);
       }
 
-      const buyInAmount = (payload && (payload.buyInAmount || payload.amount)) || table.defaultBuyIn || table.minBuyIn;
+      const explicitBuyIn = payload && (payload.buyInAmount !== undefined ? payload.buyInAmount : payload.amount);
+      const isFixedEntry = !!(payload && payload.fixedEntry) || explicitBuyIn === undefined || explicitBuyIn === null;
+      const standardEqualStack = table.tableId === 'poker_2' ? 2000 : 1000;
+      const buyInAmount = !isFixedEntry
+        ? explicitBuyIn
+        : Math.max(table.bigBlindAmount || 100, Math.min(standardEqualStack, player.chips || 0));
 
       const res = table.takeSeat(seatIndex, player.id, buyInAmount, {
         name: player.name,
         avatar: player.avatar,
         color: player.color,
-        socketId: socket.id
+        socketId: socket.id,
+        allowShortEntry: isFixedEntry
       });
 
       if (!res.success) {

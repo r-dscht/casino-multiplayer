@@ -51,6 +51,7 @@
       this.currentBankData = {
         incomingProposals: [],
         outgoingProposals: [],
+        inboxNotifications: [],
         activeDebts: [],
         activeLoansGiven: [],
         repaidLoanIds: [],
@@ -111,6 +112,7 @@
 
       // Render cached items if present
       if (this.currentBankData) {
+        this._renderInboxNotifications(this.currentBankData.inboxNotifications || []);
         this._renderIncomingProposals(this.currentBankData.incomingProposals || []);
         this._renderMyDebts(this.currentBankData.activeDebts || []);
         this._renderMyLoansGiven(this.currentBankData.activeLoansGiven || []);
@@ -152,6 +154,7 @@
       this.calcDeductionPct = document.getElementById('calc-deduction-pct');
 
       // Inbox Lists
+      this.listInboxNotifications = document.getElementById('bank-inbox-notifications');
       this.listIncomingProposals = document.getElementById('bank-incoming-proposals');
       this.listMyDebts = document.getElementById('bank-my-debts');
       this.listMyLoansGiven = document.getElementById('bank-my-loans-given');
@@ -513,16 +516,19 @@
       reconciledWheelStatus.canSpin = reconciledWheelStatus.timeLeftMs === 0;
       reconciledWheelStatus.nextAvailableTime = this.lastWheelSpin > 0 ? (this.lastWheelSpin + WHEEL_COOLDOWN_MS) : Date.now();
 
+      const inboxNotifs = Array.isArray(data.inboxNotifications) ? data.inboxNotifications : [];
+
       this.currentBankData = {
         ...data,
+        inboxNotifications: inboxNotifs,
         activeDebts: mergedDebts,
         activeLoansGiven: mergedLoansGiven,
         repaidLoanIds: Array.from(this.repaidLoanIds),
         wheelStatus: reconciledWheelStatus
       };
 
-      // Update badge counters
-      const incomingCount = (data.incomingProposals || []).length;
+      // Update badge counters (incoming loan proposals + unread donation notifications)
+      const incomingCount = (data.incomingProposals || []).length + inboxNotifs.length;
 
       if (this.bankBadge) {
         this.bankBadge.textContent = incomingCount;
@@ -537,6 +543,7 @@
         this.wheelTabBadge.classList.toggle('hidden', !reconciledWheelStatus.canSpin);
       }
 
+      this._renderInboxNotifications(inboxNotifs);
       this._renderIncomingProposals(data.incomingProposals || []);
       this._renderMyDebts(mergedDebts);
       this._renderMyLoansGiven(mergedLoansGiven);
@@ -547,6 +554,7 @@
       const backupPayload = {
         incomingProposals: data.incomingProposals || [],
         outgoingProposals: data.outgoingProposals || [],
+        inboxNotifications: inboxNotifs,
         activeDebts: mergedDebts,
         activeLoansGiven: mergedLoansGiven,
         repaidLoanIds: Array.from(this.repaidLoanIds),
@@ -578,6 +586,49 @@
           this.network.reconcileBankBackup(backupPayload);
         }
       }
+    }
+
+    _renderInboxNotifications(notifications) {
+      if (!this.listInboxNotifications) return;
+      this.listInboxNotifications.innerHTML = '';
+
+      if (!Array.isArray(notifications) || notifications.length === 0) {
+        this.listInboxNotifications.innerHTML = '<div class="empty-state-notice">Geen nieuwe donaties of meldingen</div>';
+        return;
+      }
+
+      notifications.forEach(notif => {
+        const card = document.createElement('div');
+        card.className = 'deal-card glass-panel';
+
+        const senderName = notif.fromName || 'Speler';
+        const amountStr = typeof notif.amount === 'number' ? notif.amount.toLocaleString() : '0';
+        const timeStr = notif.timestamp
+          ? new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+
+        card.innerHTML = `
+          <div class="deal-card-header">
+            <strong>Donatie van ${senderName}${timeStr ? ` <span style="opacity:0.65;font-weight:400;font-size:0.78rem;">(${timeStr})</span>` : ''}</strong>
+            <span class="gold-badge">+${amountStr} fiches</span>
+          </div>
+          <div class="deal-card-body">${notif.message || `${senderName} heeft je ${amountStr} fiches geschonken!`}</div>
+          <div class="deal-card-actions">
+            <button type="button" class="btn btn-gold-sm btn-dismiss-notif" data-id="${notif.id}">Gelezen</button>
+          </div>
+        `;
+
+        const btnDismiss = card.querySelector('.btn-dismiss-notif');
+        if (btnDismiss) {
+          btnDismiss.addEventListener('click', () => {
+            if (this.network && typeof this.network.dismissBankNotification === 'function') {
+              this.network.dismissBankNotification(notif.id);
+            }
+          });
+        }
+
+        this.listInboxNotifications.appendChild(card);
+      });
     }
 
     _renderIncomingProposals(proposals) {

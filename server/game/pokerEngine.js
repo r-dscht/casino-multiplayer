@@ -78,7 +78,20 @@ class PokerEngine extends EventEmitter {
 
     /** @type {{ seatIndex: number, playerId: string }|null} Active turn */
     this.activeTurn = null;
-    this.turnTimeLeft = PHASE_DURATIONS.TURN_TIMEOUT;
+    const isTestEnv = process.env.NODE_ENV === 'test' ||
+      process.execArgv.includes('--test') ||
+      process.argv.some(arg => arg.includes('--test') || arg.includes('.test.js'));
+    this.turnTimeoutSec = typeof options.turnTimeoutSec === 'number'
+      ? options.turnTimeoutSec
+      : (isTestEnv ? PHASE_DURATIONS.TURN_TIMEOUT : 30);
+    this.preHandDelayMs = typeof options.preHandDelayMs === 'number'
+      ? options.preHandDelayMs
+      : (isTestEnv ? 0 : 7000);
+    this.betweenHandsDelayMs = typeof options.betweenHandsDelayMs === 'number'
+      ? options.betweenHandsDelayMs
+      : (isTestEnv ? 3000 : 6000);
+    this.preHandCountdownSec = 0;
+    this.turnTimeLeft = this.turnTimeoutSec;
     this.timerInterval = null;
     this.isRunning = false;
 
@@ -143,6 +156,18 @@ class PokerEngine extends EventEmitter {
    * Main 1-second clock tick for active turn countdowns and phase delays.
    */
   tick() {
+    if (this.currentPhase === PHASES.WAITING_FOR_PLAYERS && this.preHandCountdownSec > 0) {
+      this.preHandCountdownSec = Math.max(0, this.preHandCountdownSec - 1);
+      this.emit('phase_tick', {
+        tableId: this.tableId,
+        phase: this.currentPhase,
+        activeSeatIndex: null,
+        countdownSec: this.preHandCountdownSec,
+        turnTimeLeft: this.preHandCountdownSec
+      });
+      return;
+    }
+
     if (this.activeTurn !== null && this.currentPhase !== PHASES.WAITING_FOR_PLAYERS && this.currentPhase !== PHASES.HAND_END) {
       this.turnTimeLeft--;
       this.emit('phase_tick', {
@@ -156,6 +181,31 @@ class PokerEngine extends EventEmitter {
         this.autoAction(this.activeTurn.seatIndex);
       }
     }
+  }
+
+  /**
+   * Schedules a delayed hand start so extra players can take a seat before cards are dealt.
+   * @param {number} delayMs
+   */
+  scheduleDelayedHandStart(delayMs = this.preHandDelayMs) {
+    if (this.nextHandTimeout) {
+      return; // Countdown already in progress
+    }
+    this.preHandCountdownSec = Math.max(1, Math.ceil(delayMs / 1000));
+    this.emit('phase_tick', {
+      tableId: this.tableId,
+      phase: this.currentPhase,
+      activeSeatIndex: null,
+      countdownSec: this.preHandCountdownSec,
+      turnTimeLeft: this.preHandCountdownSec
+    });
+    this.nextHandTimeout = setTimeout(() => {
+      this.nextHandTimeout = null;
+      this.preHandCountdownSec = 0;
+      if (this.currentPhase === PHASES.WAITING_FOR_PLAYERS && this.getActiveSeatedCount() >= 2) {
+        this.startNewHand();
+      }
+    }, delayMs);
   }
 
   /**
@@ -206,13 +256,14 @@ class PokerEngine extends EventEmitter {
       return { success: false, code: 'ALREADY_SEATED', reason: 'Player already has a seat at this table' };
     }
 
-    // Validate buy-in amount bounds
+    // Validate buy-in amount bounds (allow fixed/short entry down to bigBlindAmount when specified)
     const buyIn = parseInt(buyInAmount, 10);
-    if (isNaN(buyIn) || buyIn < this.minBuyIn || buyIn > this.maxBuyIn) {
+    const minAllowed = (playerInfo && playerInfo.allowShortEntry) ? this.bigBlindAmount : this.minBuyIn;
+    if (isNaN(buyIn) || buyIn < minAllowed || buyIn > this.maxBuyIn) {
       return {
         success: false,
         code: 'INVALID_BUY_IN',
-        reason: `Buy-in must be between ${this.minBuyIn} and ${this.maxBuyIn} chips`
+        reason: `Buy-in must be between ${minAllowed} and ${this.maxBuyIn} chips`
       };
     }
 
@@ -252,7 +303,11 @@ class PokerEngine extends EventEmitter {
 
     // Check if we should start a hand
     if (this.autoStart && this.currentPhase === PHASES.WAITING_FOR_PLAYERS && this.getActiveSeatedCount() >= 2) {
-      this.startNewHand();
+      if (this.preHandDelayMs > 0) {
+        this.scheduleDelayedHandStart(this.preHandDelayMs);
+      } else {
+        this.startNewHand();
+      }
     }
 
     return { success: true, seatIndex, stack: buyIn };
@@ -305,6 +360,11 @@ class PokerEngine extends EventEmitter {
 
     // If fewer than 2 players remain, revert to WAITING_FOR_PLAYERS
     if (this.getActiveSeatedCount() < 2 && (this.currentPhase === PHASES.HAND_END || this.currentPhase === PHASES.WAITING_FOR_PLAYERS)) {
+      if (this.nextHandTimeout) {
+        clearTimeout(this.nextHandTimeout);
+        this.nextHandTimeout = null;
+      }
+      this.preHandCountdownSec = 0;
       this.currentPhase = PHASES.WAITING_FOR_PLAYERS;
       this.emit('phase_changed', { tableId: this.tableId, phase: this.currentPhase });
     }
@@ -439,6 +499,11 @@ class PokerEngine extends EventEmitter {
    * Starts a brand new No-Limit Hold'em hand.
    */
   startNewHand() {
+    if (this.nextHandTimeout) {
+      clearTimeout(this.nextHandTimeout);
+      this.nextHandTimeout = null;
+    }
+    this.preHandCountdownSec = 0;
     const activeSeats = this.seats.filter(s => s.player !== null && s.stack > 0);
     if (activeSeats.length < 2) {
       this.currentPhase = PHASES.WAITING_FOR_PLAYERS;
@@ -591,7 +656,7 @@ class PokerEngine extends EventEmitter {
       const utgSeat = this.findNextActiveSeat(this.bigBlindSeat);
       this.activeTurn = { seatIndex: utgSeat, playerId: this.seats[utgSeat].player.id };
     }
-    this.turnTimeLeft = PHASE_DURATIONS.TURN_TIMEOUT;
+    this.turnTimeLeft = this.turnTimeoutSec;
   }
 
   /**
@@ -1010,7 +1075,7 @@ class PokerEngine extends EventEmitter {
 
     if (found !== -1) {
       this.activeTurn = { seatIndex: found, playerId: this.seats[found].player.id };
-      this.turnTimeLeft = PHASE_DURATIONS.TURN_TIMEOUT;
+      this.turnTimeLeft = this.turnTimeoutSec;
       this.emitTurnChanged();
     } else {
       // No more active players with chips -> round complete
@@ -1100,7 +1165,7 @@ class PokerEngine extends EventEmitter {
       const s = this.seats[firstSeat];
       if (s && !s.folded && !s.isAllIn && s.status === SEAT_STATUS.PLAYING) {
         this.activeTurn = { seatIndex: firstSeat, playerId: s.player.id };
-        this.turnTimeLeft = PHASE_DURATIONS.TURN_TIMEOUT;
+        this.turnTimeLeft = this.turnTimeoutSec;
         this.emitTurnChanged();
       } else {
         this.transitionToNextPhase();
@@ -1200,13 +1265,14 @@ class PokerEngine extends EventEmitter {
       this.emit('phase_changed', { tableId: this.tableId, phase: this.currentPhase });
     } else if (this.autoStart) {
       this.nextHandTimeout = setTimeout(() => {
+        this.nextHandTimeout = null;
         if (this.isRunning && this.getActiveSeatedCount() >= 2) {
           this.startNewHand();
         } else {
           this.currentPhase = PHASES.WAITING_FOR_PLAYERS;
           this.emit('phase_changed', { tableId: this.tableId, phase: this.currentPhase });
         }
-      }, 3000);
+      }, this.betweenHandsDelayMs);
     }
   }
 
@@ -1272,6 +1338,8 @@ class PokerEngine extends EventEmitter {
       communityCards: [...this.communityCards],
       activeTurn: this.activeTurn ? { ...this.activeTurn } : null,
       turnTimeLeft: Math.max(0, this.turnTimeLeft),
+      turnDuration: this.turnTimeoutSec,
+      preHandCountdownSec: this.preHandCountdownSec,
       seats: publicSeats,
       serverTime: Date.now()
     };

@@ -692,10 +692,10 @@
 
           <!-- Player Action Controls Panel -->
           <div class="poker-controls-panel glass-panel" id="poker-controls-panel">
-            <!-- 15s Countdown Timer Bar -->
+            <!-- 30s Countdown Timer Bar -->
             <div class="poker-turn-timer-bar-track">
               <div class="poker-turn-timer-bar-fill" id="poker-turn-timer-fill" style="width: 100%;"></div>
-              <span class="poker-turn-timer-text" id="poker-turn-timer-text">15s</span>
+              <span class="poker-turn-timer-text" id="poker-turn-timer-text">30s</span>
             </div>
 
             <!-- Sizing Controls & Presets -->
@@ -718,11 +718,11 @@
 
             <!-- Action Buttons: Fold, Check/Call, Bet/Raise, Peek Toggle -->
             <div class="poker-action-buttons-row">
-              <button type="button" class="btn btn-action btn-poker-peek" id="btn-poker-peek" aria-pressed="true" title="Spiek / Verberg Kaarten (P)">
+              <button type="button" class="btn btn-action btn-poker-peek" id="btn-poker-peek" aria-pressed="false" title="Toon / Verberg Kaarten (P)">
                 <svg class="poker-peek-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <use href="#icon-eye-open"></use>
+                  <use href="#icon-eye-closed"></use>
                 </svg>
-                <span class="action-btn-text" id="poker-peek-btn-text">Verberg</span>
+                <span class="action-btn-text" id="poker-peek-btn-text">Toon Kaarten</span>
               </button>
               <button type="button" class="btn btn-action btn-poker-fold" id="btn-poker-fold" disabled>
                 <span class="action-btn-text">FOLD (Pas)</span>
@@ -1063,6 +1063,12 @@
 
         <!-- Tab 3: Inbox & Schulden -->
         <div class="bank-tab-pane" id="bank-pane-inbox">
+          <div class="inbox-section">
+            <h3 class="inbox-section-title">Ontvangen Donaties &amp; Meldingen</h3>
+            <div class="inbox-cards-list" id="bank-inbox-notifications">
+              <div class="empty-state-notice">Geen nieuwe donaties of meldingen</div>
+            </div>
+          </div>
           <div class="inbox-section">
             <h3 class="inbox-section-title">Inkomende Voorstellen</h3>
             <div class="inbox-cards-list" id="bank-incoming-proposals">
