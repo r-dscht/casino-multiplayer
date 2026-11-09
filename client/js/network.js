@@ -264,7 +264,8 @@
 
       this.socket.on('chips_update', (data) => {
         if (data && typeof data.chips === 'number') {
-          this.saveClientBackup({ chips: data.chips });
+          const tableStack = typeof data.tableStack === 'number' ? data.tableStack : 0;
+          this.saveClientBackup({ chips: data.chips + tableStack });
         }
         this.emitInternal('chips_update', data);
       });

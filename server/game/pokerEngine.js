@@ -282,6 +282,7 @@ class PokerEngine extends EventEmitter {
       avatar: playerInfo.avatar || 'av_1',
       color: playerInfo.color || '#10b981',
       socketId: playerInfo.socketId || null,
+      allowShortEntry: !!(playerInfo && playerInfo.allowShortEntry),
       connected: true
     };
     seat.stack = buyIn;
@@ -567,14 +568,19 @@ class PokerEngine extends EventEmitter {
       pot: this.potManager.getTotalPot()
     });
 
-    this.emitTurnChanged();
+    if (this.isRoundComplete()) {
+      this.activeTurn = null;
+      this.transitionToNextPhase();
+    } else {
+      this.emitTurnChanged();
+    }
   }
 
   /**
    * Determines SB and BB seats (handling Heads-Up vs Multi-Player rules).
    */
   assignBlinds() {
-    const activeSeats = this.seats.filter(s => s.status === SEAT_STATUS.PLAYING);
+    const activeSeats = this.seats.filter(s => s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN);
     if (activeSeats.length === 2) {
       // HEADS-UP RULES:
       // Dealer Button posts Small Blind and acts first pre-flop, last post-flop.
@@ -642,19 +648,35 @@ class PokerEngine extends EventEmitter {
    * Assigns first turn pre-flop (UTG in multi-player, SB in heads-up).
    */
   setPreflopFirstTurn() {
-    const activeSeats = this.seats.filter(s => s.status === SEAT_STATUS.PLAYING);
-    if (activeSeats.length === 2) {
+    if (this.isRoundComplete()) {
+      this.activeTurn = null;
+      return;
+    }
+
+    const dealtSeats = this.seats.filter(s => s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN);
+    if (dealtSeats.length === 2) {
       // In Heads-up, Button (SB) acts first pre-flop
       const firstSeat = this.smallBlindSeat;
       if (this.seats[firstSeat].status === SEAT_STATUS.PLAYING && !this.seats[firstSeat].isAllIn) {
         this.activeTurn = { seatIndex: firstSeat, playerId: this.seats[firstSeat].player.id };
       } else {
-        this.advanceTurn();
+        const nextSeat = this.findNextActiveSeat(firstSeat);
+        const s = this.seats[nextSeat];
+        if (s && s.player && !s.folded && !s.isAllIn && s.status === SEAT_STATUS.PLAYING) {
+          this.activeTurn = { seatIndex: nextSeat, playerId: s.player.id };
+        } else {
+          this.activeTurn = null;
+        }
       }
     } else {
       // In 3+ players, UTG (clockwise from BB) acts first
       const utgSeat = this.findNextActiveSeat(this.bigBlindSeat);
-      this.activeTurn = { seatIndex: utgSeat, playerId: this.seats[utgSeat].player.id };
+      const s = this.seats[utgSeat];
+      if (s && s.player && !s.folded && !s.isAllIn && s.status === SEAT_STATUS.PLAYING) {
+        this.activeTurn = { seatIndex: utgSeat, playerId: s.player.id };
+      } else {
+        this.activeTurn = null;
+      }
     }
     this.turnTimeLeft = this.turnTimeoutSec;
   }
@@ -1010,7 +1032,13 @@ class PokerEngine extends EventEmitter {
         tableId: this.tableId,
         handId: this.handId,
         uncontested: true,
-        winners: [{ playerId: winner.player.id, seatIndex: winner.seatIndex, amount: settlement.totalAwarded }],
+        winners: [{
+          playerId: winner.player.id,
+          playerName: winner.player.name,
+          seatIndex: winner.seatIndex,
+          amount: settlement.totalAwarded,
+          handName: 'Tegenstander(s) gefold'
+        }],
         pots: settlement.potSummaries,
         showdownHands: []
       });
@@ -1026,7 +1054,9 @@ class PokerEngine extends EventEmitter {
    * @returns {boolean}
    */
   isRoundComplete() {
-    const contenders = this.seats.filter(s => s.player !== null && !s.folded && (s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN));
+    const contenders = this.seats.filter(
+      s => s.player !== null && !s.folded && (s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN) && Array.isArray(s.cards) && s.cards.length === 2
+    );
     if (contenders.length <= 1) return true;
 
     // Check non-allin contenders
@@ -1038,8 +1068,8 @@ class PokerEngine extends EventEmitter {
 
     if (activeContenders.length === 1 && contenders.length > 1) {
       // 1 player with chips, everyone else all-in
-      // If that 1 player has matched or exceeded currentBet, round is complete
-      if (activeContenders[0].hasActedThisRound && activeContenders[0].currentHandBet >= this.currentBet) {
+      // If that 1 player has matched or exceeded currentBet, no further betting is possible
+      if (activeContenders[0].currentHandBet >= this.currentBet) {
         return true;
       }
     }
@@ -1100,7 +1130,10 @@ class PokerEngine extends EventEmitter {
     this.lastBettorSeat = -1;
 
     // Check if everyone (or all but 1) is all-in -> runout remaining community cards
-    const contenders = this.seats.filter(s => s.player !== null && !s.folded);
+    // Strictly filter to players who were actually dealt into THIS hand (excludes SEATED mid-hand joiners & SITTING_OUT seats)
+    const contenders = this.seats.filter(
+      s => s.player !== null && !s.folded && (s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN) && Array.isArray(s.cards) && s.cards.length === 2
+    );
     const playersWithChips = contenders.filter(s => !s.isAllIn);
     const isAllInRunout = playersWithChips.length <= 1 && contenders.length >= 2;
 
@@ -1139,6 +1172,18 @@ class PokerEngine extends EventEmitter {
         return;
     }
 
+    // Pre-assign activeTurn before emitting phase_changed so table snapshots during phase_changed already include the active turn
+    let nextActiveSeat = -1;
+    if (!isAllInRunout) {
+      const firstSeat = this.findNextActiveSeat(this.dealerButtonSeat);
+      const s = this.seats[firstSeat];
+      if (s && !s.folded && !s.isAllIn && s.status === SEAT_STATUS.PLAYING) {
+        nextActiveSeat = firstSeat;
+        this.activeTurn = { seatIndex: firstSeat, playerId: s.player.id };
+        this.turnTimeLeft = this.turnTimeoutSec;
+      }
+    }
+
     this.emit('phase_changed', {
       tableId: this.tableId,
       phase: this.currentPhase,
@@ -1159,17 +1204,10 @@ class PokerEngine extends EventEmitter {
       } else {
         this.transitionToNextPhase();
       }
+    } else if (nextActiveSeat !== -1) {
+      this.emitTurnChanged();
     } else {
-      // Start betting round at first active player left of Dealer Button
-      const firstSeat = this.findNextActiveSeat(this.dealerButtonSeat);
-      const s = this.seats[firstSeat];
-      if (s && !s.folded && !s.isAllIn && s.status === SEAT_STATUS.PLAYING) {
-        this.activeTurn = { seatIndex: firstSeat, playerId: s.player.id };
-        this.turnTimeLeft = this.turnTimeoutSec;
-        this.emitTurnChanged();
-      } else {
-        this.transitionToNextPhase();
-      }
+      this.transitionToNextPhase();
     }
   }
 
@@ -1178,7 +1216,15 @@ class PokerEngine extends EventEmitter {
    */
   resolveShowdown() {
     this.currentPhase = PHASES.SHOWDOWN;
-    const contenders = this.seats.filter(s => s.player !== null && !s.folded);
+    // Strictly evaluate only players who were dealt into this hand and have 2 hole cards
+    const contenders = this.seats.filter(
+      s => s.player !== null && !s.folded && (s.status === SEAT_STATUS.PLAYING || s.status === SEAT_STATUS.ALL_IN) && Array.isArray(s.cards) && s.cards.length === 2
+    );
+
+    if (contenders.length === 0) {
+      this.endHand();
+      return;
+    }
 
     // Evaluate 7-card hands for all active showdown contenders
     const playerHands = contenders.map(seat => {
@@ -1217,11 +1263,22 @@ class PokerEngine extends EventEmitter {
       hand: ph.hand
     }));
 
+    const enrichedWinners = settlement.payouts.map(p => {
+      const seat = this.seats[p.seatIndex];
+      const ph = playerHands.find(h => h.seatIndex === p.seatIndex);
+      return {
+        ...p,
+        playerName: (seat && seat.player && seat.player.name) || `Speler ${p.seatIndex + 1}`,
+        hand: ph ? ph.hand : p.hand,
+        handName: (ph && ph.hand && (ph.hand.description || ph.hand.name)) || (p.hand && (p.hand.description || p.hand.name)) || 'Winnende hand'
+      };
+    });
+
     this.emit('hand_ended', {
       tableId: this.tableId,
       handId: this.handId,
       uncontested: false,
-      winners: settlement.payouts,
+      winners: enrichedWinners,
       pots: settlement.potSummaries,
       showdownHands
     });
@@ -1244,18 +1301,21 @@ class PokerEngine extends EventEmitter {
       }
     }
 
-    // Auto-cashout players who disconnected
+    // Auto-cashout players who disconnected or busted out on a 1-click fixed-entry seat
     for (const seat of this.seats) {
-      if (seat.player && !seat.player.connected) {
+      if (seat.player && (!seat.player.connected || (seat.stack === 0 && seat.player.allowShortEntry))) {
+        const vacatedPlayerId = seat.player.id;
         const cashout = seat.stack;
         seat.stack = 0;
         if (this.playerManager && cashout > 0) {
-          this.playerManager.addChips(seat.player.id, cashout);
+          this.playerManager.addChips(vacatedPlayerId, cashout);
         }
         seat.player = null;
         seat.status = SEAT_STATUS.EMPTY;
         seat.cards = [];
-        this.emit('seat_vacated', { tableId: this.tableId, seatIndex: seat.seatIndex });
+        seat.folded = false;
+        seat.isAllIn = false;
+        this.emit('seat_vacated', { tableId: this.tableId, seatIndex: seat.seatIndex, playerId: vacatedPlayerId, cashoutAmount: cashout });
       }
     }
 
@@ -1291,7 +1351,7 @@ class PokerEngine extends EventEmitter {
     const publicSeats = this.seats.map(seat => {
       let cards = [];
       if (seat.cards && seat.cards.length > 0) {
-        if (this.currentPhase === PHASES.SHOWDOWN && seat.showdownRevealed) {
+        if ((this.currentPhase === PHASES.SHOWDOWN || this.currentPhase === PHASES.HAND_END) && seat.showdownRevealed) {
           // Revealed at showdown
           cards = seat.cards.map(c => ({ suit: c.suit, rank: c.rank, value: c.value, id: c.id }));
         } else if (forPlayerId && seat.player && seat.player.id === forPlayerId) {
@@ -1311,6 +1371,7 @@ class PokerEngine extends EventEmitter {
         status: seat.status,
         folded: seat.folded,
         isAllIn: seat.isAllIn,
+        hasActedThisRound: seat.hasActedThisRound,
         hasCards: seat.cards.length > 0,
         cards
       };

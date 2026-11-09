@@ -309,6 +309,10 @@
      */
     setRestingPocket(winningNumber) {
       if (typeof winningNumber !== 'number') return;
+      // If we are actively spinning toward this exact winning number, do not snap/interrupt the animation!
+      if (this.isSpinning && this.currentWinningNumber === winningNumber) {
+        return;
+      }
       this.currentWinningNumber = winningNumber;
       const pocketIdx = this.WHEEL_NUMBERS.indexOf(winningNumber);
       if (pocketIdx === -1) return;
@@ -406,9 +410,15 @@
         ? Math.atan2(this.ball.position.z, this.ball.position.x)
         : 0;
 
-      // Ball executes counter-clockwise turns, ending at Math.PI / 2 (the exact landing angle)
-      let targetBallEnd = Math.PI / 2;
-      while (targetBallEnd < this.ballStartAngle + Math.PI * 2 * 5.5) {
+      // The ball lands in the winning pocket at p = 0.85 and rides inside the pocket from p = 0.85 to p = 1.0.
+      // Compute the exact world angle of the winning pocket at p = 0.85 so the landing is 100% seamless (zero jump):
+      this.landPhaseP = 0.85;
+      const easeAtLand = 1.0 - Math.pow(1.0 - this.landPhaseP, 3);
+      const rotorAtLand = this.wheelStartAngle + (this.wheelEndAngle - this.wheelStartAngle) * easeAtLand;
+      const pocketWorldAngleAtLand = pocketAngle - rotorAtLand;
+
+      let targetBallEnd = pocketWorldAngleAtLand;
+      while (targetBallEnd < this.ballStartAngle + Math.PI * 2 * 5.0) {
         targetBallEnd += Math.PI * 2;
       }
       this.ballEndAngle = targetBallEnd;
@@ -486,106 +496,76 @@
         }
 
         // Realistic Circular-Track Ball Trajectory with Varied Suspense Profiles
-        // Using polar/cylindrical coordinates so the ball strictly follows the circular bowl & pocket ring (never cutting across the center cone)
-        const baseBallAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeP;
-        const targetPocketWorldAngle = Math.atan2(targetWorldPos.z, targetWorldPos.x);
+        // From p = 0 to p = 0.85 (u = 0..1), the ball spins counter-clockwise and spirals smoothly into the exact world position
+        // of the winning pocket at p = 0.85. From p = 0.85 to p = 1.0, the ball rides inside the winning pocket as the wheel stops.
+        const landP = this.landPhaseP || 0.85;
         const sliceAngle = (Math.PI * 2) / 37;
         const profile = this.spinProfile || 'skim';
 
-        if (p < 0.54) {
-          // Phase 1: High-speed outer wood rim spin with subtle track vibration
-          const wobble = Math.sin(baseBallAngle * 6) * 0.004;
-          this.ball.position.set(
-            Math.cos(baseBallAngle) * 2.40,
-            0.45 + wobble,
-            Math.sin(baseBallAngle) * 2.40
-          );
-        } else if (p < 0.78) {
-          // Phase 2: Spiral descent down the angled walnut apron toward the pocket ring
-          const t2 = (p - 0.54) / 0.24;
-          const smoothT2 = t2 * t2 * (3 - 2 * t2);
-          let radius = 2.40 - (2.40 - 1.76) * smoothT2;
-          let height = 0.45 - (0.45 - 0.15) * smoothT2;
+        if (p < landP) {
+          const u = p / landP; // 0.0 -> 1.0 over the ball's active travel phase
+          const easeU = 1.0 - Math.pow(1.0 - u, 3);
+          const baseBallAngle = this.ballStartAngle + (this.ballEndAngle - this.ballStartAngle) * easeU;
 
-          // Deflector strike only on 'lively' or 'skim' profiles
-          if (profile === 'lively' && t2 >= 0.40 && t2 <= 0.72) {
-            const strikeP = (t2 - 0.40) / 0.32;
-            height += 0.085 * Math.sin(strikeP * Math.PI);
-            radius += 0.04 * Math.sin(strikeP * Math.PI * 2);
-          } else if (profile === 'skim' && t2 >= 0.50 && t2 <= 0.75) {
-            const strikeP = (t2 - 0.50) / 0.25;
-            height += 0.035 * Math.sin(strikeP * Math.PI);
-          }
-
-          this.ball.position.set(
-            Math.cos(baseBallAngle) * radius,
-            height,
-            Math.sin(baseBallAngle) * radius
-          );
-        } else if (p < 1.0) {
-          // Phase 3: Circular Pocket Ring Settle — follows the r=1.68 pocket circle with profile-specific suspense
-          const t3 = (p - 0.78) / 0.22;
-          const easeT3 = 1.0 - Math.pow(1.0 - t3, 2.6);
-
-          // Angular offset from the moving target pocket (in radians along the pocket circle)
-          let angleOffset = 0;
-          let bounceY = 0;
-          let radius = 1.76 - (1.76 - 1.68) * Math.min(1.0, t3 * 1.6);
-
-          if (profile === 'clean') {
-            // Smooth, tension-filled glide directly into the pocket without bouncing up
-            angleOffset = (1.0 - easeT3) * (sliceAngle * 1.6);
-            bounceY = 0.012 * Math.sin(t3 * Math.PI) * (1.0 - t3);
-          } else if (profile === 'skim') {
-            // Low rapid skim over 2 frets with a tiny final settle hop
-            angleOffset = (1.0 - easeT3) * (sliceAngle * 2.2);
-            if (t3 < 0.55) {
-              const h1 = t3 / 0.55;
-              bounceY = 0.045 * Math.sin(h1 * Math.PI);
-            } else {
-              const h2 = (t3 - 0.55) / 0.45;
-              bounceY = 0.018 * Math.sin(h2 * Math.PI) * (1.0 - h2);
-            }
-          } else if (profile === 'nearmiss') {
-            // Suspenseful near-miss: lingers on the neighboring pocket border, then tips over the fret into the winning pocket
-            if (t3 < 0.62) {
-              const n1 = t3 / 0.62;
-              angleOffset = sliceAngle * (1.15 - 0.35 * n1);
-              bounceY = 0.025 * Math.sin(n1 * Math.PI);
-            } else {
-              const n2 = (t3 - 0.62) / 0.38;
-              const smoothRoll = 1.0 - Math.pow(1.0 - n2, 2.2);
-              angleOffset = sliceAngle * 0.80 * (1.0 - smoothRoll);
-              bounceY = 0.032 * Math.sin(n2 * Math.PI);
-            }
+          if (u < 0.60) {
+            // Phase 1: High-speed outer wood rim spin with subtle track vibration that fades to 0 at u=0.60
+            const wobbleFade = 1.0 - (u / 0.60);
+            const wobble = Math.sin(baseBallAngle * 6) * 0.004 * wobbleFade;
+            this.ball.position.set(
+              Math.cos(baseBallAngle) * 2.40,
+              0.45 + wobble,
+              Math.sin(baseBallAngle) * 2.40
+            );
           } else {
-            // 'lively': classic double fret hop with realistic damping
-            angleOffset = (1.0 - easeT3) * (sliceAngle * 2.5);
-            if (t3 < 0.45) {
-              const h1 = t3 / 0.45;
-              bounceY = 0.095 * Math.sin(h1 * Math.PI);
-              radius += 0.03 * Math.sin(h1 * Math.PI);
-            } else if (t3 < 0.80) {
-              const h2 = (t3 - 0.45) / 0.35;
-              bounceY = 0.045 * Math.sin(h2 * Math.PI);
+            // Phase 2 & 3 combined: Single continuous spiral from rim (r=2.40, y=0.45) to exact pocket (r=1.68, y=0.12)
+            const v = (u - 0.60) / 0.40; // 0.0 -> 1.0
+            const smoothV = v * v * (3 - 2 * v);
+            const damping = (1.0 - v) * (1.0 - v); // strictly 0 at v=1.0 with zero derivative!
+
+            let radius = 2.40 - (2.40 - 1.68) * smoothV;
+            const baseHeight = 0.45 - (0.45 - 0.12) * smoothV;
+            let bounceY = 0;
+            let deltaAngle = 0;
+
+            if (profile === 'clean') {
+              // Smooth glide directly into the pocket
+              bounceY = 0.015 * Math.sin(v * Math.PI) * damping;
+            } else if (profile === 'skim') {
+              // Low skim over frets into the pocket
+              bounceY = 0.038 * Math.abs(Math.sin(v * Math.PI * 2)) * Math.sin(v * Math.PI) * (1.0 - v);
+              deltaAngle = Math.sin(v * Math.PI) * (sliceAngle * 0.35) * damping;
+            } else if (profile === 'nearmiss') {
+              // Soft roll across neighbor fret into winning pocket
+              bounceY = 0.028 * Math.sin(v * Math.PI * 2) * Math.sin(v * Math.PI);
+              deltaAngle = Math.sin(v * Math.PI * 2) * (sliceAngle * 0.40) * damping;
             } else {
-              const h3 = (t3 - 0.80) / 0.20;
-              bounceY = 0.015 * Math.sin(h3 * Math.PI * 2) * (1.0 - h3);
+              // 'lively': realistic damped fret hops that settle completely before v=1.0
+              bounceY = 0.068 * Math.abs(Math.sin(v * Math.PI * 2.5)) * Math.sin(v * Math.PI) * (1.0 - v);
+              radius += 0.022 * Math.sin(v * Math.PI * 2) * damping;
+              deltaAngle = Math.sin(v * Math.PI) * (sliceAngle * 0.45) * damping;
+            }
+
+            const currentAngle = baseBallAngle + deltaAngle;
+            this.ball.position.set(
+              Math.cos(currentAngle) * radius,
+              baseHeight + bounceY,
+              Math.sin(currentAngle) * radius
+            );
+
+            if (v > 0.65 && this.goldPointLight) {
+              this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
+              this.goldPointLight.intensity = 1.4 + v * 1.4;
+              this.goldPointLight.distance = 3.6;
             }
           }
+        } else if (p < 1.0) {
+          // Phase 4 (p = 0.85 .. 1.0): Ball is now seated inside the winning pocket and rides smoothly with the wheel!
+          this.ball.position.copy(targetWorldPos);
 
-          const currentAngle = targetPocketWorldAngle + angleOffset;
-          this.ball.position.set(
-            Math.cos(currentAngle) * radius,
-            0.12 + bounceY,
-            Math.sin(currentAngle) * radius
-          );
-
-          // Golden illumination on winning pocket at climax
-          if (t3 > 0.72 && this.goldPointLight) {
+          if (this.goldPointLight) {
             this.goldPointLight.position.set(targetWorldPos.x * 0.75, 0.85, targetWorldPos.z * 0.75);
-            this.goldPointLight.intensity = 1.5 + t3 * 1.5;
-            this.goldPointLight.distance = 3.6;
+            this.goldPointLight.intensity = 2.8;
+            this.goldPointLight.distance = 3.8;
           }
         } else {
           // Spin complete: lock ball directly into pocket with 100% precision

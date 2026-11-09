@@ -77,6 +77,8 @@
         btnPresetPot: document.getElementById('btn-preset-pot'),
         btnPresetAllin: document.getElementById('btn-preset-allin'),
         btnPeek: document.getElementById('btn-poker-peek'),
+        handStrengthBadge: document.getElementById('poker-hand-strength-badge'),
+        handStrengthText: document.getElementById('poker-hand-strength-text'),
         btnFold: document.getElementById('btn-poker-fold'),
         btnCheckCall: document.getElementById('btn-poker-check-call'),
         btnCheckCallText: document.getElementById('btn-poker-check-call-text'),
@@ -302,14 +304,26 @@
       }
       if (this.elements.btnRaise) {
         this.elements.btnRaise.addEventListener('click', () => {
-          const act = (this.currentTableState && this.currentTableState.currentBet > 0) ? 'raise' : 'bet';
-          this.handleAction(act, this.selectedRaiseAmount);
+          const mySeat = this.currentTableState && this.currentTableState.seats && this.currentTableState.seats[this.mySeatIndex];
+          const maxPossible = mySeat ? ((mySeat.currentBet || 0) + (mySeat.stack || 0)) : 0;
+          const minRaise = (this.currentTableState && this.currentTableState.minRaise) || 0;
+          if (maxPossible > 0 && (this.selectedRaiseAmount >= maxPossible || maxPossible < minRaise)) {
+            this.handleAction('allin', maxPossible);
+          } else {
+            const act = (this.currentTableState && this.currentTableState.currentBet > 0) ? 'raise' : 'bet';
+            this.handleAction(act, this.selectedRaiseAmount);
+          }
         });
       }
 
-      // Peek / Hide Cards Toggle Button
+      // Peek / Hide Cards Toggle Button & Private Hand Strength Badge
       if (this.elements.btnPeek) {
         this.elements.btnPeek.addEventListener('click', () => {
+          this.togglePeekRevealed();
+        });
+      }
+      if (this.elements.handStrengthBadge) {
+        this.elements.handStrengthBadge.addEventListener('click', () => {
           this.togglePeekRevealed();
         });
       }
@@ -768,6 +782,7 @@
     togglePeekRevealed() {
       this.isPeekRevealed = !this.isPeekRevealed;
       this.updatePeekButton();
+      this.updateHandStrengthBadge();
       if (this.mySeatIndex !== -1 && this.seatElements[this.mySeatIndex]) {
         const dock = this.seatElements[this.mySeatIndex].cardsDock;
         if (dock && this.privateHoleCards.length > 0) {
@@ -791,6 +806,177 @@
       const label = this.elements.btnPeek.querySelector('.action-btn-text');
       if (label) {
         label.textContent = isRevealed ? 'Verberg Kaarten' : 'Toon Kaarten';
+      }
+    }
+
+    /**
+     * Evaluates the hero's private hole cards combined with the current community cards
+     * and returns a clear Dutch hand strength description ("Punten" / Combination).
+     * @param {Array<Object>} holeCards
+     * @param {Array<Object>} communityCards
+     * @returns {{ rank: number, label: string }}
+     */
+    evaluateHeroHandStrength(holeCards = [], communityCards = []) {
+      const rankValMap = {
+        '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+        '10': 10, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
+      };
+      const singularNames = {
+        14: 'Aas', 13: 'Koning', 12: 'Vrouw', 11: 'Boer', 10: '10',
+        9: '9', 8: '8', 7: '7', 6: '6', 5: '5', 4: '4', 3: '3', 2: '2'
+      };
+      const pluralNames = {
+        14: 'Azen', 13: 'Koningen', 12: 'Vrouwen', 11: 'Boeren', 10: 'Tienen',
+        9: 'Negens', 8: 'Achten', 7: 'Zevens', 6: 'Zessen', 5: 'Vijven',
+        4: 'Vieren', 3: 'Drieën', 2: 'Tweeën'
+      };
+
+      const validHole = (holeCards || []).filter(c => c && !c.hidden && c.rank);
+      if (validHole.length < 2) {
+        return { rank: 0, label: 'Wachten op kaarten...' };
+      }
+
+      const normCard = (c) => {
+        const val = typeof c.value === 'number' ? c.value : (rankValMap[String(c.rank).toUpperCase()] || 2);
+        const rawSuit = String(c.suit || 'spades').toLowerCase();
+        const suit = rawSuit.endsWith('s') ? rawSuit : (rawSuit + 's');
+        return { value: val, suit };
+      };
+
+      const hCards = validHole.map(normCard);
+      const cCards = (communityCards || []).filter(c => c && !c.hidden && c.rank).map(normCard);
+      const allCards = [...hCards, ...cCards];
+
+      // Pre-Flop (fewer than 5 total cards)
+      if (allCards.length < 5) {
+        const v1 = hCards[0].value;
+        const v2 = hCards[1].value;
+        const high = Math.max(v1, v2);
+        const low = Math.min(v1, v2);
+        if (v1 === v2) {
+          return { rank: 2, label: `Paar van ${pluralNames[v1]}` };
+        }
+        const suited = hCards[0].suit === hCards[1].suit ? ' (Suited)' : '';
+        return { rank: 1, label: `Hoogste: ${singularNames[high]} & ${singularNames[low]}${suited}` };
+      }
+
+      // Evaluate a 5-card combination
+      const eval5 = (five) => {
+        const vals = five.map(c => c.value).sort((a, b) => b - a);
+        const isFlush = five.every(c => c.suit === five[0].suit);
+        const uniq = [...new Set(vals)];
+        let straightHigh = 0;
+        if (uniq.length === 5) {
+          if (uniq[0] - uniq[4] === 4) {
+            straightHigh = uniq[0];
+          } else if (uniq[0] === 14 && uniq[1] === 5 && uniq[2] === 4 && uniq[3] === 3 && uniq[4] === 2) {
+            straightHigh = 5;
+          }
+        }
+
+        const counts = new Map();
+        for (const v of vals) counts.set(v, (counts.get(v) || 0) + 1);
+        const groups = Array.from(counts.entries())
+          .map(([val, count]) => ({ val, count }))
+          .sort((a, b) => b.count - a.count || b.val - a.val);
+
+        if (isFlush && straightHigh > 0) {
+          if (straightHigh === 14) {
+            return { vec: [10, 14], label: 'Royal Flush!' };
+          }
+          return { vec: [9, straightHigh], label: `Straight Flush (${singularNames[straightHigh]} hoog)` };
+        }
+        if (groups[0].count === 4) {
+          return { vec: [8, groups[0].val, groups[1].val], label: `Carré (Vier ${pluralNames[groups[0].val]})` };
+        }
+        if (groups[0].count === 3 && groups[1].count === 2) {
+          return {
+            vec: [7, groups[0].val, groups[1].val],
+            label: `Full House (${pluralNames[groups[0].val]} & ${pluralNames[groups[1].val]})`
+          };
+        }
+        if (isFlush) {
+          return { vec: [6, ...vals], label: `Flush (${singularNames[vals[0]]} hoog)` };
+        }
+        if (straightHigh > 0) {
+          return { vec: [5, straightHigh], label: `Straat (${singularNames[straightHigh]} hoog)` };
+        }
+        if (groups[0].count === 3) {
+          return {
+            vec: [4, groups[0].val, groups[1].val, groups[2].val],
+            label: `Three of a Kind (Drie ${pluralNames[groups[0].val]})`
+          };
+        }
+        if (groups[0].count === 2 && groups[1].count === 2) {
+          const highP = Math.max(groups[0].val, groups[1].val);
+          const lowP = Math.min(groups[0].val, groups[1].val);
+          return {
+            vec: [3, highP, lowP, groups[2].val],
+            label: `Twee Paar (${pluralNames[highP]} & ${pluralNames[lowP]})`
+          };
+        }
+        if (groups[0].count === 2) {
+          return {
+            vec: [2, groups[0].val, groups[1].val, groups[2].val, groups[3].val],
+            label: `Één Paar (${pluralNames[groups[0].val]})`
+          };
+        }
+        return { vec: [1, ...vals], label: `Hoogste Kaart (${singularNames[vals[0]]} hoog)` };
+      };
+
+      const cmpVec = (a, b) => {
+        const len = Math.max(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+          const d = (a[i] || 0) - (b[i] || 0);
+          if (d !== 0) return d;
+        }
+        return 0;
+      };
+
+      let best = null;
+      const n = allCards.length;
+      for (let i = 0; i < n - 4; i++) {
+        for (let j = i + 1; j < n - 3; j++) {
+          for (let k = j + 1; k < n - 2; k++) {
+            for (let l = k + 1; l < n - 1; l++) {
+              for (let m = l + 1; m < n; m++) {
+                const candidate = eval5([allCards[i], allCards[j], allCards[k], allCards[l], allCards[m]]);
+                if (!best || cmpVec(candidate.vec, best.vec) > 0) {
+                  best = candidate;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return best ? { rank: best.vec[0], label: best.label } : { rank: 1, label: 'Hoogste Kaart' };
+    }
+
+    /**
+     * Updates the private hero hand strength badge in the controls bar.
+     */
+    updateHandStrengthBadge() {
+      if (!this.elements.handStrengthBadge || !this.elements.handStrengthText) return;
+      const isSeated = this.mySeatIndex !== -1;
+      const mySeat = isSeated && this.currentTableState && this.currentTableState.seats && this.currentTableState.seats[this.mySeatIndex];
+      const hasHoleCards = isSeated && Array.isArray(this.privateHoleCards) && this.privateHoleCards.length >= 2 && !(mySeat && mySeat.folded);
+
+      if (!hasHoleCards) {
+        this.elements.handStrengthBadge.classList.add('hidden');
+        return;
+      }
+
+      this.elements.handStrengthBadge.classList.remove('hidden');
+
+      if (!this.isPeekRevealed) {
+        this.elements.handStrengthBadge.classList.add('is-hidden-cards');
+        this.elements.handStrengthText.textContent = 'Verborgen (Klik op Toon)';
+      } else {
+        this.elements.handStrengthBadge.classList.remove('is-hidden-cards');
+        const commCards = (this.currentTableState && this.currentTableState.communityCards) || [];
+        const evaluated = this.evaluateHeroHandStrength(this.privateHoleCards, commCards);
+        this.elements.handStrengthText.textContent = evaluated.label;
       }
     }
 
@@ -854,11 +1040,12 @@
       const activeSeatIdx = state.activeTurn ? state.activeTurn.seatIndex : -1;
       const isMyTurn = isSeated && mySeat && !mySeat.folded && !mySeat.isAllIn && activeSeatIdx === this.mySeatIndex;
 
-      // Update Peek Toggle Button
+      // Update Peek Toggle Button & Private Hand Strength Badge
       if (this.elements.btnPeek) {
         this.elements.btnPeek.disabled = !isSeated;
         this.updatePeekButton();
       }
+      this.updateHandStrengthBadge();
 
       // Start/Stop Turn Countdown Timer
       if (isMyTurn && state.turnTimeLeft !== undefined) {
@@ -917,7 +1104,7 @@
       }
 
       // 3. Bet / Raise Button & Sizing
-      const canRaise = heroStack > toCall;
+      const canRaise = heroStack > toCall && !mySeat.hasActedThisRound;
       if (this.elements.btnRaise) {
         this.elements.btnRaise.disabled = !canRaise;
       }
@@ -1006,12 +1193,15 @@
           break;
       }
 
-      // Clamp between min and max
-      target = Math.max(minRaise, Math.min(target, maxPossible));
-      // Round to step
+      // Clamp between minSize and maxPossible (never exceed maxPossible!)
+      const minSize = Math.min(currentBet === 0 ? bb : minRaise, maxPossible);
+      target = Math.max(minSize, Math.min(target, maxPossible));
+      // Round to step if below all-in
       const step = state.smallBlindAmount || 50;
-      target = Math.round(target / step) * step;
-      target = Math.max(minRaise, Math.min(target, maxPossible));
+      if (target < maxPossible) {
+        target = Math.round(target / step) * step;
+      }
+      target = Math.max(minSize, Math.min(target, maxPossible));
 
       this.selectedRaiseAmount = target;
       if (this.elements.raiseSlider) this.elements.raiseSlider.value = target;
@@ -1471,9 +1661,20 @@
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       const cards = data.cards || data.holeCards;
       if (Array.isArray(cards) && cards.length > 0) {
+        const isSameHandCards = Array.isArray(this.privateHoleCards) &&
+          this.privateHoleCards.length === cards.length &&
+          this.privateHoleCards[0] && cards[0] &&
+          this.privateHoleCards[0].rank === cards[0].rank &&
+          this.privateHoleCards[0].suit === cards[0].suit &&
+          this.privateHoleCards[1] && cards[1] &&
+          this.privateHoleCards[1].rank === cards[1].rank &&
+          this.privateHoleCards[1].suit === cards[1].suit;
         this.privateHoleCards = cards;
-        this.isPeekRevealed = false;
+        if (!isSameHandCards) {
+          this.isPeekRevealed = false;
+        }
         this.updatePeekButton();
+        this.updateHandStrengthBadge();
         if (this.mySeatIndex !== -1 && this.seatElements[this.mySeatIndex]) {
           const dock = this.seatElements[this.mySeatIndex].cardsDock;
           if (dock) {
@@ -1487,7 +1688,11 @@
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       const allCards = data.allCommunityCards || data.communityCards;
       if (Array.isArray(allCards)) {
+        if (this.currentTableState) {
+          this.currentTableState.communityCards = allCards;
+        }
         this.renderCommunityCards(allCards);
+        this.updateHandStrengthBadge();
       }
     }
 
@@ -1525,6 +1730,12 @@
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       if (this.currentTableState) {
         this.currentTableState.currentPhase = data.phase;
+        if (Array.isArray(data.communityCards)) {
+          this.currentTableState.communityCards = data.communityCards;
+        }
+        if (typeof data.pot === 'number') {
+          this.currentTableState.pot = data.pot;
+        }
         this.renderTable(this.currentTableState);
       }
     }
@@ -1577,6 +1788,11 @@
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       this.privateHoleCards = [];
       this.stopTurnTimer();
+      this.updateHandStrengthBadge();
+
+      if (Array.isArray(data.showdownHands) && data.showdownHands.length > 0) {
+        this.onShowdown(data);
+      }
 
       // Display Winners Banner & Shimmer
       const winners = data.winners || (data.potsSettled && data.potsSettled[0] && data.potsSettled[0].winners);

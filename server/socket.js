@@ -447,7 +447,6 @@ function setupSocket(httpServer, options = {}) {
 
     function broadcastPokerState(table) {
       const publicState = table.getTableState(null);
-      io.to('table:' + table.tableId).emit('poker_table_state', publicState);
       io.emit('poker_table_state', publicState);
 
       for (const seat of table.seats) {
@@ -697,6 +696,16 @@ function setupSocket(httpServer, options = {}) {
         if (seat && seat.player) {
           seat.player.connected = true;
           seat.player.socketId = socket.id;
+          socket.join('table:' + tbl.tableId);
+          socket.emit('poker_table_state', tbl.getTableState(player.id));
+          if (seat.cards && seat.cards.length > 0) {
+            socket.emit('poker_hole_cards', {
+              tableId: tbl.tableId,
+              seatIndex: seat.seatIndex,
+              cards: seat.cards,
+              holeCards: seat.cards
+            });
+          }
         }
       }
 
@@ -805,6 +814,16 @@ function setupSocket(httpServer, options = {}) {
         if (seat && seat.player) {
           seat.player.connected = true;
           seat.player.socketId = socket.id;
+          socket.join('table:' + tbl.tableId);
+          socket.emit('poker_table_state', tbl.getTableState(player.id));
+          if (seat.cards && seat.cards.length > 0) {
+            socket.emit('poker_hole_cards', {
+              tableId: tbl.tableId,
+              seatIndex: seat.seatIndex,
+              cards: seat.cards,
+              holeCards: seat.cards
+            });
+          }
         }
       }
 
@@ -1721,7 +1740,7 @@ function setupSocket(httpServer, options = {}) {
       // Update presence
       playerManager.setPlayerPresence(player.id, 'POKER', seatIndex);
 
-      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('chips_update', { chips: player.chips, tableStack: res.stack });
       socket.emit('poker_seat_accepted', {
         tableId: table.tableId,
         seatIndex,
@@ -1806,7 +1825,7 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      socket.emit('chips_update', { chips: player.chips });
+      socket.emit('chips_update', { chips: player.chips, tableStack: (res.stack || 0) + (res.pendingRebuy || 0) });
       socket.emit('poker_rebuy_success', {
         tableId: table.tableId,
         seatIndex,

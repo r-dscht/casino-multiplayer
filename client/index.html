@@ -716,7 +716,7 @@
               </div>
             </div>
 
-            <!-- Action Buttons: Fold, Check/Call, Bet/Raise, Peek Toggle -->
+            <!-- Action Buttons: Fold, Check/Call, Bet/Raise, Peek Toggle & Private Hand Strength -->
             <div class="poker-action-buttons-row">
               <button type="button" class="btn btn-action btn-poker-peek" id="btn-poker-peek" aria-pressed="false" title="Toon / Verberg Kaarten (P)">
                 <svg class="poker-peek-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -724,6 +724,10 @@
                 </svg>
                 <span class="action-btn-text" id="poker-peek-btn-text">Toon Kaarten</span>
               </button>
+              <div class="poker-hand-strength-badge hidden" id="poker-hand-strength-badge" title="Jouw huidige beste pokerhand met de kaarten op tafel (Alleen voor jou zichtbaar)">
+                <span class="hand-strength-label">JOUW HAND (PRIVÉ)</span>
+                <span class="hand-strength-value" id="poker-hand-strength-text">Kaarten verborgen</span>
+              </div>
               <button type="button" class="btn btn-action btn-poker-fold" id="btn-poker-fold" disabled>
                 <span class="action-btn-text">FOLD (Pas)</span>
               </button>
