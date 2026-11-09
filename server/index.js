@@ -12,10 +12,13 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer(app);
-const { engine, blackjackTables, pokerTables, playerManager } = setupSocket(server);
+const { engine, blackjackTables, pokerTables, crashEngine, playerManager } = setupSocket(server);
 
 // Start game loop engines
 engine.start();
+if (crashEngine) {
+  crashEngine.start();
+}
 for (const tbl of blackjackTables.values()) {
   tbl.start();
 }
@@ -64,6 +67,11 @@ function shutdown() {
     } catch (e) {}
   }
   engine.stop();
+  if (crashEngine) {
+    try {
+      crashEngine.stop();
+    } catch (e) {}
+  }
   for (const tbl of blackjackTables.values()) {
     try {
       tbl.stop();

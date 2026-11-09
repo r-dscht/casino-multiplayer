@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
       }
     }
+    if (crash && typeof crash.hasActiveBet === 'function' && crash.hasActiveBet()) {
+      return true;
+    }
     return false;
   }
 
@@ -99,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
         roomTable = currentBjTableId;
       } else if (currentActiveGame === 'Poker') {
         roomTable = (poker && poker.currentTableId) || 'poker_1';
+      } else if (currentActiveGame === 'Crash') {
+        roomTable = 'crash';
       }
       network.sendChat(text, scope, roomTable);
     },
@@ -130,6 +135,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof CasinoPoker !== 'undefined') {
     poker = new CasinoPoker({ network, ui });
     poker.init();
+  }
+
+  // 5c. Initialize Multiplayer Velocity Crash Controller
+  let crash = null;
+  if (typeof CasinoCrash !== 'undefined') {
+    crash = new CasinoCrash({ network, ui });
+    crash.init();
   }
 
   // 6. Connect Socket Network
@@ -519,6 +531,16 @@ document.addEventListener('DOMContentLoaded', () => {
           ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
         }
         ui.showToast('Je speelt nu Texas Hold\'em Poker', 'info');
+      } else if (game === 'crash') {
+        currentActiveGame = 'Crash';
+        ui.switchGameView('crash');
+        network.setGamePresence('CRASH');
+        network.crashJoinTable();
+        ui.switchChatScope('table');
+        if (crash) {
+          ui.updatePhase(crash.phase === 'RUNNING' ? 'SPINNING' : (crash.phase === 'CRASHED' ? 'PAYOUT' : 'BETTING'), crash.duration || 8, crash.timeLeft || 0);
+        }
+        ui.showToast('Je speelt nu Velocity Crash', 'info');
       } else {
         ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
       }
@@ -1224,6 +1246,13 @@ document.addEventListener('DOMContentLoaded', () => {
           poker.renderTable(poker.currentTableState);
         } else {
           ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+        }
+      } else if (data.game === 'Crash') {
+        currentActiveGame = 'Crash';
+        ui.switchGameView('crash');
+        ui.switchChatScope('table');
+        if (crash) {
+          ui.updatePhase(crash.phase === 'RUNNING' ? 'SPINNING' : (crash.phase === 'CRASHED' ? 'PAYOUT' : 'BETTING'), crash.duration || 8, crash.timeLeft || 0);
         }
       }
     }

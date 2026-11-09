@@ -613,6 +613,71 @@
       this.socket.on('poker_stack_update', (data) => {
         this.emitInternal('poker_stack_update', data);
       });
+
+      // Multiplayer Velocity Crash Protocol Events
+      this.socket.on('crash_table_state', (data) => {
+        this.emitInternal('crash_table_state', data);
+      });
+
+      this.socket.on('crash_phase_tick', (data) => {
+        this.emitInternal('crash_phase_tick', data);
+      });
+
+      this.socket.on('crash_tick', (data) => {
+        this.emitInternal('crash_tick', data);
+      });
+
+      this.socket.on('crash_phase_change', (data) => {
+        this.emitInternal('crash_phase_change', data);
+      });
+
+      this.socket.on('crash_bet_placed', (data) => {
+        this.emitInternal('crash_bet_placed', data);
+      });
+
+      this.socket.on('crash_bet_accepted', (data) => {
+        if (data && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips });
+        }
+        this.emitInternal('crash_bet_accepted', data);
+      });
+
+      this.socket.on('crash_bet_cancelled', (data) => {
+        this.emitInternal('crash_bet_cancelled', data);
+      });
+
+      this.socket.on('crash_bet_cancelled_self', (data) => {
+        if (data && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips });
+        }
+        this.emitInternal('crash_bet_cancelled_self', data);
+      });
+
+      this.socket.on('crash_bet_rejected', (data) => {
+        this.emitInternal('crash_bet_rejected', data);
+      });
+
+      this.socket.on('crash_player_cashed_out', (data) => {
+        if (data && data.playerId === this.myPlayerId && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips, stats: data.stats });
+        }
+        this.emitInternal('crash_player_cashed_out', data);
+      });
+
+      this.socket.on('crash_cashout_success', (data) => {
+        if (data && typeof data.remainingChips === 'number') {
+          this.saveClientBackup({ chips: data.remainingChips, stats: data.stats });
+        }
+        this.emitInternal('crash_cashout_success', data);
+      });
+
+      this.socket.on('crash_cashout_rejected', (data) => {
+        this.emitInternal('crash_cashout_rejected', data);
+      });
+
+      this.socket.on('crash_round_crashed', (data) => {
+        this.emitInternal('crash_round_crashed', data);
+      });
     }
 
     /**
@@ -1071,6 +1136,39 @@
      */
     pokerRebuy(arg1, arg2 = 0, arg3 = 'poker_1') {
       this.pokerBuyIn(arg1, arg2, arg3);
+    }
+
+    /**
+     * Requests latest Crash table state snapshot.
+     */
+    crashJoinTable() {
+      if (!this.socket) return;
+      this.socket.emit('crash_join_table', {});
+    }
+
+    /**
+     * Places or increases bet on Crash during BETTING phase.
+     * @param {{ amount: number, autoCashout?: number|null }} payload
+     */
+    crashPlaceBet(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('crash_place_bet', payload);
+    }
+
+    /**
+     * Cancels active bet on Crash during BETTING phase.
+     */
+    crashCancelBet() {
+      if (!this.socket) return;
+      this.socket.emit('crash_cancel_bet', {});
+    }
+
+    /**
+     * Manually cashes out active Crash bet during RUNNING phase.
+     */
+    crashCashOut() {
+      if (!this.socket) return;
+      this.socket.emit('crash_cash_out', {});
     }
   }
 

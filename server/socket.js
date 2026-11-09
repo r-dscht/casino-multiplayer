@@ -11,6 +11,7 @@ const RouletteEngine = require('./game/rouletteEngine');
 const BankManager = require('./game/bankManager');
 const BlackjackEngine = require('./game/blackjackEngine');
 const PokerEngine = require('./game/pokerEngine');
+const CrashEngine = require('./game/crashEngine');
 
 /**
  * Escapes HTML characters to prevent XSS.
@@ -37,7 +38,7 @@ function sanitizeHtml(str) {
  * @param {Object} [pokerEngine=null] 
  * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, reason?: string, message?: string }}
  */
-function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null) {
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null) {
   if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
     return {
       allowed: false,
@@ -99,6 +100,16 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
         }
       }
     }
+  }
+  if (crashEngine && typeof crashEngine.hasActiveBets === 'function' && crashEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Crash',
+      amount: typeof crashEngine.getActiveBetTotal === 'function' ? crashEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je hebt een actieve inzet op Crash. Cash eerst uit of wacht tot de ronde eindigt.',
+      message: 'Active bet present on Crash.'
+    };
   }
   return { allowed: true };
 }
@@ -185,6 +196,11 @@ function setupSocket(httpServer, options = {}) {
     }
   }
 
+  const crashEngine = new CrashEngine(playerManager, { bankManager });
+  if (options && options.autoStartCrash === true) {
+    crashEngine.start();
+  }
+
   function getPokerTable(tableId) {
     if (tableId && pokerTables.has(tableId)) {
       return pokerTables.get(tableId);
@@ -226,6 +242,16 @@ function setupSocket(httpServer, options = {}) {
           message: 'Active hand in progress on Poker table.'
         };
       }
+    }
+    if (crashEngine && typeof crashEngine.hasActiveBets === 'function' && crashEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Crash',
+        amount: typeof crashEngine.getActiveBetTotal === 'function' ? crashEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actieve inzet op Crash. Cash eerst uit of wacht tot de ronde eindigt.',
+        message: 'Active bet present on Crash.'
+      };
     }
     return { allowed: true };
   }
@@ -564,6 +590,99 @@ function setupSocket(httpServer, options = {}) {
     hookPokerEvents(tbl);
   }
 
+  // Hook CrashEngine events to socket broadcasts
+  crashEngine.on('phase_tick', (data) => {
+    io.emit('crash_phase_tick', data);
+  });
+
+  crashEngine.on('tick', (data) => {
+    io.emit('crash_tick', data);
+  });
+
+  crashEngine.on('phase_change', (data) => {
+    io.emit('crash_phase_change', data);
+    if (data && data.phase === 'BETTING') {
+      broadcastPlayersUpdate();
+    }
+  });
+
+  crashEngine.on('bet_placed', (data) => {
+    io.emit('crash_bet_placed', data);
+    broadcastPlayersUpdate();
+  });
+
+  crashEngine.on('bet_cancelled', (data) => {
+    io.emit('crash_bet_cancelled', data);
+    broadcastPlayersUpdate();
+  });
+
+  crashEngine.on('player_cashed_out', (data) => {
+    io.emit('crash_player_cashed_out', data);
+    broadcastPlayersUpdate();
+
+    const p = playerManager.getPlayerById(data.playerId);
+    if (p && p.socketId) {
+      io.to(p.socketId).emit('chips_update', { chips: p.chips });
+    }
+
+    // Announce in Crash Table Chat
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: `[CRASH] ${data.playerName} casht uit op ${data.cashoutMultiplier.toFixed(2)}x en wint ${data.payout.toLocaleString()} fiches (+${data.profit.toLocaleString()} netto)!`,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'crash'
+    });
+
+    // Big wins also announced to Global Casino Chat
+    if (data.cashoutMultiplier >= 3.0 || data.profit >= 1000) {
+      const isGrand = data.cashoutMultiplier >= 10.0 || data.profit >= 5000;
+      broadcastChatMessage({
+        sender: 'CASINO',
+        color: '#d4af37',
+        text: isGrand
+          ? `[GRAND WIN] ${data.playerName} casht uit op ${data.cashoutMultiplier.toFixed(2)}x bij Crash (+${data.profit.toLocaleString()} fiches)!`
+          : `[CRASH] ${data.playerName} casht uit op ${data.cashoutMultiplier.toFixed(2)}x bij Crash (+${data.profit.toLocaleString()} fiches)!`,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'global',
+        table: 'all'
+      });
+    }
+
+    if (Array.isArray(data.repayments) && data.repayments.length > 0) {
+      data.repayments.forEach((rep) => {
+        broadcastChatMessage({
+          sender: 'BANK',
+          color: '#10b981',
+          text: `[BANK] ${data.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'table',
+          table: 'crash'
+        });
+
+        const lender = playerManager.getPlayerById(rep.lenderId);
+        if (lender && lender.socketId) {
+          io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
+          io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+        }
+        const borrower = playerManager.getPlayerById(data.playerId);
+        if (borrower && borrower.socketId) {
+          io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
+          io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+        }
+      });
+    }
+  });
+
+  crashEngine.on('round_crashed', (data) => {
+    io.emit('crash_round_crashed', data);
+    broadcastPlayersUpdate();
+  });
+
   // Hook engine events to socket broadcasts
   engine.on('tick', (data) => {
     io.emit('phase_tick', data);
@@ -733,6 +852,7 @@ function setupSocket(httpServer, options = {}) {
         ...tableState,
         chatHistory: [...chatHistory]
       });
+      socket.emit('crash_table_state', crashEngine.getTableState());
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
@@ -851,6 +971,7 @@ function setupSocket(httpServer, options = {}) {
         ...tableState,
         chatHistory: [...chatHistory]
       });
+      socket.emit('crash_table_state', crashEngine.getTableState());
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
@@ -1882,6 +2003,91 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('poker_action_success', { tableId: table.tableId, seatIndex, action, amount });
     });
 
+    // 8b. Multiplayer Crash Protocol
+    socket.on('crash_join_table', () => {
+      socket.emit('crash_table_state', crashEngine.getTableState());
+    });
+
+    socket.on('crash_place_bet', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('crash_bet_rejected', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Log eerst in om in te zetten.'
+        });
+        return;
+      }
+
+      const res = crashEngine.placeBet(player.id, payload);
+      if (!res.success) {
+        socket.emit('crash_bet_rejected', {
+          code: res.code,
+          reason: res.reason
+        });
+        return;
+      }
+
+      socket.emit('crash_bet_accepted', {
+        roundId: crashEngine.roundId,
+        bet: res.bet,
+        remainingChips: res.remainingChips,
+        totalPot: res.totalPot
+      });
+      socket.emit('chips_update', { chips: res.remainingChips });
+    });
+
+    socket.on('crash_cancel_bet', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+
+      const res = crashEngine.cancelBet(player.id);
+      if (!res.success) {
+        socket.emit('crash_bet_rejected', {
+          code: res.code,
+          reason: res.reason
+        });
+        return;
+      }
+
+      socket.emit('crash_bet_cancelled_self', {
+        roundId: crashEngine.roundId,
+        refunded: res.refunded,
+        remainingChips: res.remainingChips,
+        totalPot: res.totalPot
+      });
+      socket.emit('chips_update', { chips: res.remainingChips });
+    });
+
+    socket.on('crash_cash_out', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('crash_cashout_rejected', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Speler niet gevonden.'
+        });
+        return;
+      }
+
+      const res = crashEngine.cashOut(player.id);
+      if (!res.success) {
+        socket.emit('crash_cashout_rejected', {
+          code: res.code,
+          reason: res.reason
+        });
+        return;
+      }
+
+      socket.emit('crash_cashout_success', {
+        roundId: res.roundId,
+        cashoutMultiplier: res.cashoutMultiplier,
+        payout: res.payout,
+        profit: res.profit,
+        remainingChips: res.remainingChips,
+        stats: res.stats
+      });
+      socket.emit('chips_update', { chips: res.remainingChips });
+    });
+
     // 9. disconnect
     socket.on('disconnect', () => {
       const player = playerManager.disconnectPlayer(socket.id);
@@ -1945,10 +2151,12 @@ function setupSocket(httpServer, options = {}) {
     blackjackTables,
     pokerEngine: defaultPokerEngine,
     pokerTables,
+    crashEngine,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
     stop: () => {
       engine.stop();
+      crashEngine.stop();
       for (const tbl of blackjackTables.values()) {
         tbl.stop();
       }

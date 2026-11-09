@@ -142,9 +142,11 @@
         viewRoulette: document.getElementById('roulette-view'),
         viewBlackjack: document.getElementById('blackjack-view'),
         viewPoker: document.getElementById('poker-view'),
+        viewCrash: document.getElementById('crash-view'),
         pillRoulette: document.getElementById('pill-roulette'),
         pillBlackjack: document.getElementById('pill-blackjack'),
         pillPoker: document.getElementById('pill-poker'),
+        pillCrash: document.getElementById('pill-crash'),
         pokerFeltStage: document.getElementById('poker-felt-stage'),
         pokerBuyinModal: document.getElementById('poker-buyin-modal'),
         gamePills: document.querySelectorAll('.game-pill'),
@@ -1241,6 +1243,8 @@
       const curTable = this.currentTableId || 'roulette';
       if (curTable === 'roulette') {
         this.elements.labelChatTable.textContent = 'Roulette Chat';
+      } else if (curTable === 'crash') {
+        this.elements.labelChatTable.textContent = 'Crash Chat';
       } else if (curTable === 'poker_2') {
         this.elements.labelChatTable.textContent = 'Poker Tafel 2';
       } else if (curTable.startsWith('poker')) {
@@ -1263,6 +1267,8 @@
         const curTable = this.currentTableId || 'roulette';
         if (curTable === 'roulette') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Roulette Chat...';
+        } else if (curTable === 'crash') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Crash Chat...';
         } else if (curTable === 'poker_2') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Poker Tafel 2...';
         } else if (curTable.startsWith('poker')) {
@@ -1293,6 +1299,7 @@
             itemTable === curTable ||
             (curTable.startsWith('table_') && itemTable === 'blackjack') ||
             (curTable.startsWith('poker') && (itemTable === 'poker' || itemTable === curTable)) ||
+            (curTable === 'crash' && itemTable === 'crash') ||
             (curTable === 'roulette' && itemTable === 'roulette')
           );
           item.style.display = matches ? '' : 'none';
@@ -1407,6 +1414,7 @@
           itemTable === curTable ||
           (curTable.startsWith('table_') && itemTable === 'blackjack') ||
           (curTable.startsWith('poker') && (itemTable === 'poker' || itemTable === curTable)) ||
+          (curTable === 'crash' && itemTable === 'crash') ||
           (curTable === 'roulette' && itemTable === 'roulette')
         );
         if (!isVisibleInCurrentTable) {
@@ -1421,6 +1429,7 @@
         // Clean typography categories formatting (Strict Zero Emojis)
         const text = this.decodeHtmlEntities(String(msg.text || ''));
         const categories = [
+          { prefix: '[CRASH]', className: 'tag-grand-win' },
           { prefix: '[POKER]', className: 'tag-poker' },
           { prefix: '[BLACKJACK]', className: 'tag-blackjack' },
           { prefix: '[GRAND WIN]', className: 'tag-grand-win' },
@@ -2173,9 +2182,12 @@
       const isRoulette = g === 'roulette';
       const isBlackjack = g === 'blackjack';
       const isPoker = g === 'poker';
+      const isCrash = g === 'crash';
 
       if (isRoulette) {
         this.currentTableId = 'roulette';
+      } else if (isCrash) {
+        this.currentTableId = 'crash';
       } else if (isPoker) {
         this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('poker_') ? this.currentTableId : 'poker_1');
       } else {
@@ -2194,6 +2206,10 @@
         this.elements.viewPoker.classList.toggle('active', isPoker);
         this.elements.viewPoker.classList.toggle('hidden', !isPoker);
       }
+      if (this.elements.viewCrash) {
+        this.elements.viewCrash.classList.toggle('active', isCrash);
+        this.elements.viewCrash.classList.toggle('hidden', !isCrash);
+      }
 
       if (this.elements.pillRoulette) {
         this.elements.pillRoulette.classList.toggle('active', isRoulette);
@@ -2203,6 +2219,9 @@
       }
       if (this.elements.pillPoker) {
         this.elements.pillPoker.classList.toggle('active', isPoker);
+      }
+      if (this.elements.pillCrash) {
+        this.elements.pillCrash.classList.toggle('active', isCrash);
       }
 
       if (this.elements.historyStrip) {
