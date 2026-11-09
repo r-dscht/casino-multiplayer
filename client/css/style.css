@@ -1857,6 +1857,232 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   cursor: pointer;
 }
 
+.tab-badge.badge-emerald {
+  background: #10b981;
+  color: #052e16;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  margin-left: 4px;
+}
+
+/* ==========================================================================
+   Rad van Fortuin (15-Minute Monte Carlo Lucky Wheel)
+   ========================================================================== */
+
+.wheel-fortune-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.wheel-status-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(6, 22, 15, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  box-sizing: border-box;
+}
+
+.wheel-status-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wheel-status-caption {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--gold-primary);
+  text-transform: uppercase;
+}
+
+.wheel-status-main {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.wheel-timer-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.wheel-timer-pill.ready {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+}
+
+.wheel-timer-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.wheel-timer-val {
+  font-family: var(--font-serif);
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+  letter-spacing: 0.04em;
+}
+
+.wheel-timer-pill.ready .wheel-timer-val {
+  color: #6ee7b7;
+}
+
+.wheel-stage-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 16px;
+  margin: 2px 0;
+}
+
+.wheel-pointer-crest {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.75));
+  transform-origin: 50% 10px;
+}
+
+.wheel-pointer-crest.pointer-ticking {
+  animation: wheelPointerTick 0.24s ease-in-out 14;
+}
+
+@keyframes wheelPointerTick {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  45% { transform: translateX(-50%) rotate(-14deg); }
+}
+
+.wheel-Disc-frame {
+  position: relative;
+  width: 290px;
+  height: 290px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), 0 0 22px rgba(212, 175, 55, 0.2);
+}
+
+.wheel-rotor {
+  width: 290px;
+  height: 290px;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.wheel-center-hub {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #114b34 0%, #05160f 85%);
+  border: 2.5px solid var(--gold-primary);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.8), inset 0 0 8px rgba(212, 175, 55, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.wheel-hub-monogram {
+  font-family: var(--font-serif);
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: var(--gold-bright);
+  letter-spacing: 0.05em;
+}
+
+.wheel-result-banner {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(212, 175, 55, 0.24) 100%);
+  border: 1px solid var(--gold-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.25);
+}
+
+.wheel-result-title {
+  font-family: var(--font-serif);
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #fde68a;
+  letter-spacing: 0.06em;
+}
+
+.wheel-result-amount {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #6ee7b7;
+}
+
+.wheel-spin-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.wheel-prize-legend {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.legend-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(6, 20, 14, 0.78);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legend-item.legend-jackpot {
+  border-color: rgba(212, 175, 55, 0.55);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.14) 0%, rgba(6, 20, 14, 0.85) 100%);
+}
+
+.legend-tier {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.legend-val {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
 /* ==========================================================================
    Casino Noodfonds (Bailout Vault Card)
    ========================================================================== */

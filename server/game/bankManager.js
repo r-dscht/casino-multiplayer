@@ -7,10 +7,35 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const BAILOUT_AMOUNT = 100;
 const BAILOUT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 const BAILOUT_THRESHOLD = 10; // Balance must be < 10 chips
+
+const WHEEL_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes (900,000 ms)
+
+/**
+ * 12 physical segments on the Monte Carlo Rad van Fortuin (30° per slice).
+ * Every slice guarantees a positive chip payout (minimum 250 chips, zero "0" slices).
+ * Total weight = 1000; Expected Value (EV) = 1,815 chips per spin.
+ */
+const WHEEL_SEGMENTS = [
+  { index: 0, amount: 50000, label: '50.000', tier: 'jackpot', weight: 5, color: '#d4af37', textColor: '#071a12' },
+  { index: 1, amount: 250, label: '250', tier: 'standard', weight: 120, color: '#0a2e20', textColor: '#f8fafc' },
+  { index: 2, amount: 1500, label: '1.500', tier: 'medium', weight: 90, color: '#114b34', textColor: '#fde68a' },
+  { index: 3, amount: 500, label: '500', tier: 'standard', weight: 110, color: '#071f15', textColor: '#e2e8f0' },
+  { index: 4, amount: 5000, label: '5.000', tier: 'high', weight: 45, color: '#14532d', textColor: '#fcd34d' },
+  { index: 5, amount: 750, label: '750', tier: 'common', weight: 160, color: '#0a2e20', textColor: '#f8fafc' },
+  { index: 6, amount: 25000, label: '25.000', tier: 'mega', weight: 15, color: '#991b1b', textColor: '#fef08a' },
+  { index: 7, amount: 250, label: '250', tier: 'standard', weight: 120, color: '#071f15', textColor: '#e2e8f0' },
+  { index: 8, amount: 2500, label: '2.500', tier: 'medium', weight: 60, color: '#114b34', textColor: '#fde68a' },
+  { index: 9, amount: 1000, label: '1.000', tier: 'common', weight: 140, color: '#0a2e20', textColor: '#fde68a' },
+  { index: 10, amount: 10000, label: '10.000', tier: 'vip', weight: 25, color: '#78350f', textColor: '#fde047' },
+  { index: 11, amount: 500, label: '500', tier: 'standard', weight: 110, color: '#071f15', textColor: '#e2e8f0' }
+];
+
+const TOTAL_WHEEL_WEIGHT = WHEEL_SEGMENTS.reduce((sum, s) => sum + s.weight, 0);
 
 class BankManager {
   /**
@@ -36,8 +61,17 @@ class BankManager {
     /** @type {Map<string, Object>} loanId -> Loan */
     this.loans = new Map();
 
+    /** @type {Set<string>} Tombstone set of repaid/forgiven loan IDs */
+    this.repaidLoanIds = new Set();
+
     /** @type {Map<string, number>} playerId/usernameKey -> lastBailoutTimestamp */
     this.bailouts = new Map();
+
+    /** @type {Map<string, number>} playerId/usernameKey -> lastWheelSpinTimestamp */
+    this.wheelSpins = new Map();
+
+    /** @type {Set<string>} Active spin mutex locks */
+    this.spinningLocks = new Set();
 
     /** @type {Array<Object>} Recent bank transactions */
     this.transactions = [];
@@ -52,6 +86,11 @@ class BankManager {
           const raw = fs.readFileSync(this.storagePath, 'utf8');
           const data = JSON.parse(raw);
           if (data && typeof data === 'object') {
+            if (Array.isArray(data.repaidLoanIds)) {
+              data.repaidLoanIds.forEach(id => {
+                if (typeof id === 'string') this.repaidLoanIds.add(id);
+              });
+            }
             if (Array.isArray(data.loans)) {
               data.loans.forEach(loan => {
                 if (loan && loan.id) {
@@ -61,6 +100,10 @@ class BankManager {
                   if (!loan.lenderKey && loan.lenderName) {
                     loan.lenderKey = loan.lenderName.trim().toLowerCase();
                   }
+                  if (loan.status === 'repaid' || this.repaidLoanIds.has(loan.id)) {
+                    loan.status = 'repaid';
+                    this.repaidLoanIds.add(loan.id);
+                  }
                   this.loans.set(loan.id, loan);
                 }
               });
@@ -68,6 +111,13 @@ class BankManager {
             if (data.bailouts && typeof data.bailouts === 'object') {
               for (const [k, v] of Object.entries(data.bailouts)) {
                 this.bailouts.set(k, v);
+              }
+            }
+            if (data.wheelSpins && typeof data.wheelSpins === 'object') {
+              for (const [k, v] of Object.entries(data.wheelSpins)) {
+                if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+                  this.wheelSpins.set(k, Math.min(Date.now(), v));
+                }
               }
             }
             if (Array.isArray(data.transactions)) {
@@ -80,7 +130,7 @@ class BankManager {
       }
     }
 
-    // Restore active loans from player storage across restarts
+    // Restore active loans and wheel spin timestamps from player storage across restarts
     this.syncFromPlayerStorage();
   }
 
@@ -96,29 +146,65 @@ class BankManager {
 
     for (const record of records) {
       if (!record) continue;
-      if (Array.isArray(record.activeDebts)) {
-        for (const loan of record.activeDebts) {
-          if (loan && loan.id && !this.loans.has(loan.id)) {
-            if (!loan.borrowerKey && loan.borrowerName) loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
-            if (!loan.lenderKey && loan.lenderName) loan.lenderKey = loan.lenderName.trim().toLowerCase();
-            this.loans.set(loan.id, { ...loan });
+      if (Array.isArray(record.repaidLoanIds)) {
+        for (const id of record.repaidLoanIds) {
+          if (typeof id === 'string') {
+            this.repaidLoanIds.add(id);
+            const existing = this.loans.get(id);
+            if (existing) existing.status = 'repaid';
           }
         }
       }
-      if (Array.isArray(record.activeLoansGiven)) {
-        for (const loan of record.activeLoansGiven) {
-          if (loan && loan.id && !this.loans.has(loan.id)) {
-            if (!loan.borrowerKey && loan.borrowerName) loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
-            if (!loan.lenderKey && loan.lenderName) loan.lenderKey = loan.lenderName.trim().toLowerCase();
-            this.loans.set(loan.id, { ...loan });
+      if (typeof record.lastWheelSpin === 'number' && Number.isFinite(record.lastWheelSpin) && record.lastWheelSpin > 0) {
+        const clamped = Math.min(Date.now(), record.lastWheelSpin);
+        const uKey = (record.usernameKey || record.name || '').trim().toLowerCase();
+        if (uKey) {
+          this.wheelSpins.set(uKey, Math.max(this.wheelSpins.get(uKey) || 0, clamped));
+        }
+        if (record.id) {
+          this.wheelSpins.set(record.id, Math.max(this.wheelSpins.get(record.id) || 0, clamped));
+        }
+      }
+    }
+
+    for (const record of records) {
+      if (!record) continue;
+      const ingestStoredLoan = (loan) => {
+        if (!loan || !loan.id) return;
+        if (loan.status === 'repaid' || this.repaidLoanIds.has(loan.id)) {
+          this.repaidLoanIds.add(loan.id);
+          return;
+        }
+        if (!this.loans.has(loan.id)) {
+          if (!loan.borrowerKey && loan.borrowerName) loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
+          if (!loan.lenderKey && loan.lenderName) loan.lenderKey = loan.lenderName.trim().toLowerCase();
+          this.loans.set(loan.id, { ...loan, status: 'active' });
+        } else {
+          const existing = this.loans.get(loan.id);
+          if (existing && existing.status === 'active' && typeof loan.amountRepaid === 'number') {
+            existing.amountRepaid = Math.max(existing.amountRepaid || 0, loan.amountRepaid);
+            if (existing.amountRepaid >= existing.totalOwed) {
+              existing.status = 'repaid';
+              this.repaidLoanIds.add(existing.id);
+            }
           }
         }
+      };
+
+      if (Array.isArray(record.activeDebts)) {
+        for (const loan of record.activeDebts) ingestStoredLoan(loan);
+      }
+      if (Array.isArray(record.activeLoansGiven)) {
+        for (const loan of record.activeLoansGiven) ingestStoredLoan(loan);
       }
     }
   }
 
   syncPlayerDebts(loan) {
     if (!loan || !this.playerManager) return;
+    if (loan.status === 'repaid') {
+      this.repaidLoanIds.add(loan.id);
+    }
     const borrowerKey = (loan.borrowerKey || loan.borrowerName || '').trim().toLowerCase();
     const lenderKey = (loan.lenderKey || loan.lenderName || '').trim().toLowerCase();
 
@@ -144,6 +230,17 @@ class BankManager {
         if (isAdd && loan.status === 'active') {
           target[listProp].push({ ...loan });
         }
+        if (loan.status === 'repaid') {
+          if (!Array.isArray(target.repaidLoanIds)) {
+            target.repaidLoanIds = [];
+          }
+          if (!target.repaidLoanIds.includes(loan.id)) {
+            target.repaidLoanIds.push(loan.id);
+            if (target.repaidLoanIds.length > 200) {
+              target.repaidLoanIds = target.repaidLoanIds.slice(-200);
+            }
+          }
+        }
       }
     };
 
@@ -158,18 +255,126 @@ class BankManager {
   restoreFromBackup(playerId, backup) {
     if (!backup || typeof backup !== 'object') return false;
     let restoredAny = false;
+    const player = this.playerManager ? this.playerManager.getPlayerById(playerId) : null;
 
+    // 1. Reconcile wheel spin timestamp from client backup (anti-reload cooldown bypass protection)
+    const rawSpinTs = Number(backup.lastWheelSpin || (backup.wheelStatus && backup.wheelStatus.lastSpinTime) || 0);
+    if (Number.isFinite(rawSpinTs) && rawSpinTs > 0) {
+      const clampedSpin = Math.min(Date.now(), rawSpinTs);
+      const uKey = player ? (player.usernameKey || player.name || '').trim().toLowerCase() : '';
+      if (uKey) {
+        const prev = this.wheelSpins.get(uKey) || 0;
+        if (clampedSpin > prev) {
+          this.wheelSpins.set(uKey, clampedSpin);
+          restoredAny = true;
+        }
+      }
+      if (playerId) {
+        const prevId = this.wheelSpins.get(playerId) || 0;
+        if (clampedSpin > prevId) {
+          this.wheelSpins.set(playerId, clampedSpin);
+          restoredAny = true;
+        }
+      }
+      if (player && clampedSpin > (player.lastWheelSpin || 0)) {
+        player.lastWheelSpin = clampedSpin;
+        if (uKey && this.playerManager.accounts.has(uKey)) {
+          this.playerManager.accounts.get(uKey).lastWheelSpin = clampedSpin;
+        }
+        if (typeof this.playerManager.scheduleSave === 'function') {
+          this.playerManager.scheduleSave();
+        }
+      }
+    }
+
+    // 2. Reconcile repaidLoanIds tombstones so repaid loans never resurrect
+    if (Array.isArray(backup.repaidLoanIds)) {
+      for (const repaidId of backup.repaidLoanIds) {
+        if (typeof repaidId === 'string' && repaidId.startsWith('loan_')) {
+          if (!this.repaidLoanIds.has(repaidId)) {
+            this.repaidLoanIds.add(repaidId);
+            restoredAny = true;
+          }
+          const existing = this.loans.get(repaidId);
+          if (existing && existing.status === 'active') {
+            if (!player || this._isBorrowerMatch(existing, player) || this._isLenderMatch(existing, player)) {
+              existing.status = 'repaid';
+              this.syncPlayerDebts(existing);
+              restoredAny = true;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Restore active loans with strict anti-cheat validation
     const checkLoan = (loan) => {
-      if (!loan || !loan.id || typeof loan.id !== 'string') return;
-      if (!this.loans.has(loan.id) && loan.status !== 'repaid') {
-        const restoredLoan = {
-          ...loan,
-          borrowerKey: loan.borrowerKey || (loan.borrowerName ? loan.borrowerName.trim().toLowerCase() : ''),
-          lenderKey: loan.lenderKey || (loan.lenderName ? loan.lenderName.trim().toLowerCase() : ''),
-          status: 'active'
-        };
-        this.loans.set(restoredLoan.id, restoredLoan);
-        this.syncPlayerDebts(restoredLoan);
+      if (!loan || !loan.id || typeof loan.id !== 'string' || !loan.id.startsWith('loan_')) return;
+      if (loan.status === 'repaid' || this.repaidLoanIds.has(loan.id)) {
+        this.repaidLoanIds.add(loan.id);
+        return;
+      }
+
+      const amount = Math.floor(Number(loan.amount) || 0);
+      if (amount < 10 || amount > 1000000000) return;
+
+      const interestPct = Math.max(0, Math.min(100, Math.floor(Number(loan.interestPct) || 0)));
+      const winDeductionPct = Math.max(5, Math.min(50, Math.floor(Number(loan.winDeductionPct) || 15)));
+      const totalOwed = Math.max(amount, Math.floor(Number(loan.totalOwed) || Math.round(amount * (1 + interestPct / 100))));
+      const amountRepaid = Math.max(0, Math.floor(Number(loan.amountRepaid) || 0));
+
+      if (amountRepaid >= totalOwed) {
+        this.repaidLoanIds.add(loan.id);
+        return;
+      }
+
+      const borrowerName = typeof loan.borrowerName === 'string' ? loan.borrowerName.trim() : '';
+      const lenderName = typeof loan.lenderName === 'string' ? loan.lenderName.trim() : '';
+      const borrowerKey = (loan.borrowerKey || borrowerName).trim().toLowerCase();
+      const lenderKey = (loan.lenderKey || lenderName).trim().toLowerCase();
+      if (!borrowerKey && !loan.borrowerId) return;
+      if (!lenderKey && !loan.lenderId) return;
+
+      const candidate = {
+        id: loan.id,
+        lenderId: loan.lenderId || '',
+        lenderName: lenderName || lenderKey,
+        lenderKey,
+        borrowerId: loan.borrowerId || '',
+        borrowerName: borrowerName || borrowerKey,
+        borrowerKey,
+        amount,
+        interestPct,
+        winDeductionPct,
+        totalOwed,
+        amountRepaid,
+        createdAt: Number.isInteger(loan.createdAt) ? loan.createdAt : Date.now(),
+        status: 'active'
+      };
+
+      // Anti-cheat ownership check: restoring player must be either borrower or lender
+      if (player && !this._isBorrowerMatch(candidate, player) && !this._isLenderMatch(candidate, player)) {
+        return;
+      }
+
+      if (this.loans.has(candidate.id)) {
+        const existing = this.loans.get(candidate.id);
+        if (existing.status === 'repaid') {
+          this.repaidLoanIds.add(existing.id);
+          return;
+        }
+        if (candidate.amountRepaid > (existing.amountRepaid || 0)) {
+          existing.amountRepaid = candidate.amountRepaid;
+          if (existing.amountRepaid >= existing.totalOwed) {
+            existing.status = 'repaid';
+            this.repaidLoanIds.add(existing.id);
+          }
+          this.syncPlayerDebts(existing);
+          restoredAny = true;
+        }
+      } else {
+        this.loans.set(candidate.id, candidate);
+        this.syncPlayerDebts(candidate);
         restoredAny = true;
       }
     };
@@ -228,7 +433,9 @@ class BankManager {
       }
       const data = {
         loans: Array.from(this.loans.values()),
+        repaidLoanIds: Array.from(this.repaidLoanIds),
         bailouts: Object.fromEntries(this.bailouts.entries()),
+        wheelSpins: Object.fromEntries(this.wheelSpins.entries()),
         transactions: this.transactions.slice(-50)
       };
       fs.writeFileSync(this.storagePath, JSON.stringify(data, null, 2), 'utf8');
@@ -756,7 +963,150 @@ class BankManager {
   }
 
   /**
-   * Returns complete banking state for a player (proposals, active loans, debts).
+   * Returns 15-minute Lucky Wheel ("Rad van Fortuin") status and segments for a player.
+   * Reconciles server and client timestamps so page reloads or container restarts cannot reset cooldown.
+   * @param {string} playerId 
+   * @param {number} [clientLastSpin=0]
+   * @returns {{ canSpin: boolean, timeLeftMs: number, cooldownMs: number, lastSpinTime: number, nextAvailableTime: number, segments: Array<Object> }}
+   */
+  getWheelStatus(playerId, clientLastSpin = 0) {
+    const player = this.playerManager ? this.playerManager.getPlayerById(playerId) : null;
+    const uKey = player ? (player.usernameKey || player.name || '').trim().toLowerCase() : '';
+    const key = uKey || playerId;
+    const now = Date.now();
+
+    const safeClientSpin = (typeof clientLastSpin === 'number' && Number.isFinite(clientLastSpin) && clientLastSpin > 0)
+      ? Math.min(now, clientLastSpin)
+      : 0;
+
+    const lastSpinTime = Math.max(
+      this.wheelSpins.get(key) || 0,
+      this.wheelSpins.get(playerId) || 0,
+      (player && typeof player.lastWheelSpin === 'number' ? player.lastWheelSpin : 0),
+      safeClientSpin
+    );
+
+    if (lastSpinTime > 0) {
+      this.wheelSpins.set(key, lastSpinTime);
+      if (playerId) this.wheelSpins.set(playerId, lastSpinTime);
+      if (player && lastSpinTime > (player.lastWheelSpin || 0)) {
+        player.lastWheelSpin = lastSpinTime;
+        if (uKey && this.playerManager.accounts && this.playerManager.accounts.has(uKey)) {
+          this.playerManager.accounts.get(uKey).lastWheelSpin = lastSpinTime;
+        }
+      }
+    }
+
+    const elapsed = now - lastSpinTime;
+    const timeLeftMs = lastSpinTime > 0 ? Math.max(0, WHEEL_COOLDOWN_MS - elapsed) : 0;
+    const canSpin = timeLeftMs === 0;
+
+    return {
+      canSpin,
+      timeLeftMs,
+      cooldownMs: WHEEL_COOLDOWN_MS,
+      lastSpinTime,
+      nextAvailableTime: lastSpinTime > 0 ? (lastSpinTime + WHEEL_COOLDOWN_MS) : now,
+      segments: WHEEL_SEGMENTS.map(s => ({
+        index: s.index,
+        amount: s.amount,
+        label: s.label,
+        tier: s.tier,
+        color: s.color,
+        textColor: s.textColor
+      }))
+    };
+  }
+
+  /**
+   * Executes a server-authoritative spin on the 15-minute Rad van Fortuin.
+   * Uses crypto.randomInt weighted RNG, mutex lock against rapid clicks, and multi-layer timestamp persistence.
+   * @param {string} playerId 
+   * @param {number} [clientLastSpin=0]
+   * @returns {{ success: boolean, code?: string, reason?: string, segmentIndex?: number, amount?: number, label?: string, tier?: string, chips?: number, lastSpinTime?: number, wheelStatus?: Object }}
+   */
+  spinWheel(playerId, clientLastSpin = 0) {
+    const player = this.playerManager ? this.playerManager.getPlayerById(playerId) : null;
+    if (!player) {
+      return { success: false, code: 'PLAYER_NOT_FOUND', reason: 'Speler niet gevonden.' };
+    }
+
+    const uKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const lockKey = uKey || playerId;
+
+    if (this.spinningLocks.has(lockKey)) {
+      return {
+        success: false,
+        code: 'SPIN_IN_PROGRESS',
+        reason: 'Het rad draait al. Wacht tot het rad stilstaat.'
+      };
+    }
+
+    this.spinningLocks.add(lockKey);
+    try {
+      const status = this.getWheelStatus(playerId, clientLastSpin);
+      if (!status.canSpin || status.timeLeftMs > 0) {
+        const mins = Math.floor(status.timeLeftMs / 60000);
+        const secs = Math.ceil((status.timeLeftMs % 60000) / 1000);
+        return {
+          success: false,
+          code: 'WHEEL_COOLDOWN',
+          reason: `Je kunt het Rad van Fortuin weer draaien over ${mins}m ${secs}s.`,
+          wheelStatus: status
+        };
+      }
+
+      // Cryptographically secure weighted selection
+      const roll = crypto.randomInt(0, TOTAL_WHEEL_WEIGHT);
+      let cumulative = 0;
+      let chosenSegment = WHEEL_SEGMENTS[1]; // Fallback to 250 chips
+      for (const seg of WHEEL_SEGMENTS) {
+        cumulative += seg.weight;
+        if (roll < cumulative) {
+          chosenSegment = seg;
+          break;
+        }
+      }
+
+      const now = Date.now();
+      this.wheelSpins.set(lockKey, now);
+      this.wheelSpins.set(playerId, now);
+      player.lastWheelSpin = now;
+      if (uKey && this.playerManager.accounts && this.playerManager.accounts.has(uKey)) {
+        this.playerManager.accounts.get(uKey).lastWheelSpin = now;
+      }
+
+      this.playerManager.addChips(playerId, chosenSegment.amount);
+      if (typeof this.playerManager.scheduleSave === 'function') {
+        this.playerManager.scheduleSave();
+      }
+
+      this._recordTransaction(
+        'wheel_spin',
+        'Rad van Fortuin',
+        player.name,
+        chosenSegment.amount,
+        `Kwartier-Rad prijs: +${chosenSegment.amount.toLocaleString()} fiches`
+      );
+      this.saveState();
+
+      return {
+        success: true,
+        segmentIndex: chosenSegment.index,
+        amount: chosenSegment.amount,
+        label: chosenSegment.label,
+        tier: chosenSegment.tier,
+        chips: player.chips,
+        lastSpinTime: now,
+        wheelStatus: this.getWheelStatus(playerId, now)
+      };
+    } finally {
+      this.spinningLocks.delete(lockKey);
+    }
+  }
+
+  /**
+   * Returns complete banking state for a player (proposals, active loans, debts, wheel status).
    * @param {string} playerId 
    * @returns {Object}
    */
@@ -782,7 +1132,7 @@ class BankManager {
     const activeLoansGiven = [];
 
     for (const loan of this.loans.values()) {
-      if (loan.status === 'active') {
+      if (loan.status === 'active' && !this.repaidLoanIds.has(loan.id)) {
         if (loan.borrowerId === playerId || this._isBorrowerMatch(loan, player)) {
           loan.borrowerId = player.id;
           activeDebts.push(loan);
@@ -798,7 +1148,9 @@ class BankManager {
       outgoingProposals,
       activeDebts,
       activeLoansGiven,
+      repaidLoanIds: Array.from(this.repaidLoanIds),
       bailoutStatus: this.getBailoutStatus(playerId),
+      wheelStatus: this.getWheelStatus(playerId),
       recentTransactions: this.transactions.filter(t => 
         (t.fromName && t.fromName.toLowerCase() === player.name.toLowerCase()) || 
         (t.toName && t.toName.toLowerCase() === player.name.toLowerCase())
@@ -806,5 +1158,8 @@ class BankManager {
     };
   }
 }
+
+BankManager.WHEEL_SEGMENTS = WHEEL_SEGMENTS;
+BankManager.WHEEL_COOLDOWN_MS = WHEEL_COOLDOWN_MS;
 
 module.exports = BankManager;

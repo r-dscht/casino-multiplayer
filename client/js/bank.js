@@ -15,6 +15,22 @@
   }
 }(typeof self !== 'undefined' ? self : this, function () {
 
+  const WHEEL_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+  const DEFAULT_WHEEL_SEGMENTS = [
+    { index: 0, amount: 50000, label: '50.000', tier: 'jackpot', color: '#d4af37', textColor: '#071a12' },
+    { index: 1, amount: 250, label: '250', tier: 'standard', color: '#0a2e20', textColor: '#f8fafc' },
+    { index: 2, amount: 1500, label: '1.500', tier: 'medium', color: '#114b34', textColor: '#fde68a' },
+    { index: 3, amount: 500, label: '500', tier: 'standard', color: '#071f15', textColor: '#e2e8f0' },
+    { index: 4, amount: 5000, label: '5.000', tier: 'high', color: '#14532d', textColor: '#fcd34d' },
+    { index: 5, amount: 750, label: '750', tier: 'common', color: '#0a2e20', textColor: '#f8fafc' },
+    { index: 6, amount: 25000, label: '25.000', tier: 'mega', color: '#991b1b', textColor: '#fef08a' },
+    { index: 7, amount: 250, label: '250', tier: 'standard', color: '#071f15', textColor: '#e2e8f0' },
+    { index: 8, amount: 2500, label: '2.500', tier: 'medium', color: '#114b34', textColor: '#fde68a' },
+    { index: 9, amount: 1000, label: '1.000', tier: 'common', color: '#0a2e20', textColor: '#fde68a' },
+    { index: 10, amount: 10000, label: '10.000', tier: 'vip', color: '#78350f', textColor: '#fde047' },
+    { index: 11, amount: 500, label: '500', tier: 'standard', color: '#071f15', textColor: '#e2e8f0' }
+  ];
+
   class CasinoBank {
     /**
      * @param {Object} options
@@ -25,12 +41,28 @@
       this.network = network;
       this.ui = ui;
 
+      this.repaidLoanIds = new Set();
+      this.lastWheelSpin = 0;
+      this.isWheelSpinning = false;
+      this.currentWheelRotation = 0;
+      this.wheelCountdownInterval = null;
+      this._lastReconcileSentAt = 0;
+
       this.currentBankData = {
         incomingProposals: [],
         outgoingProposals: [],
         activeDebts: [],
         activeLoansGiven: [],
-        bailoutStatus: { canClaim: false, timeLeftMs: 0, eligibleByChips: false }
+        repaidLoanIds: [],
+        bailoutStatus: { canClaim: false, timeLeftMs: 0, eligibleByChips: false },
+        wheelStatus: {
+          canSpin: true,
+          timeLeftMs: 0,
+          cooldownMs: WHEEL_COOLDOWN_MS,
+          lastSpinTime: 0,
+          nextAvailableTime: 0,
+          segments: DEFAULT_WHEEL_SEGMENTS
+        }
       };
 
       this.connectedPlayers = [];
@@ -47,6 +79,24 @@
                 ...this.currentBankData,
                 ...parsed
               };
+              if (Array.isArray(parsed.repaidLoanIds)) {
+                parsed.repaidLoanIds.forEach(id => this.repaidLoanIds.add(id));
+              }
+              if (typeof parsed.lastWheelSpin === 'number' && parsed.lastWheelSpin > 0) {
+                this.lastWheelSpin = Math.min(Date.now(), parsed.lastWheelSpin);
+              }
+            }
+          }
+          const playerCached = localStorage.getItem('casino_player_backup');
+          if (playerCached) {
+            const pParsed = JSON.parse(playerCached);
+            if (pParsed && typeof pParsed === 'object') {
+              if (typeof pParsed.lastWheelSpin === 'number' && pParsed.lastWheelSpin > this.lastWheelSpin) {
+                this.lastWheelSpin = Math.min(Date.now(), pParsed.lastWheelSpin);
+              }
+              if (Array.isArray(pParsed.repaidLoanIds)) {
+                pParsed.repaidLoanIds.forEach(id => this.repaidLoanIds.add(id));
+              }
             }
           }
         }
@@ -56,6 +106,8 @@
 
       this._cacheElements();
       this._bindEvents();
+      this._renderWheelSvg(DEFAULT_WHEEL_SEGMENTS);
+      this._updateWheelDisplay(this.currentBankData.wheelStatus);
 
       // Render cached items if present
       if (this.currentBankData) {
@@ -69,6 +121,7 @@
       this.btnOpenBank = document.getElementById('btn-open-bank');
       this.bankBadge = document.getElementById('bank-badge');
       this.bankTabBadge = document.getElementById('bank-tab-badge');
+      this.wheelTabBadge = document.getElementById('wheel-tab-badge');
       this.bankModal = document.getElementById('bank-modal');
       this.btnCloseBankModal = document.getElementById('btn-close-bank-modal');
 
@@ -105,6 +158,18 @@
       this.lblBailoutTimer = document.getElementById('bailout-timer-val');
       this.lblBailoutReason = document.getElementById('bailout-reason-text');
       this.btnClaimBailout = document.getElementById('btn-claim-bailout');
+
+      // 15-Minute Lucky Wheel ("Rad van Fortuin")
+      this.wheelSvg = document.getElementById('lucky-wheel-svg');
+      this.wheelRotor = document.getElementById('lucky-wheel-rotor');
+      this.wheelPointer = document.getElementById('lucky-wheel-pointer');
+      this.wheelStatusText = document.getElementById('wheel-status-text');
+      this.wheelTimerVal = document.getElementById('wheel-timer-val');
+      this.wheelTimerPill = document.getElementById('wheel-timer-pill');
+      this.wheelResultBanner = document.getElementById('wheel-result-banner');
+      this.wheelResultTitle = document.getElementById('wheel-result-title');
+      this.wheelResultAmount = document.getElementById('wheel-result-amount');
+      this.btnSpinWheel = document.getElementById('btn-spin-wheel');
     }
 
     _bindEvents() {
@@ -262,6 +327,13 @@
           this.network.claimBailout();
         });
       }
+
+      // 15-Minute Lucky Wheel Spin Button
+      if (this.btnSpinWheel) {
+        this.btnSpinWheel.addEventListener('click', () => {
+          this._triggerWheelSpin();
+        });
+      }
     }
 
     _updateLoanCalculation() {
@@ -347,40 +419,158 @@
 
     /**
      * Updates bank data received from server.
+     * Merges un-repaid local loans if server restarted with an empty state and pushes reconciliation.
      * @param {Object} data 
      */
     updateBankData(data) {
       if (!data) return;
-      this.currentBankData = data;
 
-      // Update badge counters
+      // 1. Update repaid loan tombstones
+      if (Array.isArray(data.repaidLoanIds)) {
+        data.repaidLoanIds.forEach(id => {
+          if (typeof id === 'string') this.repaidLoanIds.add(id);
+        });
+      }
+
+      // 2. Reconcile activeDebts & activeLoansGiven so a fresh server restart never wipes local loans
+      const prevDebts = (this.currentBankData && Array.isArray(this.currentBankData.activeDebts))
+        ? this.currentBankData.activeDebts
+        : [];
+      const prevLoansGiven = (this.currentBankData && Array.isArray(this.currentBankData.activeLoansGiven))
+        ? this.currentBankData.activeLoansGiven
+        : [];
+
+      const serverDebts = Array.isArray(data.activeDebts) ? data.activeDebts : [];
+      const serverLoansGiven = Array.isArray(data.activeLoansGiven) ? data.activeLoansGiven : [];
+
+      let needsServerReconcile = false;
+
+      const mergeLoanLists = (serverList, localList) => {
+        const byId = new Map();
+        serverList.forEach(l => {
+          if (!l || !l.id) return;
+          if (l.status === 'repaid' || this.repaidLoanIds.has(l.id)) {
+            this.repaidLoanIds.add(l.id);
+            return;
+          }
+          byId.set(l.id, { ...l });
+        });
+        localList.forEach(l => {
+          if (!l || !l.id) return;
+          if (l.status === 'repaid' || this.repaidLoanIds.has(l.id)) {
+            this.repaidLoanIds.add(l.id);
+            return;
+          }
+          if ((l.amountRepaid || 0) >= (l.totalOwed || 0)) {
+            this.repaidLoanIds.add(l.id);
+            return;
+          }
+          if (!byId.has(l.id)) {
+            byId.set(l.id, { ...l, status: 'active' });
+            needsServerReconcile = true;
+          } else {
+            const sLoan = byId.get(l.id);
+            if ((l.amountRepaid || 0) > (sLoan.amountRepaid || 0)) {
+              sLoan.amountRepaid = l.amountRepaid;
+              needsServerReconcile = true;
+            }
+          }
+        });
+        return Array.from(byId.values());
+      };
+
+      const mergedDebts = mergeLoanLists(serverDebts, prevDebts);
+      const mergedLoansGiven = mergeLoanLists(serverLoansGiven, prevLoansGiven);
+
+      // 3. Reconcile 15-Minute Wheel cooldown timestamp across reloads/restarts
+      const serverWheelLastSpin = (data.wheelStatus && typeof data.wheelStatus.lastSpinTime === 'number')
+        ? data.wheelStatus.lastSpinTime
+        : 0;
+      if (this.lastWheelSpin > serverWheelLastSpin) {
+        needsServerReconcile = true;
+      } else if (serverWheelLastSpin > this.lastWheelSpin) {
+        this.lastWheelSpin = Math.min(Date.now(), serverWheelLastSpin);
+      }
+
+      const reconciledWheelStatus = {
+        ...(data.wheelStatus || {}),
+        lastSpinTime: this.lastWheelSpin,
+        cooldownMs: WHEEL_COOLDOWN_MS,
+        segments: (data.wheelStatus && Array.isArray(data.wheelStatus.segments) && data.wheelStatus.segments.length === 12)
+          ? data.wheelStatus.segments
+          : DEFAULT_WHEEL_SEGMENTS
+      };
+      const elapsed = Date.now() - this.lastWheelSpin;
+      reconciledWheelStatus.timeLeftMs = this.lastWheelSpin > 0 ? Math.max(0, WHEEL_COOLDOWN_MS - elapsed) : 0;
+      reconciledWheelStatus.canSpin = reconciledWheelStatus.timeLeftMs === 0;
+      reconciledWheelStatus.nextAvailableTime = this.lastWheelSpin > 0 ? (this.lastWheelSpin + WHEEL_COOLDOWN_MS) : Date.now();
+
+      this.currentBankData = {
+        ...data,
+        activeDebts: mergedDebts,
+        activeLoansGiven: mergedLoansGiven,
+        repaidLoanIds: Array.from(this.repaidLoanIds),
+        wheelStatus: reconciledWheelStatus
+      };
+
+      // Update badge counters (incoming proposals + wheel ready)
       const incomingCount = (data.incomingProposals || []).length;
+      const wheelReadyCount = reconciledWheelStatus.canSpin ? 1 : 0;
+      const totalBadgeCount = incomingCount + wheelReadyCount;
+
       if (this.bankBadge) {
-        this.bankBadge.textContent = incomingCount;
-        this.bankBadge.classList.toggle('hidden', incomingCount === 0);
+        this.bankBadge.textContent = totalBadgeCount;
+        this.bankBadge.classList.toggle('hidden', totalBadgeCount === 0);
       }
       if (this.bankTabBadge) {
         this.bankTabBadge.textContent = incomingCount;
         this.bankTabBadge.classList.toggle('hidden', incomingCount === 0);
       }
+      if (this.wheelTabBadge) {
+        this.wheelTabBadge.textContent = '1';
+        this.wheelTabBadge.classList.toggle('hidden', !reconciledWheelStatus.canSpin);
+      }
 
       this._renderIncomingProposals(data.incomingProposals || []);
-      this._renderMyDebts(data.activeDebts || []);
-      this._renderMyLoansGiven(data.activeLoansGiven || []);
+      this._renderMyDebts(mergedDebts);
+      this._renderMyLoansGiven(mergedLoansGiven);
       this._updateBailoutDisplay(data.bailoutStatus);
+      this._updateWheelDisplay(reconciledWheelStatus);
 
-      // Cache active bank data in localStorage across sessions/restarts
+      // Persist backup in localStorage across sessions/restarts
+      const backupPayload = {
+        incomingProposals: data.incomingProposals || [],
+        outgoingProposals: data.outgoingProposals || [],
+        activeDebts: mergedDebts,
+        activeLoansGiven: mergedLoansGiven,
+        repaidLoanIds: Array.from(this.repaidLoanIds),
+        lastWheelSpin: this.lastWheelSpin
+      };
+
       try {
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('casino_bank_backup', JSON.stringify({
-            incomingProposals: data.incomingProposals || [],
-            outgoingProposals: data.outgoingProposals || [],
-            activeDebts: data.activeDebts || [],
-            activeLoansGiven: data.activeLoansGiven || []
-          }));
+          localStorage.setItem('casino_bank_backup', JSON.stringify(backupPayload));
         }
       } catch (e) {
         // Ignore localStorage access errors
+      }
+
+      if (this.network && typeof this.network.saveClientBackup === 'function') {
+        this.network.saveClientBackup({
+          activeDebts: mergedDebts,
+          activeLoansGiven: mergedLoansGiven,
+          repaidLoanIds: Array.from(this.repaidLoanIds),
+          lastWheelSpin: this.lastWheelSpin
+        });
+      }
+
+      // If server was missing un-repaid loans or wheel spin timestamp after a container restart, push them back
+      if (needsServerReconcile && this.network && typeof this.network.reconcileBankBackup === 'function') {
+        const now = Date.now();
+        if (now - this._lastReconcileSentAt > 1500) {
+          this._lastReconcileSentAt = now;
+          this.network.reconcileBankBackup(backupPayload);
+        }
       }
     }
 
@@ -526,6 +716,264 @@
         clearInterval(this.bailoutInterval);
         this.bailoutInterval = null;
       }
+    }
+
+    /**
+     * Renders the 12-segment Monte Carlo Rad van Fortuin SVG.
+     * @param {Array<Object>} segments
+     */
+    _renderWheelSvg(segments = DEFAULT_WHEEL_SEGMENTS) {
+      if (!this.wheelSvg || !Array.isArray(segments) || segments.length === 0) return;
+      const n = segments.length;
+      const sliceDeg = 360 / n;
+      const outerRadius = 144;
+
+      let svgContent = `
+        <defs>
+          <radialGradient id="wheelBezelGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="82%" stop-color="#071a12" />
+            <stop offset="92%" stop-color="#b7791f" />
+            <stop offset="97%" stop-color="#fde047" />
+            <stop offset="100%" stop-color="#78350f" />
+          </radialGradient>
+        </defs>
+        <circle cx="0" cy="0" r="156" fill="url(#wheelBezelGrad)" stroke="#d4af37" stroke-width="2.5" />
+      `;
+
+      segments.forEach((seg, idx) => {
+        // Slice idx is centered at (-90 + idx * 30) degrees so idx 0 is at 12 o'clock (-90 deg)
+        const startDeg = -90 - (sliceDeg / 2) + idx * sliceDeg;
+        const endDeg = startDeg + sliceDeg;
+        const midDeg = startDeg + (sliceDeg / 2);
+
+        const startRad = (startDeg * Math.PI) / 180;
+        const endRad = (endDeg * Math.PI) / 180;
+
+        const x1 = (outerRadius * Math.cos(startRad)).toFixed(2);
+        const y1 = (outerRadius * Math.sin(startRad)).toFixed(2);
+        const x2 = (outerRadius * Math.cos(endRad)).toFixed(2);
+        const y2 = (outerRadius * Math.sin(endRad)).toFixed(2);
+
+        // Brass pin at segment boundary
+        const pinX = (150 * Math.cos(startRad)).toFixed(2);
+        const pinY = (150 * Math.sin(startRad)).toFixed(2);
+
+        const fill = seg.color || (idx % 2 === 0 ? '#0d3b29' : '#071f15');
+        const textFill = seg.textColor || '#f8fafc';
+        const isJackpot = seg.tier === 'jackpot' || seg.tier === 'mega' || seg.tier === 'vip';
+        const fontSize = seg.label && seg.label.length >= 6 ? '11.5' : '13';
+
+        svgContent += `
+          <path d="M 0 0 L ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} Z"
+                fill="${fill}" stroke="#d4af37" stroke-width="1.2" />
+          <g transform="rotate(${midDeg}) translate(94, 0)">
+            <text x="0" y="4" fill="${textFill}"
+                  font-family="Cinzel, serif" font-weight="${isJackpot ? '900' : '700'}"
+                  font-size="${fontSize}" text-anchor="middle" letter-spacing="0.03em">
+              ${seg.label}
+            </text>
+          </g>
+          <circle cx="${pinX}" cy="${pinY}" r="3" fill="#fef08a" stroke="#78350f" stroke-width="1" />
+        `;
+      });
+
+      svgContent += `
+        <circle cx="0" cy="0" r="30" fill="#062016" stroke="#d4af37" stroke-width="3" />
+      `;
+
+      this.wheelSvg.innerHTML = svgContent;
+    }
+
+    /**
+     * Updates the wheel status text, spin button state, and starts/updates the 15m countdown timer.
+     * @param {Object} wheelStatus
+     */
+    _updateWheelDisplay(wheelStatus) {
+      if (!wheelStatus) return;
+      if (Array.isArray(wheelStatus.segments) && wheelStatus.segments.length === 12) {
+        this._renderWheelSvg(wheelStatus.segments);
+      }
+
+      if (typeof wheelStatus.lastSpinTime === 'number' && wheelStatus.lastSpinTime > this.lastWheelSpin) {
+        this.lastWheelSpin = Math.min(Date.now(), wheelStatus.lastSpinTime);
+      }
+
+      this._refreshWheelTimerTick();
+
+      if (this.wheelCountdownInterval) {
+        clearInterval(this.wheelCountdownInterval);
+        this.wheelCountdownInterval = null;
+      }
+
+      if (this.lastWheelSpin > 0 && (Date.now() - this.lastWheelSpin) < WHEEL_COOLDOWN_MS) {
+        this.wheelCountdownInterval = setInterval(() => {
+          this._refreshWheelTimerTick();
+        }, 1000);
+      }
+    }
+
+    _refreshWheelTimerTick() {
+      const now = Date.now();
+      const elapsed = this.lastWheelSpin > 0 ? (now - this.lastWheelSpin) : WHEEL_COOLDOWN_MS;
+      const timeLeftMs = Math.max(0, WHEEL_COOLDOWN_MS - elapsed);
+      const canSpin = timeLeftMs === 0;
+
+      if (canSpin && this.wheelCountdownInterval) {
+        clearInterval(this.wheelCountdownInterval);
+        this.wheelCountdownInterval = null;
+      }
+
+      const incomingCount = (this.currentBankData && Array.isArray(this.currentBankData.incomingProposals))
+        ? this.currentBankData.incomingProposals.length
+        : 0;
+      const totalBadge = incomingCount + (canSpin ? 1 : 0);
+
+      if (this.bankBadge) {
+        this.bankBadge.textContent = totalBadge;
+        this.bankBadge.classList.toggle('hidden', totalBadge === 0);
+      }
+      if (this.wheelTabBadge) {
+        this.wheelTabBadge.textContent = '1';
+        this.wheelTabBadge.classList.toggle('hidden', !canSpin);
+      }
+
+      if (this.isWheelSpinning) {
+        if (this.wheelStatusText) this.wheelStatusText.textContent = 'Het Rad van Fortuin draait...';
+        if (this.wheelTimerVal) this.wheelTimerVal.textContent = 'BEZIG...';
+        if (this.btnSpinWheel) {
+          this.btnSpinWheel.disabled = true;
+          this.btnSpinWheel.textContent = 'Rad draait...';
+        }
+        return;
+      }
+
+      if (canSpin) {
+        if (this.wheelStatusText) this.wheelStatusText.textContent = 'Klaar om te draaien!';
+        if (this.wheelTimerVal) this.wheelTimerVal.textContent = 'NU KLAAR';
+        if (this.wheelTimerPill) this.wheelTimerPill.classList.add('ready');
+        if (this.btnSpinWheel) {
+          this.btnSpinWheel.disabled = false;
+          this.btnSpinWheel.textContent = 'Draai het Rad (Gratis)';
+        }
+      } else {
+        const totalSecs = Math.ceil(timeLeftMs / 1000);
+        const mins = Math.floor(totalSecs / 60);
+        const secs = totalSecs % 60;
+        const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        if (this.wheelStatusText) this.wheelStatusText.textContent = 'Volgende gratis draai over:';
+        if (this.wheelTimerVal) this.wheelTimerVal.textContent = formatted;
+        if (this.wheelTimerPill) this.wheelTimerPill.classList.remove('ready');
+        if (this.btnSpinWheel) {
+          this.btnSpinWheel.disabled = true;
+          this.btnSpinWheel.textContent = `Wacht ${formatted}`;
+        }
+      }
+    }
+
+    _triggerWheelSpin() {
+      if (this.isWheelSpinning) return;
+      const now = Date.now();
+      const timeLeftMs = this.lastWheelSpin > 0 ? Math.max(0, WHEEL_COOLDOWN_MS - (now - this.lastWheelSpin)) : 0;
+      if (timeLeftMs > 0) {
+        this._refreshWheelTimerTick();
+        return;
+      }
+
+      this.isWheelSpinning = true;
+      if (this.wheelResultBanner) {
+        this.wheelResultBanner.classList.add('hidden');
+      }
+      this._refreshWheelTimerTick();
+      this.network.spinWheel(this.lastWheelSpin);
+    }
+
+    /**
+     * Handles server 'bank_wheel_result' event, animating the wheel to the exact winning slice.
+     * Immediately persists the spin timestamp locally so F5 reload mid-spin cannot bypass cooldown.
+     * @param {Object} res
+     */
+    handleWheelResult(res) {
+      if (!res || !res.success) {
+        this.isWheelSpinning = false;
+        if (res && res.wheelStatus) {
+          this._updateWheelDisplay(res.wheelStatus);
+        } else {
+          this._refreshWheelTimerTick();
+        }
+        return;
+      }
+
+      // Immediately persist cooldown timestamp in localStorage before animation completes (anti-reload protection)
+      const spinTs = typeof res.lastSpinTime === 'number' ? res.lastSpinTime : Date.now();
+      this.lastWheelSpin = Math.min(Date.now(), spinTs);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_bank_backup');
+          const parsed = raw ? JSON.parse(raw) : {};
+          parsed.lastWheelSpin = this.lastWheelSpin;
+          localStorage.setItem('casino_bank_backup', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+      if (this.network && typeof this.network.saveClientBackup === 'function') {
+        this.network.saveClientBackup({ lastWheelSpin: this.lastWheelSpin, chips: res.chips });
+      }
+
+      const segIdx = typeof res.segmentIndex === 'number' ? res.segmentIndex : 1;
+      const sliceDeg = 30; // 360 / 12
+      // Target angle mod 360 so segment segIdx aligns with 12 o'clock pointer (0 deg offset)
+      const targetMod = (360 - ((segIdx * sliceDeg) % 360)) % 360;
+      const currentMod = ((this.currentWheelRotation % 360) + 360) % 360;
+      let delta = targetMod - currentMod;
+      if (delta <= 0) delta += 360;
+
+      // 6 full rotations (2160 deg) + exact delta to winning slice center
+      const totalRotation = this.currentWheelRotation + 2160 + delta;
+      this.currentWheelRotation = totalRotation;
+
+      if (this.wheelRotor) {
+        this.wheelRotor.style.transition = 'transform 4.6s cubic-bezier(0.12, 0.82, 0.14, 1)';
+        this.wheelRotor.style.transform = `rotate(${totalRotation}deg)`;
+      }
+      if (this.wheelPointer) {
+        this.wheelPointer.classList.add('pointer-ticking');
+      }
+
+      setTimeout(() => {
+        this.isWheelSpinning = false;
+        if (this.wheelPointer) {
+          this.wheelPointer.classList.remove('pointer-ticking');
+        }
+
+        if (this.wheelResultBanner && this.wheelResultAmount) {
+          const isBig = res.amount >= 5000;
+          if (this.wheelResultTitle) {
+            this.wheelResultTitle.textContent = res.amount >= 25000
+              ? 'JACKPOT PRIJS!'
+              : (isBig ? 'GROTE WINST!' : 'PRIJS GEWONNEN!');
+          }
+          this.wheelResultAmount.textContent = `+${(res.amount || 0).toLocaleString()} FICHES`;
+          this.wheelResultBanner.classList.remove('hidden');
+        }
+
+        if (this.ui) {
+          if (typeof res.chips === 'number' && this.ui.myPlayer) {
+            this.ui.myPlayer.chips = res.chips;
+            this.ui.updatePlayerHUD();
+          }
+          if (typeof this.ui.triggerWinShimmer === 'function') {
+            this.ui.triggerWinShimmer(res.amount >= 5000 ? 3500 : 2200);
+          }
+          if (typeof this.ui.showToast === 'function') {
+            this.ui.showToast(`Rad van Fortuin: +${(res.amount || 0).toLocaleString()} fiches gewonnen!`, 'success');
+          }
+        }
+
+        this._updateWheelDisplay(res.wheelStatus || {
+          canSpin: false,
+          timeLeftMs: WHEEL_COOLDOWN_MS,
+          lastSpinTime: this.lastWheelSpin
+        });
+      }, 4650);
     }
   }
 

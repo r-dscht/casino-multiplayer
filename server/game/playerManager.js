@@ -121,6 +121,10 @@ class PlayerManager {
       : null;
     const activeDebts = Array.isArray(val.activeDebts) ? [...val.activeDebts] : [];
     const activeLoansGiven = Array.isArray(val.activeLoansGiven) ? [...val.activeLoansGiven] : [];
+    const repaidLoanIds = Array.isArray(val.repaidLoanIds) ? [...val.repaidLoanIds] : [];
+    const lastWheelSpin = (typeof val.lastWheelSpin === 'number' && Number.isFinite(val.lastWheelSpin) && val.lastWheelSpin > 0)
+      ? Math.min(Date.now(), val.lastWheelSpin)
+      : 0;
 
     const record = {
       id,
@@ -138,6 +142,8 @@ class PlayerManager {
       seatIndex,
       activeDebts,
       activeLoansGiven,
+      repaidLoanIds,
+      lastWheelSpin,
       connected: false,
       isHost: false,
       createdAt: val.createdAt || Date.now(),
@@ -256,6 +262,8 @@ class PlayerManager {
         seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
         activeDebts: Array.isArray(player.activeDebts) ? [...player.activeDebts] : [],
         activeLoansGiven: Array.isArray(player.activeLoansGiven) ? [...player.activeLoansGiven] : [],
+        repaidLoanIds: Array.isArray(player.repaidLoanIds) ? [...player.repaidLoanIds] : [],
+        lastWheelSpin: typeof player.lastWheelSpin === 'number' ? player.lastWheelSpin : 0,
         createdAt: player.createdAt || Date.now(),
         lastSeen: player.lastSeen || Date.now()
       };
@@ -343,6 +351,10 @@ class PlayerManager {
    */
   authSession(socketId, options = {}) {
     const opts = (options && typeof options === 'object') ? options : {};
+    const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
+    const backupWheelSpin = (backup && typeof backup.lastWheelSpin === 'number' && Number.isFinite(backup.lastWheelSpin) && backup.lastWheelSpin > 0)
+      ? Math.min(Date.now(), backup.lastWheelSpin)
+      : 0;
 
     // 1. Session token lookup
     if (opts.sessionToken && typeof opts.sessionToken === 'string') {
@@ -389,6 +401,7 @@ class PlayerManager {
           }
           player.connected = true;
           player.lastSeen = Date.now();
+          player.lastWheelSpin = Math.max(player.lastWheelSpin || 0, backupWheelSpin);
           // Retain server-saved color: only use opts.color if player currently has no color
           if (!player.color && opts.color && typeof opts.color === 'string' && opts.color.startsWith('#')) {
             player.color = opts.color;
@@ -401,6 +414,7 @@ class PlayerManager {
             const acc = this.accounts.get(currentNormKey);
             acc.color = player.color;
             acc.avatar = player.avatar;
+            acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, player.lastWheelSpin || 0);
             acc.lastSeen = Date.now();
           }
 
@@ -477,6 +491,8 @@ class PlayerManager {
           seatIndex: null, // Require manual seat selection; prevent auto-seat assignment on reconnect
           activeDebts: Array.isArray(existingAccount.activeDebts) ? [...existingAccount.activeDebts] : [],
           activeLoansGiven: Array.isArray(existingAccount.activeLoansGiven) ? [...existingAccount.activeLoansGiven] : [],
+          repaidLoanIds: Array.isArray(existingAccount.repaidLoanIds) ? [...existingAccount.repaidLoanIds] : [],
+          lastWheelSpin: Math.max(existingAccount.lastWheelSpin || 0, backupWheelSpin),
           connected: true,
           isHost: false,
           createdAt: existingAccount.createdAt || Date.now(),
@@ -495,6 +511,7 @@ class PlayerManager {
         }
         player.connected = true;
         player.lastSeen = Date.now();
+        player.lastWheelSpin = Math.max(player.lastWheelSpin || 0, existingAccount.lastWheelSpin || 0, backupWheelSpin);
         // Preserve player's existing server color
         if (!player.color) {
           player.color = existingAccount.color || opts.color || DEFAULT_COLORS[0];
@@ -506,6 +523,7 @@ class PlayerManager {
           const acc = this.accounts.get(player.usernameKey);
           acc.color = player.color;
           acc.avatar = player.avatar;
+          acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, player.lastWheelSpin || 0);
           acc.lastSeen = Date.now();
         }
       }
@@ -522,7 +540,6 @@ class PlayerManager {
     }
 
     // 3. New player registration (or restoration from clientBackup if cloud container restarted)
-    const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
     const restoredId = (backup && typeof backup.id === 'string' && backup.id.startsWith('ply_')) ? backup.id : null;
     const restoredToken = (backup && typeof backup.sessionToken === 'string' && backup.sessionToken.startsWith('cst_'))
       ? backup.sessionToken
@@ -572,6 +589,8 @@ class PlayerManager {
       seatIndex: null,
       activeDebts: (backup && Array.isArray(backup.activeDebts)) ? [...backup.activeDebts] : [],
       activeLoansGiven: (backup && Array.isArray(backup.activeLoansGiven)) ? [...backup.activeLoansGiven] : [],
+      repaidLoanIds: (backup && Array.isArray(backup.repaidLoanIds)) ? [...backup.repaidLoanIds] : [],
+      lastWheelSpin: backupWheelSpin,
       connected: true,
       isHost: this.players.size === 0,
       createdAt: (backup && Number.isInteger(backup.createdAt)) ? backup.createdAt : Date.now(),
@@ -603,6 +622,10 @@ class PlayerManager {
    */
   registerPlayer(socketId, options = {}) {
     const opts = (options && typeof options === 'object') ? options : {};
+    const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
+    const backupWheelSpin = (backup && typeof backup.lastWheelSpin === 'number' && Number.isFinite(backup.lastWheelSpin) && backup.lastWheelSpin > 0)
+      ? Math.min(Date.now(), backup.lastWheelSpin)
+      : 0;
 
     // 1. Session token resumption
     if (opts.sessionToken && typeof opts.sessionToken === 'string') {
@@ -620,6 +643,7 @@ class PlayerManager {
       existingPlayer.socketId = socketId;
       existingPlayer.connected = true;
       existingPlayer.lastSeen = Date.now();
+      existingPlayer.lastWheelSpin = Math.max(existingPlayer.lastWheelSpin || 0, backupWheelSpin);
       if (opts.name) {
         const cleanName = sanitizeName(opts.name);
         if (cleanName) {
@@ -638,6 +662,7 @@ class PlayerManager {
         const acc = this.accounts.get(existingPlayer.usernameKey);
         acc.color = existingPlayer.color;
         acc.avatar = existingPlayer.avatar;
+        acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, existingPlayer.lastWheelSpin || 0);
         acc.lastSeen = Date.now();
       }
 
@@ -685,10 +710,10 @@ class PlayerManager {
 
       savedAccount.lastLogin = Date.now();
       savedAccount.lastSeen = Date.now();
+      savedAccount.lastWheelSpin = Math.max(savedAccount.lastWheelSpin || 0, backupWheelSpin);
       if (!savedAccount.color && opts.color) savedAccount.color = opts.color;
       this.scheduleSave();
     } else {
-      const backup = (opts.clientBackup && typeof opts.clientBackup === 'object') ? opts.clientBackup : null;
       const colorIndex = this.players.size % DEFAULT_COLORS.length;
       const backupColor = (backup && typeof backup.color === 'string' && backup.color.startsWith('#')) ? backup.color : null;
       const chosenColor = (typeof opts.color === 'string' && opts.color.startsWith('#'))
@@ -727,6 +752,10 @@ class PlayerManager {
         currentGame: 'Roulette',
         location: 'ROULETTE',
         seatIndex: null,
+        activeDebts: (backup && Array.isArray(backup.activeDebts)) ? [...backup.activeDebts] : [],
+        activeLoansGiven: (backup && Array.isArray(backup.activeLoansGiven)) ? [...backup.activeLoansGiven] : [],
+        repaidLoanIds: (backup && Array.isArray(backup.repaidLoanIds)) ? [...backup.repaidLoanIds] : [],
+        lastWheelSpin: backupWheelSpin,
         createdAt: (backup && Number.isInteger(backup.createdAt)) ? backup.createdAt : Date.now(),
         lastLogin: Date.now(),
         lastSeen: Date.now()
@@ -777,12 +806,14 @@ class PlayerManager {
       existingPlayer.location = savedAccount.location || 'ROULETTE';
       existingPlayer.seatIndex = savedAccount.seatIndex;
       existingPlayer.lastSeen = Date.now();
+      existingPlayer.lastWheelSpin = Math.max(existingPlayer.lastWheelSpin || 0, savedAccount.lastWheelSpin || 0, backupWheelSpin);
       if (!existingPlayer.color) existingPlayer.color = savedAccount.color || opts.color;
       if (opts.avatar) existingPlayer.avatar = opts.avatar;
       if (existingPlayer.usernameKey && this.accounts.has(existingPlayer.usernameKey)) {
         const acc = this.accounts.get(existingPlayer.usernameKey);
         acc.color = existingPlayer.color;
         acc.avatar = existingPlayer.avatar;
+        acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, existingPlayer.lastWheelSpin || 0);
         acc.lastSeen = Date.now();
       }
 
@@ -807,6 +838,10 @@ class PlayerManager {
       currentGame: savedAccount.currentGame || 'Roulette',
       location: savedAccount.location || 'ROULETTE',
       seatIndex: savedAccount.seatIndex !== undefined ? savedAccount.seatIndex : null,
+      activeDebts: Array.isArray(savedAccount.activeDebts) ? [...savedAccount.activeDebts] : [],
+      activeLoansGiven: Array.isArray(savedAccount.activeLoansGiven) ? [...savedAccount.activeLoansGiven] : [],
+      repaidLoanIds: Array.isArray(savedAccount.repaidLoanIds) ? [...savedAccount.repaidLoanIds] : [],
+      lastWheelSpin: Math.max(savedAccount.lastWheelSpin || 0, backupWheelSpin),
       connected: true,
       isHost: this.players.size === 0,
       createdAt: savedAccount.createdAt || Date.now(),

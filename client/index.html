@@ -930,6 +930,9 @@
           <button class="bank-tab" data-tab="inbox">
             Inbox & Schulden <span id="bank-tab-badge" class="tab-badge hidden">0</span>
           </button>
+          <button class="bank-tab" data-tab="wheel">
+            Rad van Fortuin <span id="wheel-tab-badge" class="tab-badge badge-emerald hidden">1</span>
+          </button>
         </div>
 
         <!-- Tab 1: Overmaken -->
@@ -1063,6 +1066,77 @@
             <h3 class="inbox-section-title">Mijn Verstrekte Leningen</h3>
             <div class="inbox-cards-list" id="bank-my-loans-given">
               <div class="empty-state-notice">Geen uitstaande leningen verstrekt</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Rad van Fortuin (Elke 15 Minuten) -->
+        <div class="bank-tab-pane" id="bank-pane-wheel">
+          <div class="wheel-fortune-container">
+            <div class="wheel-status-header glass-panel" id="wheel-status-bar">
+              <div class="wheel-status-left">
+                <span class="wheel-status-caption">KWARTIER-BONUS</span>
+                <span class="wheel-status-main" id="wheel-status-text">Klaar om te draaien!</span>
+              </div>
+              <div class="wheel-timer-pill" id="wheel-timer-pill">
+                <span class="wheel-timer-label">COOLDOWN:</span>
+                <span class="wheel-timer-val" id="wheel-timer-val">NU KLAAR</span>
+              </div>
+            </div>
+
+            <div class="wheel-stage-wrapper">
+              <!-- Top Golden Pointer -->
+              <div class="wheel-pointer-crest" id="lucky-wheel-pointer" aria-hidden="true">
+                <svg viewBox="0 0 44 48" width="38" height="42">
+                  <defs>
+                    <linearGradient id="pointerGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#fef08a" />
+                      <stop offset="50%" stop-color="#d4af37" />
+                      <stop offset="100%" stop-color="#92400e" />
+                    </linearGradient>
+                  </defs>
+                  <polygon points="22,46 4,10 22,18 40,10" fill="url(#pointerGoldGrad)" stroke="#fef08a" stroke-width="1.5" />
+                  <circle cx="22" cy="12" r="5" fill="#062117" stroke="#d4af37" stroke-width="2" />
+                </svg>
+              </div>
+
+              <!-- Rotating SVG Wheel -->
+              <div class="wheel-Disc-frame">
+                <div class="wheel-rotor" id="lucky-wheel-rotor">
+                  <svg id="lucky-wheel-svg" viewBox="-160 -160 320 320" width="290" height="290" aria-label="Monte Carlo Rad van Fortuin"></svg>
+                </div>
+                <div class="wheel-center-hub">
+                  <span class="wheel-hub-monogram">MC</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="wheel-result-banner hidden" id="wheel-result-banner">
+              <span class="wheel-result-title" id="wheel-result-title">GEWONNEN!</span>
+              <span class="wheel-result-amount" id="wheel-result-amount">+1.000 FICHES</span>
+            </div>
+
+            <button type="button" class="btn btn-gold btn-block btn-lg wheel-spin-btn" id="btn-spin-wheel">
+              Draai het Rad (Gratis)
+            </button>
+
+            <div class="wheel-prize-legend">
+              <div class="legend-item legend-min">
+                <span class="legend-tier">Gegarandeerd Min.</span>
+                <span class="legend-val">250 fiches</span>
+              </div>
+              <div class="legend-item legend-mid">
+                <span class="legend-tier">Klassiek &amp; Hoog</span>
+                <span class="legend-val">500 – 5.000</span>
+              </div>
+              <div class="legend-item legend-vip">
+                <span class="legend-tier">High-Roller / Mega</span>
+                <span class="legend-val">10.000 / 25.000</span>
+              </div>
+              <div class="legend-item legend-jackpot">
+                <span class="legend-tier">Grand Jackpot</span>
+                <span class="legend-val text-gold">50.000 fiches</span>
+              </div>
             </div>
           </div>
         </div>

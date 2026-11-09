@@ -395,11 +395,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (bank) bank.updateConnectedPlayers(players);
       const me = players.find(p => p.id === ui.myPlayer.id);
       if (me) {
-        ui.myPlayer.chips = me.chips;
+        if (!bank || !bank.isWheelSpinning) {
+          ui.myPlayer.chips = me.chips;
+          ui.updatePlayerHUD();
+        }
         if (me.currentGame) ui.myPlayer.currentGame = me.currentGame;
         if (me.stats) ui.myPlayer.stats = me.stats;
         if (me.createdAt) ui.myPlayer.createdAt = me.createdAt;
-        ui.updatePlayerHUD();
         ui.renderMyProfile(me);
         if (bank) bank.updateBankData(bank.currentBankData);
       }
@@ -1229,6 +1231,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('chips_update', (data) => {
     if (data && typeof data.chips === 'number') {
+      if (data.wheelDelayed && bank && bank.isWheelSpinning) {
+        return;
+      }
       ui.myPlayer.chips = data.chips;
       ui.updatePlayerHUD();
       if (bank) bank.updateBankData(bank.currentBankData);
@@ -1242,6 +1247,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bank & Deals Network Events
   network.on('bank_update', (data) => {
     if (bank) bank.updateBankData(data);
+  });
+
+  network.on('bank_wheel_result', (data) => {
+    if (bank && typeof bank.handleWheelResult === 'function') {
+      bank.handleWheelResult(data);
+    }
   });
 
   network.on('bank_error', (data) => {

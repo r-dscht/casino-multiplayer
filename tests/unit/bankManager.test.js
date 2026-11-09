@@ -318,5 +318,107 @@ describe('BankManager Unit Tests', () => {
       assert.ok(found);
       assert.equal(found.totalOwed, 550);
     });
+
+    it('should never resurrect a repaid loan from a stale client backup (repaidLoanIds tombstone)', () => {
+      const prop = bankManager.createLoanProposal({
+        fromId: player2.id,
+        toId: player1.id,
+        type: 'lend',
+        amount: 500,
+        interestPct: 10,
+        winDeductionPct: 15
+      });
+      const accepted = bankManager.acceptProposal(prop.proposal.id, player1.id);
+      const loanId = accepted.loan.id;
+
+      // Alice fully repays the loan
+      const repayRes = bankManager.repayLoan(loanId, player1.id);
+      assert.equal(repayRes.isFullyRepaid, true);
+      assert.ok(bankManager.repaidLoanIds.has(loanId));
+
+      // Attempt to restore a stale backup where the loan was still active
+      const staleBackup = {
+        activeDebts: [{
+          ...accepted.loan,
+          amountRepaid: 0,
+          status: 'active'
+        }]
+      };
+      bankManager.restoreFromBackup(player1.id, staleBackup);
+
+      const data = bankManager.getPlayerBankData(player1.id);
+      assert.equal(data.activeDebts.some(d => d.id === loanId), false);
+    });
+
+    it('should reject forged loans in restoreFromBackup that do not belong to the restoring player', () => {
+      const forgedBackup = {
+        activeLoansGiven: [{
+          id: 'loan_forged_999',
+          borrowerId: 'ply_other_1',
+          borrowerName: 'OtherGuy',
+          lenderId: 'ply_other_2',
+          lenderName: 'AnotherGuy',
+          amount: 50000,
+          totalOwed: 50000,
+          amountRepaid: 0,
+          status: 'active'
+        }]
+      };
+
+      const restored = bankManager.restoreFromBackup(player1.id, forgedBackup);
+      assert.equal(restored, false);
+      assert.equal(bankManager.loans.has('loan_forged_999'), false);
+    });
+  });
+
+  describe('15-Minute Lucky Wheel (Rad van Fortuin)', () => {
+    it('should guarantee a positive win (>= 250 chips) and enforce 15-minute cooldown', () => {
+      const startingChips = player1.chips;
+      const statusBefore = bankManager.getWheelStatus(player1.id);
+      assert.equal(statusBefore.canSpin, true);
+      assert.equal(statusBefore.timeLeftMs, 0);
+      assert.equal(statusBefore.segments.length, 12);
+
+      const spinRes = bankManager.spinWheel(player1.id);
+      assert.equal(spinRes.success, true);
+      assert.ok(spinRes.amount >= 250);
+      assert.ok(spinRes.segmentIndex >= 0 && spinRes.segmentIndex < 12);
+      assert.equal(player1.chips, startingChips + spinRes.amount);
+
+      // Immediate second spin must be rejected due to 15-minute cooldown
+      const secondSpin = bankManager.spinWheel(player1.id);
+      assert.equal(secondSpin.success, false);
+      assert.equal(secondSpin.code, 'WHEEL_COOLDOWN');
+      assert.ok(secondSpin.wheelStatus.timeLeftMs > 14 * 60 * 1000);
+    });
+
+    it('should persist cooldown across simulated server restarts via client backup timestamp', () => {
+      const spinRes = bankManager.spinWheel(player1.id);
+      assert.equal(spinRes.success, true);
+      const savedTimestamp = spinRes.lastSpinTime;
+
+      // Simulate fresh server restart (new PlayerManager and BankManager)
+      const freshPm = new PlayerManager({ storagePath: false });
+      const freshBm = new BankManager(freshPm, { storagePath: false });
+
+      const authRes = freshPm.authSession('socket_reconnected', {
+        name: 'Alice',
+        clientBackup: {
+          id: player1.id,
+          name: 'Alice',
+          chips: player1.chips,
+          lastWheelSpin: savedTimestamp
+        }
+      });
+      freshBm.restoreFromBackup(authRes.player.id, { lastWheelSpin: savedTimestamp });
+
+      const statusAfterRestart = freshBm.getWheelStatus(authRes.player.id);
+      assert.equal(statusAfterRestart.canSpin, false);
+      assert.ok(statusAfterRestart.timeLeftMs > 14 * 60 * 1000);
+
+      const attemptSpin = freshBm.spinWheel(authRes.player.id);
+      assert.equal(attemptSpin.success, false);
+      assert.equal(attemptSpin.code, 'WHEEL_COOLDOWN');
+    });
   });
 });

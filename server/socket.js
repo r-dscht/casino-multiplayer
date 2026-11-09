@@ -660,6 +660,13 @@ function setupSocket(httpServer, options = {}) {
   io.on('connection', (socket) => {
     let currentSocketPlayerId = null;
 
+    function notifyLoanCounterparties(restoredPlayerId) {
+      for (const connectedPlayer of playerManager.getConnectedPlayers()) {
+        if (!connectedPlayer || connectedPlayer.id === restoredPlayerId || !connectedPlayer.socketId) continue;
+        io.to(connectedPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(connectedPlayer.id));
+      }
+    }
+
     // 0. auth_session
     socket.on('auth_session', (payload = {}) => {
       const opts = (payload && typeof payload === 'object') ? payload : {};
@@ -674,6 +681,15 @@ function setupSocket(httpServer, options = {}) {
 
       const { player, sessionToken, isNew } = authResult;
       currentSocketPlayerId = player.id;
+
+      // Restore active loans & wheel cooldown BEFORE emitting bank_update so client localStorage is never overwritten by an empty restart state
+      let restoredLoans = false;
+      if (opts.bankBackup && typeof opts.bankBackup === 'object') {
+        restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
+      }
+      if (opts.clientBackup && typeof opts.clientBackup === 'object') {
+        restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
+      }
 
       // Reconnect to active poker seats if player was seated
       for (const tbl of pokerTables.values()) {
@@ -697,6 +713,7 @@ function setupSocket(httpServer, options = {}) {
           currentGame: player.currentGame || 'Roulette',
           location: player.location || 'ROULETTE',
           seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+          lastWheelSpin: player.lastWheelSpin || 0,
           stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 }
         }
       });
@@ -710,6 +727,9 @@ function setupSocket(httpServer, options = {}) {
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      if (restoredLoans) {
+        notifyLoanCounterparties(player.id);
+      }
 
       // Send initial player profile to client
       socket.emit('profile_data', playerManager.getPlayerProfile(player.id));
@@ -770,6 +790,15 @@ function setupSocket(httpServer, options = {}) {
       const player = result;
       currentSocketPlayerId = player.id;
 
+      // Restore active loans & wheel cooldown BEFORE emitting bank_update
+      let restoredLoans = false;
+      if (opts.bankBackup && typeof opts.bankBackup === 'object') {
+        restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
+      }
+      if (opts.clientBackup && typeof opts.clientBackup === 'object') {
+        restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
+      }
+
       // Reconnect to active poker seats if player was seated
       for (const tbl of pokerTables.values()) {
         const seat = tbl.seats.find(s => s.player && s.player.id === player.id);
@@ -792,6 +821,7 @@ function setupSocket(httpServer, options = {}) {
           currentGame: player.currentGame || 'Roulette',
           location: player.location || 'ROULETTE',
           seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+          lastWheelSpin: player.lastWheelSpin || 0,
           stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 }
         }
       });
@@ -805,6 +835,9 @@ function setupSocket(httpServer, options = {}) {
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      if (restoredLoans) {
+        notifyLoanCounterparties(player.id);
+      }
 
       // Send initial player profile to client
       socket.emit('profile_data', playerManager.getPlayerProfile(player.id));
@@ -1001,19 +1034,57 @@ function setupSocket(httpServer, options = {}) {
     socket.on('bank_get_state', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
+      let restored = false;
       if (payload && payload.backup) {
-        bankManager.restoreFromBackup(player.id, payload.backup);
+        restored = bankManager.restoreFromBackup(player.id, payload.backup);
       }
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      if (restored) {
+        notifyLoanCounterparties(player.id);
+      }
     });
 
     socket.on('bank_reconcile_backup', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
+      let restored = false;
       if (payload && payload.backup) {
-        bankManager.restoreFromBackup(player.id, payload.backup);
+        restored = bankManager.restoreFromBackup(player.id, payload.backup);
       }
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      if (restored) {
+        notifyLoanCounterparties(player.id);
+      }
+    });
+
+    socket.on('bank_spin_wheel', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      const clientLastSpin = (payload && typeof payload.lastWheelSpin === 'number') ? payload.lastWheelSpin : 0;
+      const res = bankManager.spinWheel(player.id, clientLastSpin);
+      if (!res.success) {
+        socket.emit('bank_wheel_result', res);
+        socket.emit('bank_error', { code: res.code, message: res.reason });
+        socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+        return;
+      }
+
+      socket.emit('bank_wheel_result', res);
+      socket.emit('chips_update', { chips: res.chips, wheelDelayed: true });
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      broadcastPlayersUpdate();
+
+      if (res.amount >= 5000) {
+        broadcastChatMessage({
+          sender: 'CASINO',
+          color: '#d4af37',
+          text: `[RAD VAN FORTUIN] ${player.name} draait het Rad van Fortuin en wint ${res.amount.toLocaleString()} fiches!`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'global',
+          table: 'all'
+        });
+      }
     });
 
     socket.on('bank_transfer', (payload = {}) => {

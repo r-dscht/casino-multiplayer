@@ -162,4 +162,73 @@ describe('Casino Bank & Loans Socket Integration', () => {
     assert.equal(claimRes.amount, 100);
     assert.equal(claimRes.chips, 100);
   });
+
+  it('should spin the 15-minute Rad van Fortuin via bank_spin_wheel and block immediate re-spin', async () => {
+    const wheelResultPromise = new Promise(resolve => {
+      client1.once('bank_wheel_result', resolve);
+    });
+
+    client1.emit('bank_spin_wheel', { lastWheelSpin: 0 });
+    const res1 = await wheelResultPromise;
+    assert.equal(res1.success, true);
+    assert.ok(res1.amount >= 250);
+    assert.ok(res1.segmentIndex >= 0 && res1.segmentIndex < 12);
+
+    // Immediate second spin must fail with WHEEL_COOLDOWN
+    const wheelCooldownPromise = new Promise(resolve => {
+      client1.once('bank_wheel_result', resolve);
+    });
+    client1.emit('bank_spin_wheel', { lastWheelSpin: res1.lastSpinTime });
+    const res2 = await wheelCooldownPromise;
+    assert.equal(res2.success, false);
+    assert.equal(res2.code, 'WHEEL_COOLDOWN');
+  });
+
+  it('should preserve active loans across simulated server restart during auth_session', async () => {
+    // Clear server-side loans map to simulate a fresh Render container deploy
+    socketHandler.bankManager.loans.clear();
+    for (const p of socketHandler.playerManager.players.values()) {
+      p.activeDebts = [];
+      p.activeLoansGiven = [];
+    }
+    for (const a of socketHandler.playerManager.accounts.values()) {
+      a.activeDebts = [];
+      a.activeLoansGiven = [];
+    }
+
+    const simulatedLoan = {
+      id: 'loan_redeploy_persist_1',
+      lenderId: p2Data.id,
+      lenderName: 'PlayerTwo',
+      lenderKey: 'playertwo',
+      borrowerId: p1Data.id,
+      borrowerName: 'PlayerOne',
+      borrowerKey: 'playerone',
+      amount: 1000,
+      interestPct: 10,
+      winDeductionPct: 15,
+      totalOwed: 1100,
+      amountRepaid: 200,
+      status: 'active'
+    };
+
+    const bankUpdatePromise = new Promise(resolve => {
+      client1.once('bank_update', resolve);
+    });
+
+    client1.emit('auth_session', {
+      name: 'PlayerOne',
+      bankBackup: {
+        activeDebts: [simulatedLoan],
+        activeLoansGiven: [],
+        repaidLoanIds: []
+      }
+    });
+
+    const bankUpdate = await bankUpdatePromise;
+    const restoredDebt = (bankUpdate.activeDebts || []).find(d => d.id === 'loan_redeploy_persist_1');
+    assert.ok(restoredDebt, 'Initial bank_update after auth_session must contain the restored loan without wiping it');
+    assert.equal(restoredDebt.totalOwed, 1100);
+    assert.equal(restoredDebt.amountRepaid, 200);
+  });
 });

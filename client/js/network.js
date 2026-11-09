@@ -61,6 +61,40 @@
       try {
         if (typeof localStorage !== 'undefined') {
           const raw = localStorage.getItem('casino_player_backup');
+          let parsed = null;
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p && typeof p === 'object') parsed = p;
+          }
+          const bankRaw = localStorage.getItem('casino_bank_backup');
+          if (bankRaw) {
+            const bankParsed = JSON.parse(bankRaw);
+            if (bankParsed && typeof bankParsed === 'object') {
+              parsed = parsed || {};
+              if (Array.isArray(bankParsed.activeDebts) && bankParsed.activeDebts.length > 0) {
+                parsed.activeDebts = bankParsed.activeDebts;
+              }
+              if (Array.isArray(bankParsed.activeLoansGiven) && bankParsed.activeLoansGiven.length > 0) {
+                parsed.activeLoansGiven = bankParsed.activeLoansGiven;
+              }
+              if (Array.isArray(bankParsed.repaidLoanIds) && bankParsed.repaidLoanIds.length > 0) {
+                parsed.repaidLoanIds = bankParsed.repaidLoanIds;
+              }
+              if (typeof bankParsed.lastWheelSpin === 'number' && bankParsed.lastWheelSpin > (parsed.lastWheelSpin || 0)) {
+                parsed.lastWheelSpin = bankParsed.lastWheelSpin;
+              }
+            }
+          }
+          return parsed;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    getBankBackup() {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_bank_backup');
           if (raw) {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === 'object') return parsed;
@@ -257,7 +291,17 @@
 
       // Bank & Loans events
       this.socket.on('bank_update', (data) => {
+        if (data && data.wheelStatus && typeof data.wheelStatus.lastSpinTime === 'number' && data.wheelStatus.lastSpinTime > 0) {
+          this.saveClientBackup({ lastWheelSpin: data.wheelStatus.lastSpinTime });
+        }
         this.emitInternal('bank_update', data);
+      });
+
+      this.socket.on('bank_wheel_result', (data) => {
+        if (data && typeof data.lastSpinTime === 'number' && data.lastSpinTime > 0) {
+          this.saveClientBackup({ lastWheelSpin: data.lastSpinTime });
+        }
+        this.emitInternal('bank_wheel_result', data);
       });
 
       this.socket.on('bank_error', (data) => {
@@ -582,7 +626,8 @@
         name: payload.name,
         color: payload.color,
         password: payload.password,
-        clientBackup: this.getClientBackup()
+        clientBackup: this.getClientBackup(),
+        bankBackup: this.getBankBackup()
       });
     }
 
@@ -600,7 +645,8 @@
       this.socket.emit('join_table', {
         ...playerProfile,
         sessionToken: token,
-        clientBackup: sameUser ? backup : null
+        clientBackup: sameUser ? backup : null,
+        bankBackup: sameUser ? this.getBankBackup() : null
       });
     }
 
@@ -637,7 +683,24 @@
      */
     getBankState(backup = null) {
       if (!this.socket) return;
-      this.socket.emit('bank_get_state', { backup });
+      this.socket.emit('bank_get_state', { backup: backup || this.getBankBackup() });
+    }
+
+    /**
+     * Pushes reconciled local bank backup to the server.
+     */
+    reconcileBankBackup(backup = null) {
+      if (!this.socket) return;
+      this.socket.emit('bank_reconcile_backup', { backup: backup || this.getBankBackup() });
+    }
+
+    /**
+     * Spins the 15-minute Rad van Fortuin.
+     * @param {number} [lastWheelSpin=0]
+     */
+    spinWheel(lastWheelSpin = 0) {
+      if (!this.socket) return;
+      this.socket.emit('bank_spin_wheel', { lastWheelSpin });
     }
 
     /**
