@@ -36,9 +36,33 @@
       this.connectedPlayers = [];
       this.bailoutInterval = null;
 
+      // Restore cached bank data from localStorage across sessions/restarts
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const cached = localStorage.getItem('casino_bank_backup');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === 'object') {
+              this.currentBankData = {
+                ...this.currentBankData,
+                ...parsed
+              };
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore localStorage access errors
+      }
+
       this._cacheElements();
       this._bindEvents();
-      this._startBailoutTimer();
+
+      // Render cached items if present
+      if (this.currentBankData) {
+        this._renderIncomingProposals(this.currentBankData.incomingProposals || []);
+        this._renderMyDebts(this.currentBankData.activeDebts || []);
+        this._renderMyLoansGiven(this.currentBankData.activeLoansGiven || []);
+      }
     }
 
     _cacheElements() {
@@ -254,7 +278,14 @@
     open() {
       if (this.bankModal) {
         this.bankModal.classList.remove('hidden');
-        this.network.getBankState();
+        let backup = null;
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const cached = localStorage.getItem('casino_bank_backup');
+            if (cached) backup = JSON.parse(cached);
+          }
+        } catch (e) {}
+        this.network.getBankState(backup);
       }
     }
 
@@ -337,6 +368,20 @@
       this._renderMyDebts(data.activeDebts || []);
       this._renderMyLoansGiven(data.activeLoansGiven || []);
       this._updateBailoutDisplay(data.bailoutStatus);
+
+      // Cache active bank data in localStorage across sessions/restarts
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('casino_bank_backup', JSON.stringify({
+            incomingProposals: data.incomingProposals || [],
+            outgoingProposals: data.outgoingProposals || [],
+            activeDebts: data.activeDebts || [],
+            activeLoansGiven: data.activeLoansGiven || []
+          }));
+        }
+      } catch (e) {
+        // Ignore localStorage access errors
+      }
     }
 
     _renderIncomingProposals(proposals) {
@@ -470,60 +515,17 @@
     }
 
     _updateBailoutDisplay(status) {
-      if (!status) return;
-
-      const myChips = this.ui.myPlayer ? this.ui.myPlayer.chips : 0;
-      const eligibleByChips = myChips < 10;
-      const timeLeftMs = status.timeLeftMs || 0;
-      const canClaim = eligibleByChips && timeLeftMs <= 0;
-
-      if (this.btnClaimBailout) {
-        this.btnClaimBailout.disabled = !canClaim;
-      }
-
-      const reqChips = document.getElementById('req-chips-item');
-      if (reqChips) {
-        reqChips.classList.toggle('req-met', eligibleByChips);
-      }
-      const reqCooldown = document.getElementById('req-cooldown-item');
-      if (reqCooldown) {
-        reqCooldown.classList.toggle('req-met', timeLeftMs <= 0);
-      }
-
-      if (this.lblBailoutTimer) {
-        if (timeLeftMs > 0) {
-          const totalSec = Math.ceil(timeLeftMs / 1000);
-          const mins = Math.floor(totalSec / 60);
-          const secs = totalSec % 60;
-          this.lblBailoutTimer.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-          this.lblBailoutTimer.className = 'bailout-timer-val timer-waiting';
-        } else {
-          this.lblBailoutTimer.textContent = 'Beschikbaar';
-          this.lblBailoutTimer.className = 'bailout-timer-val timer-ready';
-        }
-      }
-
-      if (this.lblBailoutReason) {
-        if (!eligibleByChips) {
-          this.lblBailoutReason.textContent = `Noodfiches zijn enkel beschikbaar wanneer je saldo minder dan 10 fiches is (huidig saldo: ${myChips.toLocaleString()} fiches).`;
-        } else if (timeLeftMs > 0) {
-          this.lblBailoutReason.textContent = 'Wacht tot de aftelklok op 00:00 staat om opnieuw 100 fiches te claimen.';
-        } else {
-          this.lblBailoutReason.textContent = 'Je saldo is lager dan 10 fiches. Klik op de knop om direct 100 gratis fiches te ontvangen.';
-        }
-      }
+      // Faucet is permanently removed (R5)
+      if (this.lblBailoutTimer) this.lblBailoutTimer.textContent = 'Uitgeschakeld';
+      if (this.btnClaimBailout) this.btnClaimBailout.disabled = true;
     }
 
     _startBailoutTimer() {
-      if (this.bailoutInterval) clearInterval(this.bailoutInterval);
-      this.bailoutInterval = setInterval(() => {
-        if (this.currentBankData && this.currentBankData.bailoutStatus) {
-          if (this.currentBankData.bailoutStatus.timeLeftMs > 0) {
-            this.currentBankData.bailoutStatus.timeLeftMs = Math.max(0, this.currentBankData.bailoutStatus.timeLeftMs - 1000);
-          }
-          this._updateBailoutDisplay(this.currentBankData.bailoutStatus);
-        }
-      }, 1000);
+      // Faucet is permanently removed (R5)
+      if (this.bailoutInterval) {
+        clearInterval(this.bailoutInterval);
+        this.bailoutInterval = null;
+      }
     }
   }
 

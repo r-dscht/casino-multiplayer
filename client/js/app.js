@@ -164,6 +164,17 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.updatePlayerHUD();
       ui.renderMyProfile(data.player);
     }
+    // Reconcile and request bank state with cached backup
+    if (bank) {
+      let backup = null;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const cached = localStorage.getItem('casino_bank_backup');
+          if (cached) backup = JSON.parse(cached);
+        }
+      } catch (e) {}
+      network.getBankState(backup);
+    }
   });
 
   network.on('table_state', (state) => {
@@ -292,6 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
       tableLiveBets = [];
       ui.updateActiveBetsList([], 0);
       ui.setNavigationLocked(hasUnsettledBets());
+      if (roulette3D && typeof roulette3D.resetCamera === 'function') {
+        roulette3D.resetCamera();
+      }
     }
   });
 

@@ -257,4 +257,66 @@ describe('BankManager Unit Tests', () => {
       assert.ok(second.status.timeLeftMs > 0);
     });
   });
+
+  describe('Debt Persistence & Session Reconnection', () => {
+    it('should match debts across reconnecting player IDs using usernameKey', () => {
+      // Bob lends 1000 to Alice
+      const prop = bankManager.createLoanProposal({
+        fromId: player2.id,
+        toId: player1.id,
+        type: 'lend',
+        amount: 1000,
+        interestPct: 10,
+        winDeductionPct: 15
+      });
+      const accepted = bankManager.acceptProposal(prop.proposal.id, player1.id);
+      assert.equal(accepted.success, true);
+
+      // Simulate Alice reconnecting with a fresh socket / new playerId
+      const reconnectedAlice = {
+        id: 'ply_reconnected_999',
+        name: 'Alice',
+        usernameKey: 'alice',
+        chips: 5000
+      };
+      playerManager.players.set(reconnectedAlice.id, reconnectedAlice);
+
+      // Bank data should recognize active debts for the reconnected Alice
+      const bankData = bankManager.getPlayerBankData(reconnectedAlice.id);
+      assert.ok(bankData.activeDebts.length >= 1);
+      assert.equal(bankData.activeDebts[0].id, accepted.loan.id);
+
+      // Processing win deductions with reconnected Alice ID should deduct debt
+      const deductions = bankManager.processWinRepayment(reconnectedAlice.id, 2000);
+      assert.ok(deductions.length >= 1);
+      assert.equal(deductions[0].loanId, accepted.loan.id);
+    });
+
+    it('should restore loans from client backup when server state was cleared', () => {
+      const backupData = {
+        activeDebts: [{
+          id: 'loan_backup_test_1',
+          borrowerId: player1.id,
+          borrowerName: 'Alice',
+          lenderId: player2.id,
+          lenderName: 'Bob',
+          amount: 500,
+          totalOwed: 550,
+          amountRepaid: 0,
+          interestPct: 10,
+          winDeductionPct: 15,
+          status: 'active'
+        }]
+      };
+
+      const restored = bankManager.restoreFromBackup(player1.id, backupData);
+      assert.equal(restored, true);
+      assert.ok(bankManager.loans.has('loan_backup_test_1'));
+
+      const data = bankManager.getPlayerBankData(player1.id);
+      const found = data.activeDebts.find(d => d.id === 'loan_backup_test_1');
+      assert.ok(found);
+      assert.equal(found.totalOwed, 550);
+    });
+  });
 });

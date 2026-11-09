@@ -35,6 +35,12 @@
         <path d="M12 2a4 4 0 0 0-3.6 5.8A4.8 4.8 0 0 0 4 12.5a4.8 4.8 0 0 0 6.6 4.4c-.4 1.6-1.4 3.1-2.6 4.1h8c-1.2-1-2.2-2.5-2.6-4.1a4.8 4.8 0 0 0 6.6-4.4 4.8 4.8 0 0 0-4.4-4.7A4 4 0 0 0 12 2z" fill="currentColor"/>
       </g>
       <g id="suit-clubs"><use href="#suit-club"/></g>
+      <g id="icon-eye-open">
+        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="currentColor"/>
+      </g>
+      <g id="icon-eye-closed">
+        <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z" fill="currentColor"/>
+      </g>
     </defs>
   </svg>
 
@@ -697,8 +703,14 @@
               </div>
             </div>
 
-            <!-- Action Buttons: Fold, Check/Call, Bet/Raise -->
+            <!-- Action Buttons: Fold, Check/Call, Bet/Raise, Peek Toggle -->
             <div class="poker-action-buttons-row">
+              <button type="button" class="btn btn-action btn-poker-peek" id="btn-poker-peek" aria-pressed="true" title="Spiek / Verberg Kaarten (P)">
+                <svg class="poker-peek-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <use href="#icon-eye-open"></use>
+                </svg>
+                <span class="action-btn-text" id="poker-peek-btn-text">Verberg</span>
+              </button>
               <button type="button" class="btn btn-action btn-poker-fold" id="btn-poker-fold" disabled>
                 <span class="action-btn-text">FOLD (Pas)</span>
               </button>
@@ -907,7 +919,7 @@
         <div class="modal-header-row">
           <div>
             <h2 class="gold-text">Casino Bank</h2>
-            <p class="modal-subtitle">Transfers, leningen met rente en noodfiches</p>
+            <p class="modal-subtitle">Transfers en leningen met rente</p>
           </div>
           <button class="btn-modal-close" id="btn-close-bank-modal" aria-label="Sluiten">&times;</button>
         </div>
@@ -918,7 +930,6 @@
           <button class="bank-tab" data-tab="inbox">
             Inbox & Schulden <span id="bank-tab-badge" class="tab-badge hidden">0</span>
           </button>
-          <button class="bank-tab" data-tab="bailout">Noodfiches</button>
         </div>
 
         <!-- Tab 1: Overmaken -->
@@ -1053,35 +1064,6 @@
             <div class="inbox-cards-list" id="bank-my-loans-given">
               <div class="empty-state-notice">Geen uitstaande leningen verstrekt</div>
             </div>
-          </div>
-        </div>
-
-        <!-- Tab 4: Noodfiches -->
-        <div class="bank-tab-pane" id="bank-pane-bailout">
-          <div class="bailout-card glass-panel">
-            <div class="bailout-header">
-              <h3 class="gold-text">Casino Noodfonds</h3>
-              <p class="bailout-subtitle">100 gratis fiches elke 10 minuten wanneer je saldo onder 10 fiches zakt.</p>
-            </div>
-
-            <div class="bailout-requirements">
-              <div class="req-item" id="req-chips-item">
-                <span class="req-dot"></span>
-                <span>Saldo minder dan 10 fiches</span>
-              </div>
-              <div class="req-item" id="req-cooldown-item">
-                <span class="req-dot"></span>
-                <span>10-minuten cooldown</span>
-              </div>
-            </div>
-
-            <div class="bailout-timer-box">
-              <span class="bailout-timer-title">Aftelklok</span>
-              <div class="bailout-timer-val" id="bailout-timer-val">Beschikbaar</div>
-              <div class="bailout-reason" id="bailout-reason-text"></div>
-            </div>
-
-            <button class="btn btn-gold btn-block btn-lg" id="btn-claim-bailout" disabled>Claim 100 Noodfiches</button>
           </div>
         </div>
 

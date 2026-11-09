@@ -46,28 +46,177 @@ class BankManager {
   }
 
   loadState() {
-    if (!this.storagePath) return;
-    try {
-      if (fs.existsSync(this.storagePath)) {
-        const raw = fs.readFileSync(this.storagePath, 'utf8');
-        const data = JSON.parse(raw);
-        if (data && typeof data === 'object') {
-          if (Array.isArray(data.loans)) {
-            data.loans.forEach(loan => this.loans.set(loan.id, loan));
-          }
-          if (data.bailouts && typeof data.bailouts === 'object') {
-            for (const [k, v] of Object.entries(data.bailouts)) {
-              this.bailouts.set(k, v);
+    if (this.storagePath) {
+      try {
+        if (fs.existsSync(this.storagePath)) {
+          const raw = fs.readFileSync(this.storagePath, 'utf8');
+          const data = JSON.parse(raw);
+          if (data && typeof data === 'object') {
+            if (Array.isArray(data.loans)) {
+              data.loans.forEach(loan => {
+                if (loan && loan.id) {
+                  if (!loan.borrowerKey && loan.borrowerName) {
+                    loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
+                  }
+                  if (!loan.lenderKey && loan.lenderName) {
+                    loan.lenderKey = loan.lenderName.trim().toLowerCase();
+                  }
+                  this.loans.set(loan.id, loan);
+                }
+              });
+            }
+            if (data.bailouts && typeof data.bailouts === 'object') {
+              for (const [k, v] of Object.entries(data.bailouts)) {
+                this.bailouts.set(k, v);
+              }
+            }
+            if (Array.isArray(data.transactions)) {
+              this.transactions = data.transactions.slice(-50);
             }
           }
-          if (Array.isArray(data.transactions)) {
-            this.transactions = data.transactions.slice(-50);
+        }
+      } catch (err) {
+        console.error('Failed to load bank state:', err.message);
+      }
+    }
+
+    // Restore active loans from player storage across restarts
+    this.syncFromPlayerStorage();
+  }
+
+  syncFromPlayerStorage() {
+    if (!this.playerManager) return;
+    const records = [];
+    if (this.playerManager.accounts) {
+      records.push(...this.playerManager.accounts.values());
+    }
+    if (this.playerManager.players) {
+      records.push(...this.playerManager.players.values());
+    }
+
+    for (const record of records) {
+      if (!record) continue;
+      if (Array.isArray(record.activeDebts)) {
+        for (const loan of record.activeDebts) {
+          if (loan && loan.id && !this.loans.has(loan.id)) {
+            if (!loan.borrowerKey && loan.borrowerName) loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
+            if (!loan.lenderKey && loan.lenderName) loan.lenderKey = loan.lenderName.trim().toLowerCase();
+            this.loans.set(loan.id, { ...loan });
           }
         }
       }
-    } catch (err) {
-      console.error('Failed to load bank state:', err.message);
+      if (Array.isArray(record.activeLoansGiven)) {
+        for (const loan of record.activeLoansGiven) {
+          if (loan && loan.id && !this.loans.has(loan.id)) {
+            if (!loan.borrowerKey && loan.borrowerName) loan.borrowerKey = loan.borrowerName.trim().toLowerCase();
+            if (!loan.lenderKey && loan.lenderName) loan.lenderKey = loan.lenderName.trim().toLowerCase();
+            this.loans.set(loan.id, { ...loan });
+          }
+        }
+      }
     }
+  }
+
+  syncPlayerDebts(loan) {
+    if (!loan || !this.playerManager) return;
+    const borrowerKey = (loan.borrowerKey || loan.borrowerName || '').trim().toLowerCase();
+    const lenderKey = (loan.lenderKey || loan.lenderName || '').trim().toLowerCase();
+
+    const updateAccountLoans = (key, id, listProp, isAdd) => {
+      const targets = new Set();
+      if (id && this.playerManager.players.has(id)) {
+        targets.add(this.playerManager.players.get(id));
+      }
+      if (key && this.playerManager.accounts.has(key)) {
+        targets.add(this.playerManager.accounts.get(key));
+      }
+      for (const p of this.playerManager.players.values()) {
+        if ((p.id && p.id === id) || ((p.usernameKey || p.name || '').trim().toLowerCase() === key)) {
+          targets.add(p);
+        }
+      }
+
+      for (const target of targets) {
+        if (!Array.isArray(target[listProp])) {
+          target[listProp] = [];
+        }
+        target[listProp] = target[listProp].filter(l => l.id !== loan.id);
+        if (isAdd && loan.status === 'active') {
+          target[listProp].push({ ...loan });
+        }
+      }
+    };
+
+    updateAccountLoans(borrowerKey, loan.borrowerId, 'activeDebts', loan.status === 'active');
+    updateAccountLoans(lenderKey, loan.lenderId, 'activeLoansGiven', loan.status === 'active');
+
+    if (typeof this.playerManager.scheduleSave === 'function') {
+      this.playerManager.scheduleSave();
+    }
+  }
+
+  restoreFromBackup(playerId, backup) {
+    if (!backup || typeof backup !== 'object') return false;
+    let restoredAny = false;
+
+    const checkLoan = (loan) => {
+      if (!loan || !loan.id || typeof loan.id !== 'string') return;
+      if (!this.loans.has(loan.id) && loan.status !== 'repaid') {
+        const restoredLoan = {
+          ...loan,
+          borrowerKey: loan.borrowerKey || (loan.borrowerName ? loan.borrowerName.trim().toLowerCase() : ''),
+          lenderKey: loan.lenderKey || (loan.lenderName ? loan.lenderName.trim().toLowerCase() : ''),
+          status: 'active'
+        };
+        this.loans.set(restoredLoan.id, restoredLoan);
+        this.syncPlayerDebts(restoredLoan);
+        restoredAny = true;
+      }
+    };
+
+    if (Array.isArray(backup.activeDebts)) {
+      backup.activeDebts.forEach(checkLoan);
+    }
+    if (Array.isArray(backup.activeLoansGiven)) {
+      backup.activeLoansGiven.forEach(checkLoan);
+    }
+
+    if (restoredAny) {
+      this.saveState();
+    }
+    return restoredAny;
+  }
+
+  _isBorrowerMatch(loan, player) {
+    if (!loan || !player) return false;
+    if (loan.borrowerId && player.id && loan.borrowerId === player.id) return true;
+    const pKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const bKey = (loan.borrowerKey || loan.borrowerName || '').trim().toLowerCase();
+    return !!(pKey && bKey && pKey === bKey);
+  }
+
+  _isLenderMatch(loan, player) {
+    if (!loan || !player) return false;
+    if (loan.lenderId && player.id && loan.lenderId === player.id) return true;
+    const pKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const lKey = (loan.lenderKey || loan.lenderName || '').trim().toLowerCase();
+    return !!(pKey && lKey && pKey === lKey);
+  }
+
+  _isProposalToMatch(prop, player) {
+    if (!prop || !player) return false;
+    if (prop.toId && player.id && prop.toId === player.id) return true;
+    const pKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const tKey = (prop.toKey || prop.toName || '').trim().toLowerCase();
+    return !!(pKey && tKey && pKey === tKey);
+  }
+
+  _isProposalFromMatch(prop, player) {
+    if (!prop || !player) return false;
+    if (prop.fromId && player.id && prop.fromId === player.id) return true;
+    const pKey = (player.usernameKey || player.name || '').trim().toLowerCase();
+    const fKey = (prop.fromKey || prop.fromName || '').trim().toLowerCase();
+    return !!(pKey && fKey && pKey === fKey);
   }
 
   saveState() {
@@ -193,8 +342,10 @@ class BankManager {
       id: proposalId,
       fromId,
       fromName: fromPlayer.name,
+      fromKey: (fromPlayer.usernameKey || fromPlayer.name || '').trim().toLowerCase(),
       toId,
       toName: toPlayer.name,
+      toKey: (toPlayer.usernameKey || toPlayer.name || '').trim().toLowerCase(),
       type, // 'borrow' or 'lend'
       amount: cleanAmount,
       interestPct: cleanInterest,
@@ -219,7 +370,12 @@ class BankManager {
       return { success: false, reason: 'Voorstel niet gevonden of verlopen.' };
     }
 
-    if (proposal.toId !== acceptingPlayerId) {
+    const acceptingPlayer = this.playerManager.getPlayerById(acceptingPlayerId);
+    if (!acceptingPlayer) {
+      return { success: false, reason: 'Speler niet gevonden of niet verbonden.' };
+    }
+
+    if (proposal.toId !== acceptingPlayerId && !this._isProposalToMatch(proposal, acceptingPlayer)) {
       return { success: false, reason: 'Alleen de genodigde speler kan dit voorstel accepteren.' };
     }
 
@@ -259,8 +415,10 @@ class BankManager {
       id: loanId,
       lenderId: lender.id,
       lenderName: lender.name,
+      lenderKey: (lender.usernameKey || lender.name || '').trim().toLowerCase(),
       borrowerId: borrower.id,
       borrowerName: borrower.name,
+      borrowerKey: (borrower.usernameKey || borrower.name || '').trim().toLowerCase(),
       amount: proposal.amount,
       interestPct: proposal.interestPct,
       winDeductionPct: proposal.winDeductionPct,
@@ -272,6 +430,7 @@ class BankManager {
 
     this.loans.set(loanId, loan);
     this.proposals.delete(proposalId);
+    this.syncPlayerDebts(loan);
 
     this._recordTransaction(
       'loan_started',
@@ -303,7 +462,13 @@ class BankManager {
       return { success: false, reason: 'Voorstel niet gevonden.' };
     }
 
-    if (proposal.toId !== playerId && proposal.fromId !== playerId) {
+    const player = this.playerManager.getPlayerById(playerId);
+    if (!player) {
+      return { success: false, reason: 'Speler niet gevonden.' };
+    }
+
+    if (proposal.toId !== playerId && proposal.fromId !== playerId &&
+        !this._isProposalToMatch(proposal, player) && !this._isProposalFromMatch(proposal, player)) {
       return { success: false, reason: 'Geen bevoegdheid om dit voorstel af te wijzen.' };
     }
 
@@ -324,14 +489,15 @@ class BankManager {
       return { success: false, reason: 'Lening niet gevonden of reeds afgelost.' };
     }
 
-    if (loan.borrowerId !== borrowerPlayerId) {
-      return { success: false, reason: 'Alleen de lener kan deze schuld aflossen.' };
-    }
-
     const borrower = this.playerManager.getPlayerById(borrowerPlayerId);
     if (!borrower) {
       return { success: false, reason: 'Lener niet online.' };
     }
+
+    if (loan.borrowerId !== borrowerPlayerId && !this._isBorrowerMatch(loan, borrower)) {
+      return { success: false, reason: 'Alleen de lener kan deze schuld aflossen.' };
+    }
+    loan.borrowerId = borrower.id;
 
     const remaining = loan.totalOwed - loan.amountRepaid;
     const cleanAmount = (typeof amount === 'number' && amount > 0)
@@ -352,13 +518,24 @@ class BankManager {
     }
 
     // Credit lender (even if lender is offline, credit their account balance)
-    const lender = this.playerManager.getPlayerById(loan.lenderId);
+    let lender = this.playerManager.getPlayerById(loan.lenderId);
+    if (!lender && loan.lenderKey) {
+      for (const p of this.playerManager.players.values()) {
+        if ((p.usernameKey || p.name || '').trim().toLowerCase() === loan.lenderKey) {
+          lender = p;
+          loan.lenderId = p.id;
+          break;
+        }
+      }
+    }
+
     if (lender) {
       this.playerManager.addChips(lender.id, cleanAmount);
     } else {
       // Find persistent account of lender if offline
       for (const account of this.playerManager.accounts.values()) {
-        if (account.name.toLowerCase() === loan.lenderName.toLowerCase()) {
+        if (account.name.toLowerCase() === loan.lenderName.toLowerCase() ||
+            (account.usernameKey && account.usernameKey === loan.lenderKey)) {
           account.chips = (account.chips || 0) + cleanAmount;
           this.playerManager.saveAccounts();
           break;
@@ -371,6 +548,8 @@ class BankManager {
     if (isFullyRepaid) {
       loan.status = 'repaid';
     }
+
+    this.syncPlayerDebts(loan);
 
     this._recordTransaction(
       'repayment',
@@ -400,11 +579,17 @@ class BankManager {
     if (!loan || loan.status !== 'active') {
       return { success: false, reason: 'Lening niet gevonden of niet actief.' };
     }
-    if (loan.lenderId !== lenderPlayerId) {
+    const lender = this.playerManager.getPlayerById(lenderPlayerId);
+    if (!lender) {
+      return { success: false, reason: 'Geldschieter niet online.' };
+    }
+    if (loan.lenderId !== lenderPlayerId && !this._isLenderMatch(loan, lender)) {
       return { success: false, reason: 'Alleen de geldschieter kan een lening kwijtschelden.' };
     }
+    loan.lenderId = lender.id;
 
     loan.status = 'repaid';
+    this.syncPlayerDebts(loan);
     this._recordTransaction('forgiven', loan.lenderName, loan.borrowerName, loan.totalOwed - loan.amountRepaid, 'Schuld kwijtgescholden');
     this.saveState();
     return { success: true, loan };
@@ -419,21 +604,23 @@ class BankManager {
   processWinRepayment(borrowerPlayerId, netWin) {
     if (!netWin || netWin <= 0) return [];
 
+    const borrower = this.playerManager.getPlayerById(borrowerPlayerId);
+    if (!borrower) return [];
+
     const activeLoans = Array.from(this.loans.values())
-      .filter(l => l.borrowerId === borrowerPlayerId && l.status === 'active')
+      .filter(l => (l.borrowerId === borrowerPlayerId || this._isBorrowerMatch(l, borrower)) && l.status === 'active')
       .sort((a, b) => a.createdAt - b.createdAt);
 
     if (activeLoans.length === 0) return [];
 
-    const borrower = this.playerManager.getPlayerById(borrowerPlayerId);
-    if (!borrower) return [];
-
     const repayments = [];
 
     for (const loan of activeLoans) {
+      loan.borrowerId = borrower.id;
       const remaining = loan.totalOwed - loan.amountRepaid;
       if (remaining <= 0) {
         loan.status = 'repaid';
+        this.syncPlayerDebts(loan);
         continue;
       }
 
@@ -444,12 +631,23 @@ class BankManager {
       if (borrower.chips >= deduction) {
         this.playerManager.deductChips(borrowerPlayerId, deduction);
 
-        const lender = this.playerManager.getPlayerById(loan.lenderId);
+        let lender = this.playerManager.getPlayerById(loan.lenderId);
+        if (!lender && loan.lenderKey) {
+          for (const p of this.playerManager.players.values()) {
+            if ((p.usernameKey || p.name || '').trim().toLowerCase() === loan.lenderKey) {
+              lender = p;
+              loan.lenderId = p.id;
+              break;
+            }
+          }
+        }
+
         if (lender) {
           this.playerManager.addChips(lender.id, deduction);
         } else {
           for (const account of this.playerManager.accounts.values()) {
-            if (account.name.toLowerCase() === loan.lenderName.toLowerCase()) {
+            if (account.name.toLowerCase() === loan.lenderName.toLowerCase() ||
+                (account.usernameKey && account.usernameKey === loan.lenderKey)) {
               account.chips = (account.chips || 0) + deduction;
               this.playerManager.saveAccounts();
               break;
@@ -462,6 +660,7 @@ class BankManager {
         if (isFullyRepaid) {
           loan.status = 'repaid';
         }
+        this.syncPlayerDebts(loan);
 
         this._recordTransaction(
           'win_repayment',
@@ -565,13 +764,16 @@ class BankManager {
     const player = this.playerManager.getPlayerById(playerId);
     if (!player) return null;
 
+    // First ensure memory loans are synced from persistent player storage
+    this.syncFromPlayerStorage();
+
     const incomingProposals = [];
     const outgoingProposals = [];
 
     for (const prop of this.proposals.values()) {
-      if (prop.toId === playerId) {
+      if (prop.toId === playerId || this._isProposalToMatch(prop, player)) {
         incomingProposals.push(prop);
-      } else if (prop.fromId === playerId) {
+      } else if (prop.fromId === playerId || this._isProposalFromMatch(prop, player)) {
         outgoingProposals.push(prop);
       }
     }
@@ -581,9 +783,11 @@ class BankManager {
 
     for (const loan of this.loans.values()) {
       if (loan.status === 'active') {
-        if (loan.borrowerId === playerId) {
+        if (loan.borrowerId === playerId || this._isBorrowerMatch(loan, player)) {
+          loan.borrowerId = player.id;
           activeDebts.push(loan);
-        } else if (loan.lenderId === playerId) {
+        } else if (loan.lenderId === playerId || this._isLenderMatch(loan, player)) {
+          loan.lenderId = player.id;
           activeLoansGiven.push(loan);
         }
       }
@@ -595,7 +799,10 @@ class BankManager {
       activeDebts,
       activeLoansGiven,
       bailoutStatus: this.getBailoutStatus(playerId),
-      recentTransactions: this.transactions.filter(t => t.fromName === player.name || t.toName === player.name).slice(-10)
+      recentTransactions: this.transactions.filter(t => 
+        (t.fromName && t.fromName.toLowerCase() === player.name.toLowerCase()) || 
+        (t.toName && t.toName.toLowerCase() === player.name.toLowerCase())
+      ).slice(-10)
     };
   }
 }

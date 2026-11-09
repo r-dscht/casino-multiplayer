@@ -635,9 +635,9 @@
     /**
      * Requests latest player bank status.
      */
-    getBankState() {
+    getBankState(backup = null) {
       if (!this.socket) return;
-      this.socket.emit('bank_get_state', {});
+      this.socket.emit('bank_get_state', { backup });
     }
 
     /**
@@ -899,17 +899,21 @@
      */
     pokerTakeSeat(arg1, arg2 = 2000, arg3 = 'poker_1') {
       if (!this.socket) return;
-      let seatIndex = 0;
+      let seatIndex = null;
       let buyInAmount = 2000;
       let tableId = 'poker_1';
       if (typeof arg1 === 'object' && arg1 !== null) {
-        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : 0;
+        seatIndex = typeof arg1.seatIndex === 'number' ? arg1.seatIndex : (arg1.seatIndex !== undefined && arg1.seatIndex !== null ? parseInt(arg1.seatIndex, 10) : null);
         buyInAmount = typeof arg1.buyInAmount === 'number' ? arg1.buyInAmount : (typeof arg1.amount === 'number' ? arg1.amount : 2000);
         tableId = arg1.tableId || 'poker_1';
       } else {
-        seatIndex = typeof arg1 === 'number' ? arg1 : parseInt(arg1, 10);
+        seatIndex = typeof arg1 === 'number' ? arg1 : (arg1 !== undefined && arg1 !== null ? parseInt(arg1, 10) : null);
         buyInAmount = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10);
         tableId = typeof arg3 === 'string' ? arg3 : 'poker_1';
+      }
+      if (typeof seatIndex !== 'number' || isNaN(seatIndex) || seatIndex < 0 || seatIndex > 5) {
+        console.warn('pokerTakeSeat rejected: explicit seatIndex (0-5) required');
+        return;
       }
       this.socket.emit('poker_take_seat', { seatIndex, buyInAmount, tableId });
     }

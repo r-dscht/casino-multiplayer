@@ -26,7 +26,8 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding-bottom: 24px;
+  padding: 4px 16px 8px;
+  box-sizing: border-box;
 }
 
 /* Game Viewport Panes */
@@ -39,6 +40,17 @@
 
 .game-view-pane.hidden {
   display: none !important;
+}
+
+/* European Roulette Viewport Layout */
+#roulette-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* Blackjack Table Viewport Layout */
@@ -151,10 +163,11 @@
 
 /* Betting Board Section */
 .board-section {
-  padding: 16px 24px;
-  max-width: 1100px;
+  padding: 0;
+  max-width: 1080px;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* Side Social / Chat Panel */
@@ -480,38 +493,70 @@
 
   /* Roulette Viewport Fit */
   #roulette-canvas-container {
-    height: clamp(270px, 36vh, 340px);
+    height: 250px;
+    max-width: 1040px;
   }
 
   .board-section {
+    padding: 0;
+    max-width: 1040px;
+  }
+
+  .board-container {
     padding: 10px 16px;
   }
 
   .number-row {
-    height: 46px;
+    height: 38px;
   }
 
   .cell-zero {
-    min-height: 138px;
+    min-height: 114px;
+    width: 52px;
+  }
+
+  .column-cell {
+    height: 38px;
+    width: 54px;
+    font-size: 0.78rem;
+  }
+
+  .dozens-row {
+    height: 34px;
+    margin-top: 3px;
+  }
+
+  .dozen-cell {
+    font-size: 0.8rem;
+  }
+
+  .even-money-row {
+    height: 34px;
+    margin-top: 3px;
+  }
+
+  .cell-outside {
+    font-size: 0.8rem;
   }
 
   .grid-cell {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
 
   .chip-dock {
-    padding: 6px 12px;
-    margin-top: 8px;
+    padding: 4px 8px;
+    margin-top: 6px;
   }
 
   .controls-bar {
     margin-top: 8px;
+    padding-top: 6px;
   }
 
   .chip-btn {
-    width: 42px;
-    height: 42px;
-    font-size: 0.8rem;
+    width: 38px;
+    height: 38px;
+    font-size: 0.76rem;
   }
 }
 
@@ -635,38 +680,70 @@
 
   /* Compact Roulette */
   #roulette-canvas-container {
-    height: clamp(210px, 30vh, 250px);
+    height: 220px;
+    max-width: 980px;
   }
 
   .board-section {
-    padding: 6px 12px;
+    padding: 0;
+    max-width: 980px;
+  }
+
+  .board-container {
+    padding: 8px 12px;
   }
 
   .number-row {
-    height: 40px;
+    height: 34px;
   }
 
   .cell-zero {
-    min-height: 120px;
+    min-height: 102px;
+    width: 46px;
+  }
+
+  .column-cell {
+    height: 34px;
+    width: 48px;
+    font-size: 0.72rem;
+  }
+
+  .dozens-row {
+    height: 30px;
+    margin-top: 2px;
+  }
+
+  .dozen-cell {
+    font-size: 0.75rem;
+  }
+
+  .even-money-row {
+    height: 30px;
+    margin-top: 2px;
+  }
+
+  .cell-outside {
+    font-size: 0.75rem;
   }
 
   .grid-cell {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
   }
 
   .chip-dock {
-    padding: 4px 8px;
-    margin-top: 6px;
+    padding: 2px 6px;
+    margin-top: 4px;
   }
 
   .controls-bar {
     margin-top: 6px;
+    padding-top: 4px;
   }
 
   .chip-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 0.72rem;
+    width: 34px;
+    height: 34px;
+    font-size: 0.70rem;
   }
 }
 
@@ -1421,6 +1498,43 @@
   display: flex;
   gap: 12px;
   width: 100%;
+}
+
+.btn-poker-peek {
+  flex: 0 0 auto;
+  min-width: 105px;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.7) 0%, rgba(13, 92, 58, 0.7) 100%);
+  border: 1px solid #10b981;
+  color: #d1fae5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-poker-peek:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(13, 92, 58, 0.9) 0%, rgba(16, 185, 129, 0.9) 100%);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.btn-poker-peek[aria-pressed="false"] {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-color: #64748b;
+  color: #94a3b8;
+}
+
+.btn-poker-peek:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-poker-peek .poker-peek-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  flex-shrink: 0;
 }
 
 .btn-poker-fold {

@@ -30,11 +30,12 @@
       this.currentTableState = null;
       this.mySeatIndex = -1;
       this.privateHoleCards = [];
+      this.isPeekRevealed = true;
       this.turnTimerInterval = null;
       this.turnTimeLeft = 15;
       this.turnTimeTotal = 15;
       this.selectedRaiseAmount = 200;
-      this.pendingBuyInSeat = 0;
+      this.pendingBuyInSeat = null;
       this.currentCheckCallAction = 'check';
       this.currentCheckCallAmount = 0;
       this.lastSeatActions = new Map(); // seatIndex -> { action, text, amount }
@@ -75,6 +76,7 @@
         btnPresetHalfPot: document.getElementById('btn-preset-half-pot'),
         btnPresetPot: document.getElementById('btn-preset-pot'),
         btnPresetAllin: document.getElementById('btn-preset-allin'),
+        btnPeek: document.getElementById('btn-poker-peek'),
         btnFold: document.getElementById('btn-poker-fold'),
         btnCheckCall: document.getElementById('btn-poker-check-call'),
         btnCheckCallText: document.getElementById('btn-poker-check-call-text'),
@@ -297,6 +299,28 @@
           this.handleAction(act, this.selectedRaiseAmount);
         });
       }
+
+      // Peek / Hide Cards Toggle Button
+      if (this.elements.btnPeek) {
+        this.elements.btnPeek.addEventListener('click', () => {
+          this.togglePeekRevealed();
+        });
+      }
+
+      // Keyboard shortcuts for Poker (Spacebar or 'P' toggles Peek/Hide)
+      window.addEventListener('keydown', (e) => {
+        const activeTag = document.activeElement && document.activeElement.tagName ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+        if (this.elements.buyinModal && !this.elements.buyinModal.classList.contains('hidden')) return;
+        if (this.elements.viewPoker && this.elements.viewPoker.classList.contains('hidden')) return;
+
+        if (e.key === ' ' || e.code === 'Space' || e.key === 'p' || e.key === 'P') {
+          if (this.mySeatIndex !== -1) {
+            e.preventDefault();
+            this.togglePeekRevealed();
+          }
+        }
+      });
     }
 
     /**
@@ -386,10 +410,11 @@
      */
     detectMySeat(state) {
       const myId = (this.ui && this.ui.myPlayer && this.ui.myPlayer.id) || (this.network && this.network.myPlayerId);
+      const myName = (this.ui && this.ui.myPlayer && this.ui.myPlayer.name);
       this.mySeatIndex = -1;
 
-      if (Array.isArray(state.seats) && myId) {
-        const found = state.seats.find(s => s.player && s.player.id === myId);
+      if (Array.isArray(state.seats) && (myId || myName)) {
+        const found = state.seats.find(s => s.player && ((myId && s.player.id === myId) || (myName && s.player.name === myName)));
         if (found) {
           this.mySeatIndex = found.seatIndex;
           if (Array.isArray(found.cards) && found.cards.length > 0 && !found.cards[0].hidden) {
@@ -669,11 +694,11 @@
       if (existingCards.length !== cards.length) {
         dock.innerHTML = '';
         cards.forEach((card, idx) => {
-          const isFaceDown = !isHero && (card.hidden || !card.rank);
+          const isFaceDown = !isHero ? (card.hidden || !card.rank) : (!this.isPeekRevealed || !this.privateHoleCards.length);
           const rawSuit = ((card && card.suit) || 'spades').toLowerCase();
           const suitKey = rawSuit.endsWith('s') ? rawSuit.slice(0, -1) : rawSuit;
           const rank = (card && card.rank) || 'A';
-          const cardSig = isFaceDown ? 'hole_card' : `${rank}_${suitKey}`;
+          const cardSig = isFaceDown ? (isHero && !this.isPeekRevealed ? 'peek_hidden' : 'hole_card') : `${rank}_${suitKey}`;
 
           dock.insertAdjacentHTML('beforeend', this.renderCardHtml(card, {
             dealDelay: idx * 0.12,
@@ -682,18 +707,18 @@
           }));
         });
       } else {
-        // Incrementally update face-down to face-up on showdown reveal
+        // Incrementally update face-down to face-up on showdown reveal or peek toggle
         cards.forEach((card, idx) => {
           const cardEl = existingCards[idx];
           if (!cardEl) return;
-          const isFaceDown = !isHero && (card.hidden || !card.rank);
+          const isFaceDown = !isHero ? (card.hidden || !card.rank) : (!this.isPeekRevealed || !this.privateHoleCards.length);
           const rawSuit = ((card && card.suit) || 'spades').toLowerCase();
           const suitKey = rawSuit.endsWith('s') ? rawSuit.slice(0, -1) : rawSuit;
           const rank = (card && card.rank) || 'A';
-          const newSig = isFaceDown ? 'hole_card' : `${rank}_${suitKey}`;
+          const newSig = isFaceDown ? (isHero && !this.isPeekRevealed ? 'peek_hidden' : 'hole_card') : `${rank}_${suitKey}`;
           const currentSig = cardEl.getAttribute('data-card-sig');
 
-          if (currentSig === 'hole_card' && !isFaceDown) {
+          if ((currentSig === 'hole_card' || currentSig === 'peek_hidden') && !isFaceDown) {
             // 3D Flip reveal
             cardEl.setAttribute('data-card-sig', newSig);
             cardEl.classList.remove('face-down');
@@ -714,8 +739,45 @@
                 </div>
               `;
             }
+          } else if (isFaceDown && (currentSig !== 'hole_card' && currentSig !== 'peek_hidden')) {
+            // Hero toggled cards concealed
+            cardEl.setAttribute('data-card-sig', 'peek_hidden');
+            cardEl.classList.remove('face-up', 'card-flip-reveal');
+            cardEl.classList.add('face-down');
           }
         });
+      }
+    }
+
+    /**
+     * Toggles the hero private hole card peek reveal state.
+     */
+    togglePeekRevealed() {
+      this.isPeekRevealed = !this.isPeekRevealed;
+      this.updatePeekButton();
+      if (this.mySeatIndex !== -1 && this.seatElements[this.mySeatIndex]) {
+        const dock = this.seatElements[this.mySeatIndex].cardsDock;
+        if (dock && this.privateHoleCards.length > 0) {
+          this.renderHoleCards(dock, this.privateHoleCards, true, false);
+        }
+      }
+    }
+
+    /**
+     * Updates Peek/Hide button attributes and pure vector SVG icon.
+     */
+    updatePeekButton() {
+      if (!this.elements.btnPeek) return;
+      const isRevealed = !!this.isPeekRevealed;
+      this.elements.btnPeek.setAttribute('aria-pressed', isRevealed ? 'true' : 'false');
+      this.elements.btnPeek.title = isRevealed ? 'Spiek / Verberg Kaarten (P)' : 'Spiek / Toon Kaarten (P)';
+      const iconUse = this.elements.btnPeek.querySelector('use');
+      if (iconUse) {
+        iconUse.setAttribute('href', isRevealed ? '#icon-eye-open' : '#icon-eye-closed');
+      }
+      const label = this.elements.btnPeek.querySelector('.action-btn-text');
+      if (label) {
+        label.textContent = isRevealed ? 'Verberg' : 'Spiek';
       }
     }
 
@@ -778,6 +840,12 @@
       const mySeat = isSeated && state.seats && state.seats[this.mySeatIndex];
       const activeSeatIdx = state.activeTurn ? state.activeTurn.seatIndex : -1;
       const isMyTurn = isSeated && mySeat && !mySeat.folded && !mySeat.isAllIn && activeSeatIdx === this.mySeatIndex;
+
+      // Update Peek Toggle Button
+      if (this.elements.btnPeek) {
+        this.elements.btnPeek.disabled = !isSeated;
+        this.updatePeekButton();
+      }
 
       // Start/Stop Turn Countdown Timer
       if (isMyTurn && state.turnTimeLeft !== undefined) {
@@ -1218,6 +1286,7 @@
      * Closes the buy-in modal.
      */
     closeBuyInModal() {
+      this.pendingBuyInSeat = null;
       if (this.elements.buyinModal) {
         this.elements.buyinModal.classList.add('hidden');
       }
@@ -1227,6 +1296,11 @@
      * Validates buy-in amount and submits poker_take_seat socket emit.
      */
     confirmBuyIn() {
+      if (typeof this.pendingBuyInSeat !== 'number' || this.pendingBuyInSeat < 0 || this.pendingBuyInSeat > 5) {
+        this.closeBuyInModal();
+        return;
+      }
+
       if (this.isRebuyMode) {
         const amount = parseInt(this.elements.buyinAmount ? this.elements.buyinAmount.value : 0, 10);
         const bankroll = (this.ui && this.ui.myPlayer && this.ui.myPlayer.chips) || 0;
@@ -1324,6 +1398,7 @@
       if (data.seatIndex === this.mySeatIndex) {
         this.mySeatIndex = -1;
         this.privateHoleCards = [];
+        this.pendingBuyInSeat = null;
         this.stopTurnTimer();
         this.ui.showToast('Je hebt de tafel verlaten', 'info');
       }
@@ -1359,8 +1434,10 @@
     onHoleCards(data) {
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
       const cards = data.cards || data.holeCards;
-      if (Array.isArray(cards)) {
+      if (Array.isArray(cards) && cards.length > 0) {
         this.privateHoleCards = cards;
+        this.isPeekRevealed = true;
+        this.updatePeekButton();
         if (this.mySeatIndex !== -1 && this.seatElements[this.mySeatIndex]) {
           const dock = this.seatElements[this.mySeatIndex].cardsDock;
           if (dock) {
@@ -1433,6 +1510,8 @@
 
     onHandStart(data) {
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
+      this.isPeekRevealed = true;
+      this.updatePeekButton();
       this.lastSeatActions.clear();
       this.stopTurnTimer();
       this.hideResultBanner();
@@ -1449,6 +1528,7 @@
 
     onHandEnd(data) {
       if (!data || (data.tableId && data.tableId !== this.currentTableId)) return;
+      this.privateHoleCards = [];
       this.stopTurnTimer();
 
       // Display Winners Banner & Shimmer

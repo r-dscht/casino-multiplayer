@@ -119,6 +119,8 @@ class PlayerManager {
     const seatIndex = (typeof val.seatIndex === 'number' && Number.isInteger(val.seatIndex) && val.seatIndex >= 0)
       ? val.seatIndex
       : null;
+    const activeDebts = Array.isArray(val.activeDebts) ? [...val.activeDebts] : [];
+    const activeLoansGiven = Array.isArray(val.activeLoansGiven) ? [...val.activeLoansGiven] : [];
 
     const record = {
       id,
@@ -134,6 +136,8 @@ class PlayerManager {
       currentGame,
       location,
       seatIndex,
+      activeDebts,
+      activeLoansGiven,
       connected: false,
       isHost: false,
       createdAt: val.createdAt || Date.now(),
@@ -250,6 +254,8 @@ class PlayerManager {
         currentGame: player.currentGame || 'Roulette',
         location: player.location || 'ROULETTE',
         seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
+        activeDebts: Array.isArray(player.activeDebts) ? [...player.activeDebts] : [],
+        activeLoansGiven: Array.isArray(player.activeLoansGiven) ? [...player.activeLoansGiven] : [],
         createdAt: player.createdAt || Date.now(),
         lastSeen: player.lastSeen || Date.now()
       };
@@ -468,7 +474,9 @@ class PlayerManager {
           stats: existingAccount.stats ? { ...existingAccount.stats } : { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
           currentGame: existingAccount.currentGame || 'Roulette',
           location: existingAccount.location || 'ROULETTE',
-          seatIndex: existingAccount.seatIndex !== undefined ? existingAccount.seatIndex : null,
+          seatIndex: null, // Require manual seat selection; prevent auto-seat assignment on reconnect
+          activeDebts: Array.isArray(existingAccount.activeDebts) ? [...existingAccount.activeDebts] : [],
+          activeLoansGiven: Array.isArray(existingAccount.activeLoansGiven) ? [...existingAccount.activeLoansGiven] : [],
           connected: true,
           isHost: false,
           createdAt: existingAccount.createdAt || Date.now(),
@@ -562,6 +570,8 @@ class PlayerManager {
       currentGame: 'Roulette',
       location: 'ROULETTE',
       seatIndex: null,
+      activeDebts: (backup && Array.isArray(backup.activeDebts)) ? [...backup.activeDebts] : [],
+      activeLoansGiven: (backup && Array.isArray(backup.activeLoansGiven)) ? [...backup.activeLoansGiven] : [],
       connected: true,
       isHost: this.players.size === 0,
       createdAt: (backup && Number.isInteger(backup.createdAt)) ? backup.createdAt : Date.now(),
@@ -740,9 +750,7 @@ class PlayerManager {
     if (!savedAccount.location) {
       savedAccount.location = 'ROULETTE';
     }
-    if (savedAccount.seatIndex === undefined) {
-      savedAccount.seatIndex = null;
-    }
+    savedAccount.seatIndex = null;
 
     // Check if player object is already in active memory
     let existingPlayer = this.players.get(savedAccount.id);
@@ -831,6 +839,30 @@ class PlayerManager {
    */
   getPlayerById(playerId) {
     return this.players.get(playerId) || null;
+  }
+
+  /**
+   * Retrieves player or account by username / usernameKey.
+   * @param {string} username 
+   * @returns {Object|null}
+   */
+  getPlayerByUsername(username) {
+    if (!username || typeof username !== 'string') return null;
+    const normKey = username.trim().toLowerCase();
+    if (this.accounts.has(normKey)) {
+      const acc = this.accounts.get(normKey);
+      if (this.players.has(acc.id)) {
+        return this.players.get(acc.id);
+      }
+      return acc;
+    }
+    for (const player of this.players.values()) {
+      if ((player.usernameKey && player.usernameKey.toLowerCase() === normKey) ||
+          (player.name && player.name.toLowerCase() === normKey)) {
+        return player;
+      }
+    }
+    return null;
   }
 
   /**

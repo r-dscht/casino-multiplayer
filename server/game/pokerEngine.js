@@ -84,6 +84,8 @@ class PokerEngine extends EventEmitter {
 
     /** @type {boolean} Flags if hand has transitioned to all-in runout */
     this.isAllInRunout = false;
+    this.allInInterval = typeof options.allInInterval === 'number' ? options.allInInterval : 1000;
+    this.allInTimeout = null;
   }
 
   /**
@@ -130,6 +132,10 @@ class PokerEngine extends EventEmitter {
     if (this.nextHandTimeout) {
       clearTimeout(this.nextHandTimeout);
       this.nextHandTimeout = null;
+    }
+    if (this.allInTimeout) {
+      clearTimeout(this.allInTimeout);
+      this.allInTimeout = null;
     }
   }
 
@@ -447,6 +453,10 @@ class PokerEngine extends EventEmitter {
     this.potManager.reset();
     this.communityCards = [];
     this.isAllInRunout = false;
+    if (this.allInTimeout) {
+      clearTimeout(this.allInTimeout);
+      this.allInTimeout = null;
+    }
 
     // Reset hand state on all seats
     for (const seat of this.seats) {
@@ -1072,8 +1082,18 @@ class PokerEngine extends EventEmitter {
     });
 
     if (isAllInRunout) {
-      // Run out directly to next phase without waiting for betting
-      this.transitionToNextPhase();
+      // Pace all-in runout transitions so community cards deal with realistic street intervals
+      if (this.allInTimeout) {
+        clearTimeout(this.allInTimeout);
+        this.allInTimeout = null;
+      }
+      if (this.allInInterval > 0) {
+        this.allInTimeout = setTimeout(() => {
+          this.transitionToNextPhase();
+        }, this.allInInterval);
+      } else {
+        this.transitionToNextPhase();
+      }
     } else {
       // Start betting round at first active player left of Dealer Button
       const firstSeat = this.findNextActiveSeat(this.dealerButtonSeat);

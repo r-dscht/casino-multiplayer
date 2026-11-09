@@ -1,7 +1,15 @@
 # Monte Carlo Royale Multiplayer Casino — Test Infrastructure Specification
 
 ## 1. Overview & Test Philosophy
-This document outlines the testing architecture, harness design, execution protocol, and verification standards for the **Monte Carlo Royale Luxury Multiplayer Casino** web application (`casino-multiplayer`), encompassing **European Roulette**, **6-Seat Multiplayer Blackjack**, and **Authoritative 6-Seat No-Limit Texas Hold'em Poker**, alongside **Persistent Session Management**, **Two-Tier Cash Game Wallet**, **Navigation Bet Lock**, **Tabbed Chat**, and **100% Silent Luxury Aesthetics**.
+This document outlines the testing architecture, harness design, execution protocol, and verification standards for the **Monte Carlo Royale Luxury Multiplayer Casino** web application (`casino-multiplayer`), encompassing:
+- **European Roulette** (Single-Zero 37 Pockets)
+- **6-Seat Multiplayer Blackjack** (S17, Split, Double Down)
+- **Authoritative 6-Seat No-Limit Texas Hold'em Poker** (C(7,5) Evaluator, Side Pots, Interactive Peek Toggle)
+- **Plinko Game** (8-16 Rows, Low/Med/High Risk, 27 Calibrated Multiplier Tables, Cryptographic Random Walk, Room Drop Sync)
+- **5x3 Luxury Slot Machine (Gokkasten)** (20 Fixed Paylines, 32-Stop Reel Strips, Wild Substitution, Free Spins 3x Multiplier, Progressive Jackpot Counter, Near-Miss Slowdown, Big-Win / Mega-Win Coin Bursts)
+- **Hoger of Lager (Hi-Lo)** (Solo Ladder Mode, Cashout Anytime, Push/Redraw Tie Rule, Synchronized Multiplayer Community Deck, Dynamic Odds with 97.0% RTP)
+- **Strict Bankroll & Chip Economy** (Permanent Removal of 10-Minute Recurring Faucet, Bankroll Conservation)
+- **Aesthetic & Environmental Guardrails** (100% Silent Mode, Zero Unicode Emojis, Fit-to-Screen Laptop Zero-Scroll Bounds ~710px - 740px height)
 
 ### Core Test Principles:
 1. **Opaque-Box & Requirement-Driven**: Tests interact with the casino application strictly from the outside—via HTTP/REST endpoints, typed Socket.io WebSocket connections, public interface contracts, and filesystem audits.
@@ -9,10 +17,10 @@ This document outlines the testing architecture, harness design, execution proto
 3. **Progressive Testability**: Tests are designed to be self-contained and independently verifiable across parallel development tracks. Tests dynamically verify newly landing modules while validating interface contracts and mathematical invariants without stalling or failing.
 4. **Systematic Test Design Methodologies**: Test scenarios are derived using formal software engineering methodologies:
    - **Category-Partition Testing**: Partitioning input domains, table configurations, player actions, and wallet operations into exhaustive, mutually exclusive equivalence classes.
-   - **Boundary Value Analysis (BVA)**: Probing off-by-one limits, minimum raise deltas, short-stack all-ins, exact stack zeroes, wheel and broadway straights, odd chip distributions, and heads-up transitions.
-   - **Pairwise & Combinatorial Testing**: Verifying interactions across orthogonal features—multi-way unequal all-ins with side pots, dead money retention, turn timer countdown anti-stall, mid-hand disconnect/reconnect, and multi-game navigation bet locks.
-   - **Workload & Stress Testing**: Simulating realistic multi-player concurrent cash games with full hand progressions, rebuys, showdown distributions, and atomic disk persistence.
-5. **Strict Guardrails Enforcement**: Automated forensic scanners enforce 100% silent design (zero audio files, zero Web Audio API, zero `<audio>` elements), zero unicode emojis (pure SVG card suits), and complete brand sanitization (zero GTA references).
+   - **Boundary Value Analysis (BVA)**: Probing off-by-one limits, minimum/maximum rows, extreme random walk paths, extreme card ranks (Ace/Deuce), minimum raise deltas, short-stack all-ins, exact stack zeroes, scatter boundaries, and heads-up transitions.
+   - **Pairwise & Combinatorial Testing**: Verifying interactions across orthogonal features—multi-game navigation bet locks, unified bankroll ledger synchronization, multi-game presence tracking, mid-hand disconnect/reconnect with peek toggle, and turn timer countdown anti-stall.
+   - **Workload & Stress Testing**: Simulating realistic multi-player concurrent casino journeys across Plinko, Slots, Hi-Lo, and Poker with atomic disk persistence.
+5. **Strict Guardrails Enforcement**: Automated forensic scanners enforce 100% silent design (zero audio files, zero Web Audio API, zero `<audio>` elements), zero unicode emojis (pure SVG card suits and slot icons), and zero-scroll laptop viewport bounds.
 6. **Zero External Test Dependencies**: Built entirely on Node.js's native test runner (`node:test`) and assertion library (`node:assert/strict`), executing hundreds of tests in milliseconds without heavy third-party framework overhead.
 
 ---
@@ -56,20 +64,21 @@ casino-multiplayer/
 │       ├── e2e_tier3_combinations.test.js# Roulette Tier 3: Cross-Feature Interactions (9 tests)
 │       ├── e2e_tier4_scenarios.test.js   # Roulette Tier 4: Real-World Scenarios (5 tests)
 │       ├── e2eCasinoBlackjackSuite.test.js # Comprehensive 4-Tier Blackjack & Casino Suite (58 tests)
-│       └── e2eCasinoPokerSuite.test.js   # Comprehensive 4-Tier Texas Hold'em Poker Suite (70+ tests)
+│       ├── e2eCasinoPokerSuite.test.js   # Comprehensive 4-Tier Texas Hold'em Poker Suite (80 tests)
+│       └── e2eNewCasinoGamesSuite.test.js# Comprehensive 4-Tier Plinko, Slots, Hi-Lo, Poker Fixes, Faucet Suite (83 tests)
 ```
 
 ---
 
-## 3. Feature Inventory Coverage Matrix
+## 3. Feature Inventory Coverage Matrix (Features 1–100)
 
-The matrix below maps all 71 features from `PROJECT.md` to their corresponding automated test suites:
+The matrix below maps all 100 features from `PROJECT.md` to their corresponding automated test suites:
 
 | # | Feature Name | Primary Scope | Test Suite Location | Coverage Type |
 |---|---|---|---|---|
 | 1 | Dedicated Project Directory | Root layout | `tests/integration/serverRoute.test.js` | Integration |
-| 2 | Brand Sanitization & Luxury Styling | Theme/Copy | `tests/integration/serverRoute.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Audit |
-| 3 | 100% Silent Client ("geen audio") | Audio removal | `tests/integration/serverRoute.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Forensic |
+| 2 | Brand Sanitization & Luxury Styling | Theme/Copy | `tests/integration/serverRoute.test.js`, `tests/e2e/*.test.js` | E2E Audit |
+| 3 | 100% Silent Client ("geen audio") | Audio removal | `tests/integration/serverRoute.test.js`, `tests/e2e/*.test.js` | E2E Forensic |
 | 4 | Low-Poly Procedural 3D Wheel | Three.js geometry | `tests/integration/serverRoute.test.js` | Integration |
 | 5 | Single-Texture Pocket Atlas | Canvas atlas | `tests/integration/serverRoute.test.js` | Integration |
 | 6 | Dual-Rate Thermal Throttling | 30/60 FPS clamp | `tests/integration/serverRoute.test.js` | Integration |
@@ -78,39 +87,39 @@ The matrix below maps all 71 features from `PROJECT.md` to their corresponding a
 | 9 | European Betting Grid | 37 pockets | `tests/unit/rouletteMath.test.js` | Unit |
 | 10 | Multi-Player Chip Placement | Live board | `tests/e2e/e2e_tier1_features.test.js` | E2E |
 | 11 | Player Onboarding Modal | Registration | `tests/unit/playerManager.test.js`, `tests/e2e/e2e_tier1_features.test.js` | Unit/E2E |
-| 12 | 10,000 Chip Starting Balance | Bankroll | `tests/unit/playerManager.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | Unit/E2E |
+| 12 | 10,000 Chip Starting Balance | Bankroll | `tests/unit/playerManager.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Unit/E2E |
 | 13 | Real-Time Chat & Event Feed | Multiplayer chat | `tests/e2e/e2e_tier1_features.test.js` | E2E |
 | 14 | European Roulette Math Engine | Odds & payouts | `tests/unit/rouletteMath.test.js` | Unit |
 | 15 | Authoritative State Machine | Roulette phases | `tests/unit/rouletteEngine.test.js` | Unit |
 | 16 | Server Clock Synchronization | Timestamps | `tests/e2e/e2e_tier1_features.test.js` | E2E |
 | 17 | Real-Time Socket Protocol | Sockets | `tests/integration/socketEvents.test.js` | Integration |
-| 18 | Disconnection & Edge Handling | Active bets | `tests/e2e/e2e_tier1_features.test.js`, `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E |
+| 18 | Disconnection & Edge Handling | Active bets | `tests/e2e/e2e_tier1_features.test.js` | E2E |
 | 19 | Windows Cloudflare Quick Tunnel | `cloudflared` | `tests/unit/tunnel.test.js` | Unit |
 | 20 | 1-Click Cloud Deployment | Docker/Render | `tests/integration/serverRoute.test.js` | Integration |
 | 21 | Automated Unit & Integration Tests| Core engine | `tests/unit/*.test.js`, `tests/integration/*.test.js` | Full Suite |
 | 22 | Requirement-Driven E2E Suite | 4-Tier E2E | `tests/e2e/*.test.js` | E2E |
-| 23 | Persistent Session Authentication | Bearer tokens | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/unit/sessionPersistence.test.js` | Unit/E2E |
-| 24 | Resilient Atomic Disk Storage | `players.json` | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/unit/sessionPersistence.test.js` | Unit/E2E |
-| 25 | Refresh Session Auto-Recovery | Browser reload | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Tier 1 & 3 |
-| 26 | Multi-Game Player Presence | Lobby/Roulette/BJ/Poker | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Tier 1 |
-| 27 | Server Navigation Bet Lock | Active bets | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Tier 1 & 3 |
+| 23 | Persistent Session Authentication | Bearer tokens | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Unit/E2E |
+| 24 | Resilient Atomic Disk Storage | `players.json` | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Unit/E2E |
+| 25 | Refresh Session Auto-Recovery | Browser reload | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
+| 26 | Multi-Game Player Presence | Lobby/Roulette/BJ/Poker | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
+| 27 | Server Navigation Bet Lock | Active bets | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
 | 28 | 6-Deck Cryptographic Shoe | 312 cards | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
 | 29 | Pure Blackjack Math & Scoring | Dynamic Ace/S17 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
 | 30 | Standard Blackjack Player Actions | Hit/Stand/Dbl/Splt | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
 | 31 | Authoritative S17 Dealer AI | Dealer hits <=16 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
 | 32 | 6-Seat State Machine & Turn Timers| Clockwise turns | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 2 |
 | 33 | Dealer Hole Card Masking | Anti-cheat | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
-| 34 | Enhanced Avatar & Monogram System| Monograms | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/unit/clientUiUx.test.js` | E2E Tier 1 |
+| 34 | Enhanced Avatar & Monogram System| Monograms | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
 | 35 | Active Turn & Seated Status Badges| Turn pulses | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
 | 36 | Semicircular 6-Seat Blackjack Arc | Table seats | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 4 |
 | 37 | Tabbed Casino Chat System | Global/Table | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
-| 38 | Zero Emoji & Pure SVG Card Suits | Vector suits | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Tier 1 |
+| 38 | Zero Emoji & Pure SVG Card Suits | Vector suits | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
 | 39 | 3D Card Dealing Micro-animations | Perspective flip | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
 | 40 | Win Shimmers & Chip Balance Ticker| Ticker animation | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 4 |
 | 41 | Regal Outcome Banners | Victory banners | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 |
-| 42 | Client Navigation Lock Interceptor | Lock toasts | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | E2E Tier 1 & 3 |
+| 42 | Client Navigation Lock Interceptor | Lock toasts | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | E2E Tier 1 & 3 |
 | 43 | Comprehensive E2E Testing Suite | Tiers 1-4 | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Complete E2E |
-| 44 | Forensic Integrity Audit | Security/Brand | `tests/e2e/e2eCasinoBlackjackSuite.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | Forensic E2E |
+| 44 | Forensic Integrity Audit | Security/Brand | `tests/e2e/e2eCasinoBlackjackSuite.test.js` | Forensic E2E |
 | 45 | 52-Card Cryptographic Poker Deck | Single deck & burns | `tests/unit/pokerDeck.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | Unit/E2E |
 | 46 | 7-Card Hand Evaluation Algorithm | C(7,5)=21, 10 ranks | `tests/unit/pokerRules.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | Unit/E2E |
 | 47 | Side Pot Partitioning Engine | Cumulative tiers | `tests/unit/pokerPotManager.test.js`, `tests/e2e/e2eCasinoPokerSuite.test.js` | Unit/E2E |
@@ -138,182 +147,201 @@ The matrix below maps all 71 features from `PROJECT.md` to their corresponding a
 | 69 | Comprehensive Poker E2E Suite | 4-Tier Poker E2E | `tests/e2e/e2eCasinoPokerSuite.test.js` | Complete E2E |
 | 70 | Regression Safety (382 Tests Pass)| Zero regressions | `tests/**/*.test.js` (npm test) | Full Suite |
 | 71 | Forensic Integrity Audit | Security/Brand/Rules| `tests/e2e/e2eCasinoPokerSuite.test.js` | Audit Gate |
+| 72 | Permanent Faucet & Bankruptcy Removal | Remove 10-min faucet in UX | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 73 | Poker Hole Card Visibility Fix | Hero hole card unmasking | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 3 |
+| 74 | Interactive "Peek / Hide Cards" Toggle | Toggle button & 3D flip | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 3 |
+| 75 | Elimination of Auto-Seating Bugs | Strict seatIndex validation | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 76 | Poker Reconnection State & Pacing | Reset `seat.player.connected = true` | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 3 |
+| 77 | 5x3 Luxury Slot Machine Engine | 20 paylines, 32 stops, 96.79% RTP | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 78 | Luxury Slot Symbol Set (0 Emojis) | Pure SVG icons (Emerald, Gold, Diamond...) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & Guardrails |
+| 79 | Free Spins Bonus Mechanics | 3+ Scatters award 10 FS @ 3x | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 80 | Progressive Jackpot Counter | Seeds 10k, 1% increment, Line 1 5-Crests | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 81 | Near-Miss Scatter Anticipation Slowdown | 2 scatters trigger anticipation | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 82 | Celebratory Big-Win / Mega-Win Coin Burst | Wins >=20x and >=50x | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 |
+| 83 | Casino Floor Machine Presence & Win Ticker | 8 machines & live win socket ticker | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 |
+| 84 | Plinko Configurable Peg Grid | 8 to 16 selectable rows (9-17 bins) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 85 | Plinko Risk Levels & Calibrated Multipliers | Low, Med, High (27 arrays, 96.8-97.2% RTP) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 86 | Server-Authoritative Random Walk Engine | Crypto random walk binary paths | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 87 | Real-Time Multiplayer Room Drop Sync | Broadcast `plinko_ball_dropped` | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 |
+| 88 | Plinko High-Dopamine Visual Feedback | Peg bounce lighting & neon bursts | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 |
+| 89 | Hi-Lo Dynamic Odds & Math Model | Exact probabilities, 97.0% RTP ($0.97/P$) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 90 | Hi-Lo Solo Ladder Mode | Streak ladder & cashout anytime | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 91 | Hi-Lo Push / Redraw Tie Preservation | Same-rank card pushes, preserves pot | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 92 | Hi-Lo Multiplayer Community Mode | Synchronized rounds (12s/3s/4s) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 & 2 |
+| 93 | Hi-Lo Suspenseful 3D Card Reveal Staging | 3D perspective flip & golden glow | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 1 |
+| 94 | Fit-to-Screen Laptop Zero-Scroll Architecture | Bounds $\le 640\text{px}$, 710-740px viewport | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | Guardrails |
+| 95 | Header Navigation Integration | Header pills (#pill-slots, #pill-plinko, etc) | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 3 |
+| 96 | Multi-Game Presence & Bet Lock Extension | Whitelist ('SLOTS', 'PLINKO', 'HILO') | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | E2E Tier 3 |
+| 97 | 100% Silent Mode Guardrail | 0 audio files & 0 Web Audio calls | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | Guardrails |
+| 98 | Zero Unicode Emojis Guardrail | Pure SVG vectors & typography | `tests/e2e/e2eNewCasinoGamesSuite.test.js` | Guardrails |
+| 99 | Comprehensive E2E Testing Suite | 4-tier opaque-box E2E suites | `tests/e2e/*.test.js` | E2E Track |
+| 100 | 100% Pass Rate on 600 Baseline Tests | All baseline tests continue to pass | `npm test` | Regression Verification |
 
 ---
 
-## 4. Texas Hold'em Poker Test Methodology Across Tiers 1–4
+## 4. 4-Tier Test Methodology: Plinko, Slots, Hi-Lo, Poker Fixes & Guardrails
 
-The Texas Hold'em Poker test suite in `tests/e2e/e2eCasinoPokerSuite.test.js` uses four rigorous test engineering disciplines to achieve 100% requirements and edge-case coverage:
+The comprehensive test suite in `tests/e2e/e2eNewCasinoGamesSuite.test.js` evaluates all new game engines and platform enhancements across 4 formal testing tiers:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       TEXAS HOLD'EM TEST METHODOLOGY                        │
+│                    NEW CASINO GAMES E2E TEST METHODOLOGY                    │
 ├───────────────────────────────┬─────────────────────────────────────────────┤
-│ 1. Category-Partitioning      │ Equivalence classes for Seating, Blinds,    │
-│    (Tier 1: Feature Coverage) │ Deals, Streets, Actions, Buy-In, Cashout    │
+│ 1. Category-Partitioning      │ Happy paths in isolation for Plinko, Slots, │
+│    (Tier 1: Feature Coverage) │ Hi-Lo, Poker Visibility, Faucet Removal     │
 ├───────────────────────────────┼─────────────────────────────────────────────┤
-│ 2. Boundary Value Analysis    │ Off-by-one Delta Raises, Short All-Ins,     │
-│    (Tier 2: Boundary/Corners) │ Exact Stacks, Wheel/Broadway, Odd Chips     │
+│ 2. Boundary Value Analysis    │ Min/Max Rows, Out-of-bounds, Extremes,      │
+│    (Tier 2: Boundary/Corners) │ Ace/Deuce, Near-Miss Scatters, Push Ties    │
 ├───────────────────────────────┼─────────────────────────────────────────────┤
-│ 3. Pairwise & Combinatorial   │ Multi-Way Side Pots, Dead Money Retention,  │
-│    (Tier 3: Combinations)     │ Auto-Check/Fold Anti-Stall, Bet Locks       │
+│ 3. Pairwise & Combinatorial   │ Multi-Game Navigation Locks, Bankroll       │
+│    (Tier 3: Combinations)     │ Synchronization, Reconnection with Peek     │
 ├───────────────────────────────┼─────────────────────────────────────────────┤
-│ 4. Workload & Simulation      │ 6-Player End-to-End Cash Game, Rebuys,      │
-│    (Tier 4: Real-World)       │ Hand Rotations, Atomic Disk Persistence     │
+│ 4. Workload & Simulation      │ Full Multi-Game Player Session Journey,     │
+│    (Tier 4: Real-World)       │ Plinko -> Slots -> Hi-Lo -> Poker -> Disk   │
 ├───────────────────────────────┼─────────────────────────────────────────────┤
-│ 5. Automated Guardrails       │ 0 Audio Files/APIs, 0 Emojis, SVG Suits,    │
-│    (Forensic Verification)    │ Zero GTA / Brand Sanitization               │
+│ 5. Automated Guardrails       │ 0 Audio Files/APIs, 0 Emojis, Zero-Scroll   │
+│    (Forensic Verification)    │ Viewport Constraints (~710px - 740px)       │
 └───────────────────────────────┴─────────────────────────────────────────────┘
 ```
 
-### 4.1 Category-Partition Testing (Tier 1: Feature Coverage)
-We partition the poker system into 7 primary functional categories, identifying parameters, environment characteristics, and valid/invalid equivalence classes with at least 5 distinct test cases per category:
+### 4.1 Tier 1: Feature Coverage (Category-Partition Testing)
+- **F1: Plinko Game (6 tests)**:
+  - Rows 8-16 grid geometry ($R+1$ bottom slots).
+  - 27-array calibrated multiplier RTP proof (96.8% - 97.2%).
+  - Cryptographic random walk binary trajectory generation.
+  - Landing slot computation ($k = \sum d_i$).
+  - Server-authoritative payout formula ($\lfloor \text{bet} \times \text{multiplier} \rfloor$).
+  - Real-time multiplayer ball drop socket payload broadcast.
+- **F2: 5x3 Luxury Slot Machine (10 tests)**:
+  - 5x3 reel grid generation and 32-stop reel strip indexing.
+  - 20 fixed paylines evaluation from left to right.
+  - Wild substitution for standard paying symbols.
+  - Wild non-substitution for Scatter symbols.
+  - 3+ Scatter bonus trigger: 10, 15, 20 Free Spins with instant 5x, 25x, 100x payouts.
+  - Free spins 3x line payout multiplier.
+  - Progressive jackpot counter: 10,000 seed + 1% contribution.
+  - Progressive jackpot award on Payline 1 with 5 CRESTs/WILDs.
+  - Win tier classifications: Nice Win ($\ge 10\times$), Big Win ($\ge 20\times$), Mega Win ($\ge 50\times$).
+  - Floor presence (8 machines) and live win announcement ticker.
+- **F3: Hoger of Lager (Hi-Lo) (8 tests)**:
+  - Rank hierarchy ($2 \dots 14$).
+  - Dynamic odds calculation matching exact conditional probability $P = N_{\text{match}}/N_{\text{total}}$.
+  - Payout multipliers yielding fair 97.0% RTP ($0.97 / P$).
+  - Solo mode streak ladder: wager, prediction, multiplier accumulation, cashout anytime.
+  - Push/redraw tie preservation: same-rank card preserves streak and accumulated pot.
+  - Multiplayer community mode: synchronized rounds (BETTING 12s -> REVEALING 3s -> PAYOUT 4s).
+  - Equal prediction market paying 97% RTP payout on matching rank.
+  - Automatic cryptographic reshuffle when remaining deck $< 10$ cards.
+- **F4: Poker Fixes & Hole Card Visibility (6 tests)**:
+  - Unmasked hole card delivery to seated hero player via private unicast.
+  - Opponent hole card masking with `{ hidden: true }` in public broadcast.
+  - Interactive "Peek / Hide Cards" toggle button state management.
+  - Hidden peek state using `data-card-sig="peek_hidden"` without card loss.
+  - Elimination of auto-seat assignment for table observers.
+  - Reconnection restoring `seat.player.connected = true` and updating `socketId`.
+- **F5: Chip Economy & Faucet Removal (4 tests)**:
+  - Absence of 10-minute chips faucet UI tab and claim button in player UX.
+  - Absence of recurring client bailout countdown interval.
+  - Server rejection of unauthorized `bank_claim_bailout` requests in production.
+  - Bankroll conservation: balances update strictly through wagers, game outcomes, and cashouts.
 
-1. **F1: Table Accommodating 6 Seats (5 tests)**:
-   - *Valid Seat Claim*: Seating at open indices $0 \le s \le 5$ assigns player, sets seat status to `seated`, initializes table chip stack.
-   - *Occupied Seat Rejection*: Claiming an already occupied seat rejects with `SEAT_OCCUPIED`.
-   - *Invalid Seat Bounds*: Attempting to claim negative index, index $\ge 6$, or non-integer is rejected with `INVALID_SEAT`.
-   - *Full Table Capacity*: Table supports exactly 6 simultaneous players across all seat indices 0 to 5.
-   - *Seat Evacuation & Reclaim*: Leaving a seat cleanly frees the seat for another player to occupy without altering adjacent seat states.
-2. **F2: Blinds Posting and Button Rotation (5 tests)**:
-   - *Standard Blind Positions*: In 3+ player games, Small Blind is posted by seat left of Button, Big Blind by seat left of SB.
-   - *Button Clockwise Advancement*: Button advances by +1 active seat at the start of each hand, wrapping around seat 5 to seat 0.
-   - *Automatic Chip Commitment*: Blinds are automatically debited from player table stacks and committed to the pot.
-   - *Short Stack Blind Posting*: A player with stack $< \text{SB}$ or $< \text{BB}$ is posted All-In for their entire stack.
-   - *Inactive Seat Skipping*: Button rotation and blind assignment skip empty seats and players sitting out.
-3. **F3: Hole Cards Deal (5 tests)**:
-   - *2-Card Deal Distribution*: Each active player receives exactly 2 private hole cards dealt from a 52-card deck.
-   - *Non-Overlapping Cards*: No card identity appears twice across any dealt hands.
-   - *Public Payload Masking*: Table broadcast payloads replace opponents' hole cards with `{ hidden: true }` without exposing rank or suit.
-   - *Private Delivery Isolation*: Private hole cards are delivered exclusively to the seat owner via private unicast socket message.
-   - *Deck Depletion Mechanics*: Dealt cards reduce the available deck count consistently with standard 2-card round-robin dealing.
-4. **F4: Flop, Turn, and River Progression (5 tests)**:
-   - *Flop Burn and Deal*: Exactly 1 card is burned face down, followed by 3 community cards dealt face up.
-   - *Turn Burn and Deal*: Exactly 1 card is burned face down, followed by 1 community card dealt face up (total 4 community cards).
-   - *River Burn and Deal*: Exactly 1 card is burned face down, followed by 1 community card dealt face up (total 5 community cards).
-   - *Street Advancement Invariant*: A new street is dealt only when every active player has acted and matched the current highest bet.
-   - *Community Card Immutability*: Community cards remain immutable, public, and shared across all active participants.
-5. **F5: Check, Bet, Call, Raise, and Fold Actions (6 tests)**:
-   - *Check Validation*: Valid when `callAmount === 0`; rejected with `CANNOT_CHECK` when facing an uncalled wager.
-   - *Bet Sizing*: Places initial round wager $\ge \text{BB}$; wagers $< \text{BB}$ rejected with `BET_TOO_SMALL`.
-   - *Call Deduction*: Matches current bet, deducting exactly `currentBet - playerRoundBet` from player stack.
-   - *Raise Delta Enforcement*: Increases wager above `currentBet`, enforcing legal raise increment; raises below minimum rejected with `RAISE_TOO_SMALL`.
-   - *Fold Surrender*: Relinquishes hole cards, sets `isFolded = true`, excludes player from pot eligibility, and ends their action for the hand.
-   - *Immediate Win on Fold*: If all active players except one fold, the last remaining player wins the entire pot immediately without showdown.
-6. **F6: Buy-In from Bankroll (5 tests)**:
-   - *Legal Buy-In Range*: Allows buy-ins between 20 BB and 100 BB (e.g. 2,000 to 10,000 chips for 50/100 stakes).
-   - *Two-Tier Wallet Debit*: Atomic deduction from persistent account in `PlayerManager` into table stack.
-   - *Under-Minimum Buy-In*: Buy-ins $< 20 \text{ BB}$ rejected with `INVALID_BUY_IN`.
-   - *Over-Maximum Buy-In*: Buy-ins $> 100 \text{ BB}$ rejected with `INVALID_BUY_IN`.
-   - *Insufficient Funds*: Buy-in exceeding player's available bankroll rejected with `INSUFFICIENT_FUNDS`.
-7. **F7: Cashout to Bankroll (5 tests)**:
-   - *Clean Exit Cashout*: Vacating seat atomically credits remaining `seat.stack` chips back to `PlayerManager` balance.
-   - *Zero-Chip Bust Exit*: Exiting with 0 chips completes cleanly without creating negative balances or corrupting account state.
-   - *Between-Hand Rebuys*: Rebuying between hands debits bankroll and tops up table stack up to table limit (100 BB).
-   - *Stats and Persistence Write-Through*: Payouts and cashouts update persistent stats and survive server restarts.
-   - *Seat Liberation*: Cashing out and leaving vacates the seat immediately for another player to claim.
+### 4.2 Tier 2: Boundary Value Analysis (Boundary & Corner Cases)
+- **B1: Plinko Boundaries (9 tests)**:
+  - Minimum rows boundary (8 rows = 9 bins).
+  - Maximum rows boundary (16 rows = 17 bins).
+  - Extreme left trajectory (all 0s) hitting Slot 0 maximum multiplier.
+  - Extreme right trajectory (all 1s) hitting Slot R maximum multiplier.
+  - Center bin trajectory hitting minimum multiplier.
+  - Out-of-bounds row counts (<8, >16, fractional) rejected with `INVALID_ROWS`.
+  - Invalid risk strings rejected.
+  - Zero, negative, or non-numeric bet amounts rejected.
+  - Wagers exceeding player bankroll rejected with `INSUFFICIENT_FUNDS`.
+- **B2: Slots Boundaries (9 tests)**:
+  - Zero or negative line bets rejected.
+  - Total wagers exceeding balance rejected.
+  - Clamping paylines count within $[1, 20]$.
+  - Near-miss scatter boundary: exactly 2 Scatters triggers anticipation slowdown without free spins.
+  - Scatter thresholds: 3 awards 10 spins; 4 awards 15; 5 awards 20.
+  - Wild non-substitution on Scatter (2 Scatters + 1 Wild does not trigger bonus).
+  - Progressive jackpot line boundary: 5 CRESTs on Payline 2 awards standard 2700x line bet, NOT jackpot.
+  - Free spins retrigger: landing 3 Scatters during bonus round adds exactly +5 free spins.
+  - Multiple concurrent payline wins correctly aggregate total payout.
+- **B3: Hi-Lo Boundaries (8 tests)**:
+  - Ace boundary: 0 higher cards ($P(\text{Higher}) = 0$, multiplier = 0).
+  - Deuce boundary: 0 lower cards ($P(\text{Lower}) = 0$, multiplier = 0).
+  - Solo mode cashout at streak 0 returns initial bet without profit or loss.
+  - Solo mode incorrect prediction terminates ladder and loses pot.
+  - Consecutive push/redraw sequences preserve streak and pot continuously.
+  - Multiplayer round transition: bets placed after BETTING countdown expires are rejected.
+  - Zero, negative, or excessive bet amounts rejected.
+  - Invalid prediction string rejected with `INVALID_PREDICTION`.
+- **B4: Poker & Bankroll Boundaries (5 tests)**:
+  - Claiming seat with null, negative, or index $\ge 6$ rejected with `INVALID_SEAT`.
+  - Modal initialization with `pendingBuyInSeat = null` prevents accidental Seat 0 buy-in.
+  - Spectator observing poker table has `seatIndex === -1` and 0 chips committed.
+  - Bailout claim with balance $\ge 10$ chips rejected.
+  - Production bailout claim with balance $< 10$ chips rejected with faucet disabled notice.
 
----
+### 4.3 Tier 3: Pairwise & Combinatorial Testing
+- **C1: Multi-Game Navigation Bet Lock (5 tests)**:
+  - Active Slot spin locks navigation with `CANNOT_LEAVE_ACTIVE_BETS`.
+  - Active Free Spins bonus locks navigation until all bonus spins complete.
+  - Active Hi-Lo Solo ladder locks navigation until player cashes out or loses.
+  - Active Hi-Lo Multiplayer bet locks navigation until round settlement.
+  - Settling all active bets instantly releases navigation lock across all games.
+- **C2: Multi-Game Bankroll & Presence Synchronization (5 tests)**:
+  - Presence whitelist supports `'SLOTS'`, `'PLINKO'`, `'HILO'`, `'POKER'`, `'BLACKJACK'`, `'ROULETTE'`, `'LOBBY'`.
+  - Winnings from Plinko are immediately available for Slot spins.
+  - Winnings from Slots are immediately available for Hi-Lo ladder.
+  - Winnings from Hi-Lo are immediately available for Poker table buy-in.
+  - Zero-discrepancy atomic accounting across rapid multi-game transitions ($\Delta \text{Balance} = \sum \text{Payouts} - \sum \text{Wagers}$).
+- **C3: Poker Disconnection, Reconnection, and Peek Toggle (3 tests)**:
+  - Mid-hand disconnect preserves seat and table stack without auto-cashout.
+  - Reconnecting with session token updates socket and restores active seat.
+  - Reconnected player can toggle Peek / Hide to view hole cards without leaking to opponents.
 
-### 4.2 Boundary Value Analysis (Tier 2: Boundary & Corner Cases)
-BVA targets critical numeric thresholds and boundary conditions:
+### 4.4 Tier 4: Real-World Workload Scenarios
+- **W1: Complete Casino Player Journey (Multi-Game Session Simulation) (1 test)**:
+  - Player onboarded with 10,000 chips.
+  - Plays 3 Plinko drops across Low, Medium, and High risk profiles.
+  - Plays 5x3 Slots spin with 20 paylines, evaluates line wins, and increments jackpot.
+  - Plays Hi-Lo Solo ladder, encounters correct guesses, push/redraw tie, and cashes out.
+  - Buys into Poker table, receives hole cards, toggles Peek state, folds, and cashes out.
+  - Verifies session persistence: exact zero chip loss, atomic balance consistency.
 
-1. **B1: Minimum Raise Delta Enforcement**:
-   - Formula: $\text{Min Raise To} = \text{currentBet} + \max(\text{BB}, \Delta)$, where $\Delta = \text{currentBet} - \text{previousBet}$.
-   - Tests initial pre-flop raise threshold ($C = 100, \Delta = 100 \implies \min = 200$).
-   - Tests multi-stage raise sequences: Bet 300, Raise to 700 ($\Delta = 400$). Next legal raise must be $\ge 1100$. Attempt to raise to 1000 is rejected with `RAISE_TOO_SMALL`.
-   - Tests all-in exemption: A player holding 950 chips may go All-In despite it being below 1100.
-2. **B2: All-In with Less than Minimum Bet**:
-   - Short-stacked blind posting: Player with 60 chips (where BB = 100) posts All-In for 60 chips; pot manager partitions this into an initial 60-chip tier.
-   - Facing a bet of 300 with only 80 chips: Calling commits all 80 chips and marks player `ALL_IN`.
-   - Under-Raise Rule: An incomplete all-in raise ($\Delta_{\text{all-in}} < \Delta$) does **not** reopen the betting to players who already acted.
-3. **B3: Exact Stack Call and All-In**:
-   - Player stack exactly matches the required call amount (e.g. stack = 500, toCall = 500): Calling leaves exactly 0 chips and transitions status to `ALL_IN`.
-   - Player stack exactly matches raise amount: Stack reaches 0 with no phantom chips or rounding artifacts.
-4. **B4: Wheel Straight (A-2-3-4-5) Evaluation**:
-   - Evaluates 5-high straight (`A-2-3-4-5`) with Ace low, producing tie-breaker vector $[4, 5, 0, 0, 0, 0]$.
-   - Wheel straight strictly loses to 6-high straight (`2-3-4-5-6`, vector $[4, 6, 0, 0, 0, 0]$).
-   - Wheel straight strictly beats Three of a Kind, Two Pair, One Pair, and High Card.
-   - Wraparound sequences (`Q-K-A-2-3` and `K-A-2-3-4`) are verified as **invalid** straights (evaluated as Ace High or Pairs).
-   - Wheel Straight Flush (`5s-4s-3s-2s-As`) evaluates to Straight Flush 5-High ($[8, 5, 0, 0, 0, 0]$), losing to 6-high straight flush.
-5. **B5: Broadway Straight (10-J-Q-K-A) Evaluation**:
-   - Evaluates 14-high straight (`10-J-Q-K-A`) with Ace high, producing tie-breaker vector $[4, 14, 0, 0, 0, 0]$.
-   - Broadway straight strictly beats King-high straight (`9-10-J-Q-K`, vector $[4, 13, 0, 0, 0, 0]$).
-   - Royal Flush: Broadway with identical suits evaluates to rank 9 ($[9, 14, 0, 0, 0, 0]$), strictly beating straight flushes.
-6. **B6: Split Pot with Odd Chip Distribution Clockwise from Button**:
-   - Two players tie with identical hands for an odd pot of 151 chips (base split: 75 chips each, remainder: 1 chip).
-   - Remainder chip is awarded to the player seated closest clockwise from the Dealer Button.
-   - Three players tie for 100 chips (33 each + 1 remainder): Odd chip awarded to closest clockwise player from Button.
-   - Multi-chip odd distribution: 4 players tie for 102 chips (25 each + 2 odd chips): Awarded 1 chip each to the 1st and 2nd players clockwise from Button.
-7. **B7: Heads-Up Button and Blind Order**:
-   - Exactly 2 players seated at table.
-   - Dealer Button posts Small Blind (SB) and non-button posts Big Blind (BB).
-   - Pre-flop: Button acts FIRST (option to call, raise, or fold).
-   - Post-flop: Non-Button (BB) acts FIRST, Button acts LAST on Flop, Turn, and River.
-
----
-
-### 4.3 Pairwise & Combinatorial Testing (Tier 3: Cross-Feature Interactions)
-We test orthogonal features in realistic combinatorial scenarios:
-
-1. **C1: Multi-Way Unequal All-Ins with Multiple Side Pots**:
-   - 4 players with unequal stacks: A (100 chips), B (250 chips), C (600 chips), D (1,000 chips).
-   - Main Pot: $100 \times 4 = 400$ chips (eligible: A, B, C, D).
-   - Side Pot 1: $(250 - 100) \times 3 = 450$ chips (eligible: B, C, D; A ineligible).
-   - Side Pot 2: $(600 - 250) \times 2 = 700$ chips (eligible: C, D; A, B ineligible).
-   - Uncalled bet of 400 chips refunded to Player D.
-   - Showdown awards each pot to its highest-ranking eligible player independently.
-2. **C2: Dead Money Retained from Folded Players**:
-   - Players commit chips across pre-flop and flop. When a player folds, their committed chips are preserved in the pot tiers, but the folded player is permanently excluded from pot eligibility.
-3. **C3: Turn Countdown Timer Auto-Check/Fold Anti-Stall**:
-   - 15-second countdown timer runs per player turn.
-   - On timeout (0s):
-     - If `callAmount === 0`: Engine executes automatic **CHECK**.
-     - If `callAmount > 0`: Engine executes automatic **FOLD**.
-   - Game advances immediately without stalling the table.
-4. **C4: Mid-Hand Disconnect Preservation and Seat Reconnect**:
-   - A player dropping connection mid-hand maintains their seat and chips in play.
-   - Turns auto-act without delay.
-   - Reconnecting via persistent session token restores seat ownership and active table stack.
-5. **C5: Navigation Bet Lock on Poker**:
-   - Active player holding hole cards or committed bets is prevented from navigating away with `CANNOT_LEAVE_ACTIVE_BETS`.
-   - Once the hand concludes or the player folds, the lock is lifted and room switching is permitted.
-
----
-
-### 4.4 Workload & Real-World Simulation (Tier 4: End-to-End Simulation)
-- **W1: 6-Player Texas Hold'em Cash Game Simulation**:
-  - 6 distinct players join table with 10,000 chip accounts.
-  - Each player buys in for 3,000 chips. Persistent bankrolls debited to 7,000 chips.
-  - Hand 1: Blinds posted, pre-flop raises, flop checks, turn bets, river raises, and showdown settlement with flush beating two pair.
-  - Rebuys: Short player tops up stack by 2,000 chips between hands.
-  - Hand 2: Button advances, blinds advance, multi-way all-in occurs with main and side pots settled.
-  - Clean Cashout: All players leave table; remaining stacks are atomically credited back to persistent balances in `PlayerManager` and verified on disk, proving 100% chip conservation.
-
----
-
-### 4.5 Forensic Guardrails Verification
-Automated static scanners verify project integrity across five non-negotiable rules:
-1. **Zero Audio Files**: Scans repository for `.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`, `.weba` (asserts 0 found).
-2. **Zero Web Audio APIs**: Scans client JavaScript and HTML for `AudioContext`, `webkitAudioContext`, `createOscillator`, `createGain`, `<audio>`, `new Audio` (asserts 0 found).
-3. **Zero Unicode Emojis**: Scans all client files (HTML, JS, CSS) for unicode emoji ranges (asserts 0 found).
-4. **Vector Card Suits**: Verifies card suits are authored strictly as clean SVG symbols (`#suit-spade`, `#suit-heart`, `#suit-diamond`, `#suit-club`).
-5. **Brand Sanitization**: Verifies zero GTA or Diamond Casino branding across client and server files.
+### 4.5 Forensic Guardrails Verification (R6)
+- **G1: 100% Silent Mode (Zero Audio)**:
+  - Scans repository for audio files (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`, `.weba`) (asserts 0 found).
+  - Scans client codebase for Web Audio API references (`AudioContext`, `createOscillator`, `<audio>`, `new Audio`) (asserts 0 found).
+- **G2: Zero Unicode Emojis**:
+  - Scans client files (HTML, JS, CSS) for unicode emoji code point ranges (asserts 0 found).
+  - Confirms pure SVG vectors for card suits, slot symbols, plinko pins, and poker icons.
+- **G3: Fit-to-Screen Laptop Zero-Scroll Viewport Bounds**:
+  - Verifies `.master-header` is $\le 46\text{px}$ under `@media (max-height: 760px)`.
+  - Verifies total component bounding boxes $\le 640\text{px}$ fitting within 710px - 740px viewports without vertical scrollbars.
 
 ---
 
 ## 5. How to Run the Tests
 
 ```bash
-# 1. Run the new E2E Texas Hold'em Poker Suite (Tiers 1–4):
+# 1. Run the new E2E New Casino Games Suite (Plinko, Slots, Hi-Lo, Poker Fixes, Faucet, Guardrails):
+cd casino-multiplayer
+node --test tests/e2e/e2eNewCasinoGamesSuite.test.js
+
+# 2. Run the E2E Texas Hold'em Poker Suite:
+cd casino-multiplayer
 node --test tests/e2e/e2eCasinoPokerSuite.test.js
 
-# 2. Run the E2E Blackjack & Casino Suite:
+# 3. Run the E2E Blackjack & Casino Suite:
+cd casino-multiplayer
 node --test tests/e2e/e2eCasinoBlackjackSuite.test.js
 
-# 3. Run all E2E Tests:
+# 4. Run all Casino E2E Suites combined:
+cd casino-multiplayer
 node --test tests/e2e/*.test.js
 
-# 4. Run entire casino test suite (all unit, integration, and E2E tests):
+# 5. Run full project test suite (all 683 tests):
+cd casino-multiplayer
 npm test
 ```

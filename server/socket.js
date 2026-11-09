@@ -445,12 +445,36 @@ function setupSocket(httpServer, options = {}) {
       io.emit('poker_phase_tick', data);
     });
 
+    function broadcastPokerState(table) {
+      const publicState = table.getTableState(null);
+      io.to('table:' + table.tableId).emit('poker_table_state', publicState);
+      io.emit('poker_table_state', publicState);
+
+      for (const seat of table.seats) {
+        if (seat.player) {
+          const p = playerManager.getPlayerById(seat.player.id);
+          const socketId = (p && p.socketId) || seat.player.socketId;
+          if (socketId) {
+            const privateState = table.getTableState(seat.player.id);
+            io.to(socketId).emit('poker_table_state', privateState);
+            if (seat.cards && seat.cards.length > 0) {
+              io.to(socketId).emit('poker_hole_cards', {
+                tableId: table.tableId,
+                seatIndex: seat.seatIndex,
+                cards: seat.cards,
+                holeCards: seat.cards
+              });
+            }
+          }
+        }
+      }
+    }
+
     tbl.on('phase_changed', (data) => {
       const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_phase_change', { ...data, ...state });
       io.to('table:' + tbl.tableId).emit('poker_phase_changed', { ...data, ...state });
-      io.emit('poker_table_state', state);
       io.emit('poker_phase_change', { ...data, ...state });
       io.emit('poker_phase_changed', { ...data, ...state });
 
@@ -469,7 +493,7 @@ function setupSocket(httpServer, options = {}) {
 
     tbl.on('turn_changed', (data) => {
       const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_turn_change', { ...data, ...state });
       io.to('table:' + tbl.tableId).emit('poker_turn_changed', { ...data, ...state });
       io.emit('poker_turn_change', { ...data, ...state });
@@ -477,20 +501,16 @@ function setupSocket(httpServer, options = {}) {
     });
 
     tbl.on('seat_taken', (data) => {
-      const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_seat_taken', data);
-      io.emit('poker_table_state', state);
       io.emit('poker_seat_taken', data);
       broadcastPlayersUpdate();
     });
 
     tbl.on('seat_vacated', (data) => {
-      const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_seat_vacated', data);
       io.to('table:' + tbl.tableId).emit('poker_seat_left', data);
-      io.emit('poker_table_state', state);
       io.emit('poker_seat_vacated', data);
       io.emit('poker_seat_left', data);
       broadcastPlayersUpdate();
@@ -498,46 +518,27 @@ function setupSocket(httpServer, options = {}) {
 
     tbl.on('hand_started', (data) => {
       const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_hand_start', data);
       io.to('table:' + tbl.tableId).emit('poker_hand_started', data);
-      io.emit('poker_table_state', state);
       io.emit('poker_hand_start', data);
       io.emit('poker_hand_started', data);
-
-      // Unicast private hole cards to seat owners
-      for (const seat of tbl.seats) {
-        if (seat.player && seat.cards && seat.cards.length > 0) {
-          const p = playerManager.getPlayerById(seat.player.id);
-          const socketId = (p && p.socketId) || seat.player.socketId;
-          if (socketId) {
-            io.to(socketId).emit('poker_hole_cards', {
-              tableId: tbl.tableId,
-              seatIndex: seat.seatIndex,
-              cards: seat.cards,
-              holeCards: seat.cards
-            });
-          }
-        }
-      }
     });
 
     tbl.on('player_acted', (data) => {
       const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_player_acted', data);
       io.to('table:' + tbl.tableId).emit('poker_player_action', data);
-      io.emit('poker_table_state', state);
       io.emit('poker_player_acted', data);
       io.emit('poker_player_action', data);
     });
 
     tbl.on('hand_ended', (data) => {
       const state = tbl.getTableState(null);
-      io.to('table:' + tbl.tableId).emit('poker_table_state', state);
+      broadcastPokerState(tbl);
       io.to('table:' + tbl.tableId).emit('poker_hand_end', data);
       io.to('table:' + tbl.tableId).emit('poker_hand_ended', data);
-      io.emit('poker_table_state', state);
       io.emit('poker_hand_end', data);
       io.emit('poker_hand_ended', data);
       broadcastPlayersUpdate();
@@ -997,9 +998,21 @@ function setupSocket(httpServer, options = {}) {
 
     // 5. Casino Banking & Loans Protocol
 
-    socket.on('bank_get_state', () => {
+    socket.on('bank_get_state', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
+      if (payload && payload.backup) {
+        bankManager.restoreFromBackup(player.id, payload.backup);
+      }
+      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+    });
+
+    socket.on('bank_reconcile_backup', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      if (payload && payload.backup) {
+        bankManager.restoreFromBackup(player.id, payload.backup);
+      }
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
     });
 
@@ -1551,6 +1564,15 @@ function setupSocket(httpServer, options = {}) {
       const table = getPokerTable(tableId);
       socket.join('table:' + table.tableId);
       const player = playerManager.getPlayerBySocket(socket.id);
+
+      if (player) {
+        const seat = table.seats.find(s => s.player && s.player.id === player.id);
+        if (seat && seat.player) {
+          seat.player.connected = true;
+          seat.player.socketId = socket.id;
+        }
+      }
+
       const state = table.getTableState(player ? player.id : null);
       socket.emit('poker_table_state', state);
 
