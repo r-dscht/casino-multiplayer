@@ -461,19 +461,28 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   -webkit-user-select: none;
 }
 
+#roulette-betting-grid {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .roulette-board {
   display: flex;
   margin: 0 auto;
   max-width: 900px;
+  width: 100%;
 }
 
 /* Zero Cell */
 .cell-zero {
   width: 60px;
+  flex-shrink: 0;
   min-height: 156px;
+  height: 156px;
   background: #0b6623;
   border: 1px solid var(--border-gold);
-  border-radius: 8px 0 0 0;
+  border-radius: 8px 0 0 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -534,10 +543,12 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   display: flex;
   flex-direction: column;
   width: 64px;
+  flex-shrink: 0;
 }
 
 .column-cell {
   height: 52px;
+  flex: 1;
   background: rgba(14, 40, 28, 0.9);
   font-size: 0.85rem;
   letter-spacing: 0.04em;
@@ -548,13 +559,15 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   border-radius: 0 8px 0 0;
 }
 
+.column-cell:last-child {
+  border-radius: 0 0 8px 0;
+}
+
 /* Outside Rows (Dozens & Even-money) */
 .outside-row {
   display: flex;
-  margin: 0 auto;
-  max-width: 900px;
-  margin-left: 60px; /* Offset for zero cell */
-  margin-right: 64px; /* Offset for column cell */
+  margin-left: 60px; /* Exact offset for 60px zero cell */
+  margin-right: 64px; /* Exact offset for 64px column cell */
 }
 
 .dozens-row {

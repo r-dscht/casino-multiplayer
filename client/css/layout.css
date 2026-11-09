@@ -192,10 +192,15 @@
   .cell-zero {
     width: 48px;
     min-height: 132px;
+    height: 132px;
   }
 
   .number-row {
     height: 44px;
+  }
+
+  .columns-container {
+    width: 52px;
   }
 
   .column-cell {
@@ -303,10 +308,15 @@
   .cell-zero {
     width: 44px;
     min-height: 126px;
+    height: 126px;
   }
 
   .number-row {
     height: 42px;
+  }
+
+  .columns-container {
+    width: 48px;
   }
 
   .column-cell {
@@ -480,19 +490,24 @@
 
   /* Roulette Viewport Fit */
   #roulette-canvas-container {
-    height: clamp(270px, 36vh, 340px);
+    height: clamp(290px, 39vh, 360px);
   }
 
   .board-section {
-    padding: 10px 16px;
+    padding: 18px 16px 10px;
   }
 
   .number-row {
     height: 46px;
   }
 
+  .column-cell {
+    height: 46px;
+  }
+
   .cell-zero {
     min-height: 138px;
+    height: 138px;
   }
 
   .grid-cell {
@@ -635,19 +650,24 @@
 
   /* Compact Roulette */
   #roulette-canvas-container {
-    height: clamp(210px, 30vh, 250px);
+    height: clamp(245px, 34vh, 290px);
   }
 
   .board-section {
-    padding: 6px 12px;
+    padding: 14px 12px 6px;
   }
 
   .number-row {
-    height: 40px;
+    height: 42px;
+  }
+
+  .column-cell {
+    height: 42px;
   }
 
   .cell-zero {
-    min-height: 120px;
+    min-height: 126px;
+    height: 126px;
   }
 
   .grid-cell {
