@@ -1165,10 +1165,11 @@
 
     /**
      * Manually cashes out active Crash bet during RUNNING phase.
+     * @param {{ multiplier?: number }} [payload={}]
      */
-    crashCashOut() {
+    crashCashOut(payload = {}) {
       if (!this.socket) return;
-      this.socket.emit('crash_cash_out', {});
+      this.socket.emit('crash_cash_out', payload);
     }
   }
 

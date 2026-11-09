@@ -509,9 +509,10 @@ class CrashEngine extends EventEmitter {
   /**
    * Manual player cashout during RUNNING phase.
    * @param {string} playerId
+   * @param {{ multiplier?: number }} [payload={}]
    * @returns {{ success: boolean, code?: string, reason?: string, cashoutMultiplier?: number, payout?: number, profit?: number, remainingChips?: number }}
    */
-  cashOut(playerId) {
+  cashOut(playerId, payload = {}) {
     if (this.currentPhase !== PHASES.RUNNING) {
       return {
         success: false,
@@ -537,11 +538,7 @@ class CrashEngine extends EventEmitter {
       };
     }
 
-    // Calculate exact authoritative multiplier at this millisecond
-    const nowElapsed = Math.max(0, Date.now() - this.flightStartTime);
-    const liveMult = Math.max(this.currentMultiplier, CrashEngine.computeMultiplierAtElapsedMs(nowElapsed));
-
-    if (liveMult >= this.crashPoint && nowElapsed >= this.crashElapsedMs) {
+    if (this.crashPoint <= 1.00) {
       return {
         success: false,
         code: 'ALREADY_CRASHED',
@@ -549,9 +546,30 @@ class CrashEngine extends EventEmitter {
       };
     }
 
+    // Calculate exact authoritative multiplier at this millisecond
+    const nowElapsed = Math.max(0, Date.now() - this.flightStartTime);
+    const liveMult = Math.max(this.currentMultiplier, CrashEngine.computeMultiplierAtElapsedMs(nowElapsed));
+
+    // If client provided the multiplier visible when they pressed the button, use it if valid
+    const clientMult = (payload && typeof payload.multiplier === 'number' && Number.isFinite(payload.multiplier))
+      ? payload.multiplier
+      : null;
+
+    if (liveMult >= this.crashPoint && nowElapsed > this.crashElapsedMs + 350 && (!clientMult || clientMult >= this.crashPoint)) {
+      return {
+        success: false,
+        code: 'ALREADY_CRASHED',
+        reason: 'Te laat! De multiplier is net gecrasht.'
+      };
+    }
+
+    const targetMult = (clientMult && clientMult >= 1.00 && clientMult < liveMult)
+      ? Math.max(this.currentMultiplier, clientMult)
+      : liveMult;
+
     const safeMult = Math.min(
       this.crashPoint,
-      Math.max(1.01, Math.floor(liveMult * 100) / 100)
+      Math.max(1.01, Math.floor(targetMult * 100) / 100)
     );
 
     return this._executeCashOut(playerId, safeMult, false);

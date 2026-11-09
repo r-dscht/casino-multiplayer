@@ -65,6 +65,8 @@
       this.betAmount = 100;
       this.autoCashoutEnabled = false;
       this.autoCashoutValue = 2.00;
+      this.cashoutPending = false;
+      this._cashoutPendingTimer = null;
 
       // Canvas & Particles
       this.canvas = null;
@@ -109,6 +111,8 @@
         autoInput: document.getElementById('crash-auto-input'),
         autoPresets: document.querySelectorAll('#crash-view .crash-auto-preset'),
         mainActionBtn: document.getElementById('btn-crash-main-action'),
+        actionMainLabel: document.getElementById('crash-action-main-label'),
+        actionSubLabel: document.getElementById('crash-action-sub-label'),
         cancelBetBtn: document.getElementById('btn-crash-cancel-bet')
       };
 
@@ -201,6 +205,17 @@
       }
 
       if (this.elements.mainActionBtn) {
+        // Trigger Cash Out on pointerdown/mousedown immediately (zero release delay)
+        const onImmediatePress = (e) => {
+          if (this.phase === 'RUNNING' && this.myBet && !this.myBet.cashedOut) {
+            if (e && e.button !== undefined && e.button !== 0) return;
+            this.triggerInstantCashOut();
+          }
+        };
+        this.elements.mainActionBtn.addEventListener('pointerdown', onImmediatePress);
+        this.elements.mainActionBtn.addEventListener('mousedown', onImmediatePress);
+        this.elements.mainActionBtn.addEventListener('touchstart', onImmediatePress, { passive: true });
+
         this.elements.mainActionBtn.addEventListener('click', () => {
           this.handlePrimaryAction();
         });
@@ -214,16 +229,16 @@
         });
       }
 
-      // Spacebar shortcut for instant Cash Out during flight
+      // Spacebar / Enter shortcut for instant Cash Out during flight
       window.addEventListener('keydown', (e) => {
-        if (e.code !== 'Space') return;
+        if (e.code !== 'Space' && e.code !== 'Enter') return;
         const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
         if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
         if (!this.elements.view || this.elements.view.classList.contains('hidden')) return;
 
         if (this.phase === 'RUNNING' && this.myBet && !this.myBet.cashedOut) {
           e.preventDefault();
-          this.network.crashCashOut();
+          this.triggerInstantCashOut();
         }
       });
     }
@@ -237,6 +252,21 @@
       this.updateControlsUI();
     }
 
+    triggerInstantCashOut() {
+      if (this.phase !== 'RUNNING' || !this.myBet || this.myBet.cashedOut || this.cashoutPending) {
+        return;
+      }
+      this.cashoutPending = true;
+      if (this._cashoutPendingTimer) clearTimeout(this._cashoutPendingTimer);
+      this._cashoutPendingTimer = setTimeout(() => {
+        this.cashoutPending = false;
+      }, 650);
+
+      const { mult } = this.getLiveInterpolatedFlight();
+      this.network.crashCashOut({ multiplier: mult });
+      this.updateControlsUI();
+    }
+
     handlePrimaryAction() {
       if (this.phase === 'BETTING') {
         const autoMult = this.autoCashoutEnabled ? this.autoCashoutValue : null;
@@ -245,9 +275,7 @@
           autoCashout: autoMult
         });
       } else if (this.phase === 'RUNNING') {
-        if (this.myBet && !this.myBet.cashedOut) {
-          this.network.crashCashOut();
-        }
+        this.triggerInstantCashOut();
       }
     }
 
@@ -292,6 +320,7 @@
         }
 
         if (data.phase === 'BETTING') {
+          this.cashoutPending = false;
           this.timeLeft = data.timeLeft !== undefined ? data.timeLeft : 8;
           this.duration = data.duration || 8;
           this.currentMultiplier = 1.00;
@@ -388,6 +417,9 @@
 
       this.network.on('crash_player_cashed_out', (data) => {
         if (!data) return;
+        if (this.ui && this.ui.myPlayer && data.playerId === this.ui.myPlayer.id) {
+          this.cashoutPending = false;
+        }
         if (Array.isArray(data.bets)) {
           this.syncBets(data.bets);
         }
@@ -415,8 +447,10 @@
       });
 
       this.network.on('crash_cashout_rejected', (data) => {
+        this.cashoutPending = false;
         const msg = (data && (data.reason || data.message)) || 'Cashout mislukt';
         this.ui.showToast(msg, 'error');
+        this.updateControlsUI();
       });
 
       this.network.on('crash_round_crashed', (data) => {
@@ -662,6 +696,30 @@
       }
     }
 
+    _setActionButtonState(className, disabled, mainText, subText) {
+      const btn = this.elements.mainActionBtn;
+      if (!btn) return;
+
+      if (btn.disabled !== disabled) {
+        btn.disabled = disabled;
+      }
+      if (btn.className !== className) {
+        btn.className = className;
+      }
+
+      if (!this.elements.actionMainLabel || !this.elements.actionSubLabel) {
+        this.elements.actionMainLabel = btn.querySelector('.action-main-label');
+        this.elements.actionSubLabel = btn.querySelector('.action-sub-label');
+      }
+
+      if (this.elements.actionMainLabel && this.elements.actionMainLabel.textContent !== mainText) {
+        this.elements.actionMainLabel.textContent = mainText;
+      }
+      if (this.elements.actionSubLabel && this.elements.actionSubLabel.textContent !== subText) {
+        this.elements.actionSubLabel.textContent = subText;
+      }
+    }
+
     updateControlsUI() {
       const btn = this.elements.mainActionBtn;
       const cancelBtn = this.elements.cancelBetBtn;
@@ -671,25 +729,25 @@
 
       if (this.phase === 'BETTING') {
         if (this.myBet) {
-          btn.disabled = false;
-          btn.className = 'btn-crash-action state-add-bet';
-          btn.innerHTML = `
-            <span class="action-main-label">VERHOOG INZET (+${this.betAmount.toLocaleString()})</span>
-            <span class="action-sub-label">Huidige inzet: ${this.myBet.amount.toLocaleString()} fiches</span>
-          `;
+          this._setActionButtonState(
+            'btn-crash-action state-add-bet',
+            false,
+            `VERHOOG INZET (+${this.betAmount.toLocaleString()})`,
+            `Huidige inzet: ${this.myBet.amount.toLocaleString()} fiches`
+          );
           if (cancelBtn) {
             cancelBtn.classList.remove('hidden');
           }
         } else {
-          btn.disabled = false;
-          btn.className = 'btn-crash-action state-bet';
           const autoSub = this.autoCashoutEnabled
             ? `Auto-Cashout actief op ${this.autoCashoutValue.toFixed(2)}x`
             : 'Handmatig uitcashen tijdens de vlucht';
-          btn.innerHTML = `
-            <span class="action-main-label">PLAATS INZET (${this.betAmount.toLocaleString()} FICHES)</span>
-            <span class="action-sub-label">${autoSub}</span>
-          `;
+          this._setActionButtonState(
+            'btn-crash-action state-bet',
+            false,
+            `PLAATS INZET (${this.betAmount.toLocaleString()} FICHES)`,
+            autoSub
+          );
           if (cancelBtn) {
             cancelBtn.classList.add('hidden');
           }
@@ -699,36 +757,36 @@
 
         if (this.myBet && !this.myBet.cashedOut) {
           const livePayout = Math.floor(this.myBet.amount * mult);
-          btn.disabled = false;
-          btn.className = 'btn-crash-action state-cashout';
-          btn.innerHTML = `
-            <span class="action-main-label">CASH OUT — PAK ${livePayout.toLocaleString()} FICHES</span>
-            <span class="action-sub-label">Nu op ${mult.toFixed(2)}x (Of druk op SPATIEBALK)</span>
-          `;
+          this._setActionButtonState(
+            'btn-crash-action state-cashout',
+            false,
+            `CASH OUT — PAK ${livePayout.toLocaleString()} FICHES`,
+            `Nu op ${mult.toFixed(2)}x (Of druk op SPATIEBALK)`
+          );
         } else if (this.myBet && this.myBet.cashedOut) {
-          btn.disabled = true;
-          btn.className = 'btn-crash-action state-cashed-done';
-          btn.innerHTML = `
-            <span class="action-main-label">UITGECASHT OP ${this.myBet.cashoutMultiplier.toFixed(2)}x</span>
-            <span class="action-sub-label">+${this.myBet.payout.toLocaleString()} fiches bijgeschreven</span>
-          `;
+          this._setActionButtonState(
+            'btn-crash-action state-cashed-done',
+            true,
+            `UITGECASHT OP ${this.myBet.cashoutMultiplier.toFixed(2)}x`,
+            `+${this.myBet.payout.toLocaleString()} fiches bijgeschreven`
+          );
         } else {
-          btn.disabled = true;
-          btn.className = 'btn-crash-action state-waiting';
-          btn.innerHTML = `
-            <span class="action-main-label">RONDE BEZIG (${mult.toFixed(2)}x)</span>
-            <span class="action-sub-label">Wacht op volgende inzetronde...</span>
-          `;
+          this._setActionButtonState(
+            'btn-crash-action state-waiting',
+            true,
+            `RONDE BEZIG (${mult.toFixed(2)}x)`,
+            'Wacht op volgende inzetronde...'
+          );
         }
       } else {
         // CRASHED
         if (cancelBtn) cancelBtn.classList.add('hidden');
-        btn.disabled = true;
-        btn.className = 'btn-crash-action state-crashed';
-        btn.innerHTML = `
-          <span class="action-main-label">GECRASHT OP ${(this.crashPoint || mult).toFixed(2)}x</span>
-          <span class="action-sub-label">Nieuwe ronde start over ${this.timeLeft}s...</span>
-        `;
+        this._setActionButtonState(
+          'btn-crash-action state-crashed',
+          true,
+          `GECRASHT OP ${(this.crashPoint || mult).toFixed(2)}x`,
+          `Nieuwe ronde start over ${this.timeLeft}s...`
+        );
       }
     }
 

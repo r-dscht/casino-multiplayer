@@ -2058,7 +2058,7 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('chips_update', { chips: res.remainingChips });
     });
 
-    socket.on('crash_cash_out', () => {
+    socket.on('crash_cash_out', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) {
         socket.emit('crash_cashout_rejected', {
@@ -2068,7 +2068,7 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      const res = crashEngine.cashOut(player.id);
+      const res = crashEngine.cashOut(player.id, payload);
       if (!res.success) {
         socket.emit('crash_cashout_rejected', {
           code: res.code,

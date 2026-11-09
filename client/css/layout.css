@@ -2292,11 +2292,18 @@
   gap: 2px;
   padding: 8px 14px;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
+  user-select: none;
+  touch-action: manipulation;
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.btn-crash-action * {
+  pointer-events: none;
+  user-select: none;
 }
 
 .btn-crash-action:active:not(:disabled) {
-  transform: scale(0.98);
+  filter: brightness(1.08);
 }
 
 .btn-crash-action .action-main-label {
@@ -2331,11 +2338,9 @@
 
 @keyframes crashCashoutPulse {
   0% {
-    transform: scale(1);
     box-shadow: 0 0 18px rgba(16, 185, 129, 0.55);
   }
   100% {
-    transform: scale(1.025);
     box-shadow: 0 0 32px rgba(250, 204, 21, 0.85), 0 0 18px rgba(16, 185, 129, 0.8);
   }
 }
