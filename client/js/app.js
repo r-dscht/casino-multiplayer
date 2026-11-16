@@ -36,37 +36,42 @@ document.addEventListener('DOMContentLoaded', () => {
   let hilo = null;
   let mines = null;
 
-  function hasUnsettledBets() {
-    if (currentActiveBets.length > 0) return true;
+  function getActiveBetGame() {
+    if (currentActiveBets.length > 0) return 'Roulette';
     if (myBjSeatIndex !== -1 && currentBjTableState) {
       const mySeat = currentBjTableState.seats && currentBjTableState.seats[myBjSeatIndex];
       if (mySeat && mySeat.bet > 0 && ['BETTING', 'DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentBjTableState.phase)) {
-        return true;
+        return 'Blackjack';
       }
     }
     if (poker && poker.mySeatIndex !== -1 && poker.currentTableState) {
       const mySeat = poker.currentTableState.seats && poker.currentTableState.seats[poker.mySeatIndex];
-      const inPokerHand = mySeat && (
-        (!mySeat.folded && (mySeat.hasCards || (Array.isArray(mySeat.cards) && mySeat.cards.length > 0))) ||
+      const inPokerHand = mySeat && !mySeat.folded && (
+        mySeat.hasCards ||
+        (Array.isArray(mySeat.cards) && mySeat.cards.length > 0) ||
         (mySeat.totalCommittedThisHand || 0) > 0
       );
       if (inPokerHand && !['WAITING_FOR_PLAYERS', 'HAND_END'].includes(poker.currentTableState.currentPhase)) {
-        return true;
+        return 'Poker';
       }
     }
     if (crash && typeof crash.hasActiveBet === 'function' && crash.hasActiveBet()) {
-      return true;
+      return 'Crash';
     }
     if (racing && typeof racing.hasActiveBets === 'function' && racing.hasActiveBets()) {
-      return true;
+      return 'Racing';
     }
     if (hilo && typeof hilo.hasActiveBets === 'function' && hilo.hasActiveBets()) {
-      return true;
+      return 'HiLo';
     }
     if (mines && typeof mines.hasActiveBets === 'function' && mines.hasActiveBets()) {
-      return true;
+      return 'Mines';
     }
-    return false;
+    return null;
+  }
+
+  function hasUnsettledBets() {
+    return Boolean(getActiveBetGame());
   }
 
   // Helper to compute spot key from bet payload
@@ -289,14 +294,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Re-sync current game presence & state after reconnect or silent session recovery
     const activeLower = String(currentActiveGame || 'Roulette').toLowerCase();
-    if (activeLower && activeLower !== 'roulette' && network.myPlayerId) {
-      network.setGamePresence(activeLower.toUpperCase());
-      if (activeLower === 'plinko') network.plinkoJoin();
+    if (activeLower && network.myPlayerId) {
+      if (activeLower !== 'roulette') {
+        network.setGamePresence(activeLower.toUpperCase());
+      }
+      if (activeLower === 'blackjack') network.bjJoinTable(currentBjTableId);
+      else if (activeLower === 'poker') network.pokerJoinTable((poker && poker.currentTableId) || 'poker_1');
+      else if (activeLower === 'crash') network.crashJoinTable();
+      else if (activeLower === 'plinko') network.plinkoJoin();
       else if (activeLower === 'slots') network.slotsJoin(slots ? slots.selectedMachineId : null);
       else if (activeLower === 'racing') network.racingJoin();
       else if (activeLower === 'hilo') network.hiloJoin();
       else if (activeLower === 'mines') network.minesJoin();
     }
+    if (lottery && typeof network.requestLotteryState === 'function') {
+      network.requestLotteryState();
+    }
+    ui.setNavigationLocked(hasUnsettledBets());
     // Reconcile and request bank state with cached backup
     if (bank) {
       let backup = null;
@@ -361,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render active bets across all players
     currentActiveBets = [];
     tableLiveBets = [];
+    const roulettePhaseActive = !state.currentPhase || ['BETTING', 'SPINNING'].includes(state.currentPhase);
     if (state.activeBets && typeof state.activeBets === 'object') {
       Object.entries(state.activeBets).forEach(([pid, bets]) => {
         if (Array.isArray(bets)) {
@@ -378,13 +393,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const spotKey = computeSpotKey(b.type, b.value);
             ui.addChipToSpot(spotKey, color, b.amount);
-            if (pid === ui.myPlayer.id) {
+            if (roulettePhaseActive && pid === ui.myPlayer.id) {
               currentActiveBets.push(b);
             }
           });
         }
       });
     }
+    ui.setNavigationLocked(hasUnsettledBets());
 
     ui.updateActiveBetsList(tableLiveBets, state.tableChipsTotal || 0);
 
@@ -588,6 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputPass = document.getElementById('profile-new-password');
   const msgPass = document.getElementById('profile-password-msg');
 
+  let pendingSavedPassword = '';
   if (btnSavePass && inputPass) {
     btnSavePass.addEventListener('click', () => {
       const pw = inputPass.value.trim();
@@ -599,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
+      pendingSavedPassword = pw;
       network.setPassword(pw);
     });
   }
@@ -606,12 +624,22 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('player_password_result', (res) => {
     if (msgPass) {
       if (res && res.success) {
+        if (pendingSavedPassword) {
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('casino_player_password', pendingSavedPassword);
+              localStorage.setItem('roulette_player_password', pendingSavedPassword);
+            }
+          } catch (e) {}
+          pendingSavedPassword = '';
+        }
         msgPass.textContent = 'Wachtwoord succesvol ingesteld!';
         msgPass.style.color = '#10b981';
         msgPass.classList.remove('hidden');
         if (inputPass) inputPass.value = '';
         setTimeout(() => msgPass.classList.add('hidden'), 4000);
       } else {
+        pendingSavedPassword = '';
         msgPass.textContent = (res && res.reason) || 'Fout bij opslaan van wachtwoord';
         msgPass.style.color = '#ff6b6b';
         msgPass.classList.remove('hidden');
@@ -644,6 +672,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function activateGameView(rawGame, { syncPresence = false, joinPrimaryTables = false, joinAuxiliary = false, announce = false } = {}) {
     const key = String(rawGame || 'Roulette').trim().toLowerCase();
     deactivateInactiveViews(key);
+    try {
+      if (typeof sessionStorage !== 'undefined' && GAME_VIEW_NAMES.has(key)) {
+        sessionStorage.setItem('casino_active_game', key);
+      }
+    } catch (e) {}
 
     if (key === 'roulette') {
       currentActiveGame = 'Roulette';
@@ -756,11 +789,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.game-pill').forEach(btn => {
     btn.addEventListener('click', () => {
       const game = btn.dataset.game;
-      if (hasUnsettledBets()) {
+      const activeBetGame = getActiveBetGame();
+      if (activeBetGame) {
         ui.setNavigationLocked(true);
-        ui.showToast('Inzet actief — Navigatie vergrendeld tot einde van de ronde', 'error');
+        if (String(activeBetGame).toLowerCase() !== String(currentActiveGame || '').toLowerCase() &&
+            String(activeBetGame).toLowerCase() === String(game || '').toLowerCase()) {
+          activateGameView(activeBetGame, { syncPresence: false, joinPrimaryTables: false, announce: false });
+          return;
+        }
+        ui.showToast(`Inzet actief op ${activeBetGame} — Navigatie vergrendeld tot einde van de ronde`, 'error');
         return;
       }
+      ui.setNavigationLocked(false);
       if (!GAME_VIEW_NAMES.has(String(game || '').toLowerCase())) {
         ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
         return;
@@ -768,6 +808,16 @@ document.addEventListener('DOMContentLoaded', () => {
       activateGameView(game, { syncPresence: true, joinPrimaryTables: true, announce: true });
     });
   });
+
+  // Restore last active game on tab refresh (F5) immediately without flashing Roulette
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const savedTabGame = sessionStorage.getItem('casino_active_game');
+      if (savedTabGame && savedTabGame !== 'roulette' && GAME_VIEW_NAMES.has(savedTabGame)) {
+        activateGameView(savedTabGame, { syncPresence: false, joinPrimaryTables: false, announce: false });
+      }
+    }
+  } catch (e) {}
 
   // Left Command Dock button delegation
   document.querySelectorAll('.dock-left-btn').forEach(btn => {
@@ -1400,7 +1450,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentBjTableState) {
       currentBjTableState.phase = data.phase;
       currentBjTableState.activeSeatIndex = data.activeSeatIndex !== undefined ? data.activeSeatIndex : currentBjTableState.activeSeatIndex;
-      if (data.seats) currentBjTableState.seats = data.seats;
+      if (data.seats) {
+        currentBjTableState.seats = data.seats;
+      } else if ((data.phase === 'BETTING' || data.phase === 'WAITING_FOR_PLAYERS') && Array.isArray(currentBjTableState.seats)) {
+        currentBjTableState.seats.forEach((s) => {
+          if (s) {
+            s.bet = 0;
+            s.cards = [];
+            if (Array.isArray(s.hands)) {
+              s.hands.forEach((h) => { if (h) { h.bet = 0; h.cards = []; } });
+            }
+          }
+        });
+      }
       if (data.dealerHand) currentBjTableState.dealerHand = data.dealerHand;
       if (data.dealerScore !== undefined) currentBjTableState.dealerScore = data.dealerScore;
     }
@@ -1504,12 +1566,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('bj_round_end', (data) => {
     if (!data || data.tableId !== currentBjTableId) return;
-    ui.setNavigationLocked(false);
+    if (currentBjTableState) {
+      currentBjTableState.phase = 'ROUND_OVER';
+      if (Array.isArray(currentBjTableState.seats)) {
+        currentBjTableState.seats.forEach((s) => {
+          if (s) s.bet = 0;
+        });
+      }
+    }
+    ui.setNavigationLocked(hasUnsettledBets());
     updateBjActionButtons();
   });
 
   network.on('navigation_blocked', (data) => {
-    const fallbackGame = (data && (data.currentGame || data.game)) || confirmedServerGame;
+    const fallbackGame = (data && (data.game || data.currentGame)) || confirmedServerGame;
     if (fallbackGame && String(fallbackGame).toLowerCase() !== String(currentActiveGame || '').toLowerCase()) {
       activateGameView(fallbackGame, { syncPresence: false, joinPrimaryTables: false, announce: false });
     }
@@ -1526,6 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       confirmedServerGame = data.game;
       activateGameView(data.game, { syncPresence: false, joinPrimaryTables: false, joinAuxiliary: true, announce: false });
+      ui.setNavigationLocked(hasUnsettledBets());
     }
   });
 

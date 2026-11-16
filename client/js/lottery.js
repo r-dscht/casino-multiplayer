@@ -1,6 +1,6 @@
 /**
  * lottery.js
- * Frontend controller for Casino Staatsloterij (100% player pot, 0% house edge, 10-minute cycle).
+ * Frontend controller for Casino Staatsloterij (100% player pot, 0% house edge, 30-minute cycle).
  * Syncs top HUD timer/pot badge, live buy preview, animated raffle drum reel,
  * participant odds bars, and recent winner history.
  *
@@ -60,7 +60,7 @@
       this.state = {
         roundId: 1,
         phase: 'OPEN',
-        secondsRemaining: 600,
+        secondsRemaining: 1800,
         ticketPrice: TICKET_PRICE,
         houseEdgePct: 0,
         pot: 0,
@@ -73,6 +73,8 @@
       };
 
       this._reelTimer = null;
+      this._buyTimeout = null;
+      this._pendingBuy = null;
       this._isBuying = false;
 
       this._cacheElements();
@@ -187,8 +189,12 @@
       });
 
       this.network.on('lottery_buy_ack', (ack) => {
-        this._isBuying = false;
-        if (!ack) return;
+        this._clearBuyLock(false);
+        this._pendingBuy = null;
+        if (!ack) {
+          this.renderBuyPreview();
+          return;
+        }
         if (typeof ack.remainingChips === 'number' && this.ui && this.ui.myPlayer) {
           this.ui.myPlayer.chips = ack.remainingChips;
           this.ui.updatePlayerHUD();
@@ -203,10 +209,59 @@
       });
 
       this.network.on('lottery_rejected', (err) => {
-        this._isBuying = false;
-        this.renderBuyPreview();
+        if (err && err.code === 'PLAYER_NOT_FOUND' && this._pendingBuy && Date.now() <= this._pendingBuy.expiresAt) {
+          return;
+        }
+        this._pendingBuy = null;
+        this._clearBuyLock(true);
         if (this.ui && typeof this.ui.showToast === 'function' && err && err.reason) {
           this.ui.showToast(err.reason, 'error');
+        }
+      });
+
+      this.network.on('connection_change', (data) => {
+        if (!data || !data.connected) {
+          const wasActive = this._isBuying || Boolean(this._pendingBuy);
+          this._pendingBuy = null;
+          this._clearBuyLock(true);
+          if (wasActive && this.ui && typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Verbinding verbroken tijdens aankoop. Probeer zo opnieuw.', 'error');
+          }
+          return;
+        }
+        if (this.isOpen() && this.network && typeof this.network.requestLotteryState === 'function') {
+          this.network.requestLotteryState();
+        }
+      });
+
+      this.network.on('auth_success', () => {
+        if (this.network && typeof this.network.requestLotteryState === 'function') {
+          this.network.requestLotteryState();
+        }
+        const pending = this._pendingBuy;
+        this._pendingBuy = null;
+        if (pending && Date.now() <= pending.expiresAt) {
+          this._clearBuyLock(false);
+          this.submitBuy(pending.count);
+        } else {
+          this._clearBuyLock(true);
+        }
+      });
+
+      const cancelAuthBuy = () => {
+        this._pendingBuy = null;
+        this._clearBuyLock(true);
+      };
+      this.network.on('auth_error', cancelAuthBuy);
+      this.network.on('session_lost', cancelAuthBuy);
+      this.network.on('session_required', () => {
+        if (!this._pendingBuy) {
+          this._clearBuyLock(true);
+        }
+      });
+      this.network.on('error_msg', () => {
+        if (this._isBuying && !this._pendingBuy) {
+          this._clearBuyLock(true);
         }
       });
 
@@ -217,12 +272,43 @@
       });
     }
 
+    _clearBuyLock(shouldRender = true) {
+      if (this._buyTimeout) {
+        clearTimeout(this._buyTimeout);
+        this._buyTimeout = null;
+      }
+      this._isBuying = false;
+      if (shouldRender) {
+        this.renderBuyPreview();
+      }
+    }
+
+    _isNetworkConnected() {
+      if (!this.network || typeof this.network.buyLotteryTickets !== 'function') return false;
+      if ('isConnected' in this.network) {
+        if (!this.network.isConnected) return false;
+        if (this.network.socket && this.network.socket.connected === false) return false;
+      }
+      return true;
+    }
+
+    _isNetworkAuthenticated() {
+      if (this.ui && this.ui.myPlayer && this.ui.myPlayer.id) return true;
+      if (this.network && 'isAuthenticated' in this.network) {
+        return Boolean(this.network.isAuthenticated);
+      }
+      return true;
+    }
+
     isOpen() {
       return Boolean(this.el.modal && !this.el.modal.classList.contains('hidden'));
     }
 
     open() {
       if (!this.el.modal) return;
+      if (this._isBuying && !this._buyTimeout) {
+        this._clearBuyLock(false);
+      }
       this.el.modal.classList.remove('hidden');
       if (this.network && typeof this.network.requestLotteryState === 'function') {
         this.network.requestLotteryState();
@@ -287,14 +373,53 @@
       return { count, totalCost, canAfford, newOwnTickets, newTotalTickets, estimatedPct };
     }
 
-    submitBuy() {
+    submitBuy(overrideCount = null) {
       if (this._isBuying) return;
       if (this.state.phase !== 'OPEN') {
         if (this.ui) this.ui.showToast('Trekking is bezig — wacht op de volgende ronde.', 'info');
         return;
       }
 
-      const preview = this.computePreview();
+      if (!this._isNetworkConnected()) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Geen verbinding met casinotafel. Opnieuw verbinden...', 'error');
+        }
+        return;
+      }
+
+      const count = overrideCount !== null
+        ? Math.max(1, Math.min(MAX_PER_REQUEST, Math.floor(Number(overrideCount) || 1)))
+        : this.getQuantity();
+
+      if (!this._isNetworkAuthenticated()) {
+        const hasCreds = typeof this.network?.hasStoredCredentials === 'function' && this.network.hasStoredCredentials();
+        if (hasCreds && typeof this.network.tryAutoReauth === 'function') {
+          this._pendingBuy = { count, expiresAt: Date.now() + 5000 };
+          this._isBuying = true;
+          this.renderBuyPreview();
+          this._buyTimeout = setTimeout(() => {
+            this._pendingBuy = null;
+            this._clearBuyLock(true);
+            if (this.ui && typeof this.ui.showToast === 'function') {
+              this.ui.showToast('Sessieherstel duurde te lang. Probeer het opnieuw.', 'error');
+            }
+          }, 5500);
+          this.network.tryAutoReauth({ code: 'PLAYER_NOT_FOUND' });
+          if (this.ui && typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Sessie wordt hersteld, loten worden zo gekocht...', 'info');
+          }
+          return;
+        }
+        if (this.ui) {
+          if (typeof this.ui.showLoginModal === 'function') this.ui.showLoginModal();
+          if (typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Log eerst in om Staatsloterij-loten te kopen.', 'error');
+          }
+        }
+        return;
+      }
+
+      const preview = this.computePreview(count);
       if (this.getMyChips() < preview.totalCost) {
         if (this.ui) {
           this.ui.showToast(`Onvoldoende fiches (${preview.totalCost.toLocaleString()} fiches nodig).`, 'error');
@@ -305,6 +430,14 @@
       if (this.network && typeof this.network.buyLotteryTickets === 'function') {
         this._isBuying = true;
         this.renderBuyPreview();
+        if (this._buyTimeout) clearTimeout(this._buyTimeout);
+        this._buyTimeout = setTimeout(() => {
+          this._pendingBuy = null;
+          this._clearBuyLock(true);
+          if (this.ui && typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Aankoop duurde te lang (geen reactie van server). Probeer opnieuw.', 'error');
+          }
+        }, 6000);
         this.network.buyLotteryTickets(preview.count);
       }
     }
@@ -444,7 +577,8 @@
       }
       if (this.el.btnBuy) {
         const isClosed = this.state.phase !== 'OPEN';
-        this.el.btnBuy.disabled = isClosed || this._isBuying || !p.canAfford;
+        this.el.btnBuy.disabled = isClosed || this._isBuying;
+        this.el.btnBuy.classList.toggle('is-unaffordable', !isClosed && !this._isBuying && !p.canAfford);
         this.el.btnBuy.textContent = isClosed
           ? 'TREKKING BEZIG...'
           : (this._isBuying ? 'BEZIG MET KOPEN...' : `KOOP ${p.count.toLocaleString()} LOT${p.count > 1 ? 'EN' : ''} (${p.totalCost.toLocaleString()} F)`);

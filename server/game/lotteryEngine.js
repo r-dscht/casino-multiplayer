@@ -3,7 +3,7 @@
  * Server-authoritative multiplayer Casino Staatsloterij engine.
  *
  * Features:
- *  - Fixed 10-minute rounds (ROUND_DURATION_MS) with persistent JSON state (lottery.json).
+ *  - Fixed 30-minute rounds (ROUND_DURATION_MS) with persistent JSON state (lottery.json).
  *  - Unlimited tickets per player at 2.500 fiches/ticket; 0% house edge (100% pot payout).
  *  - Contiguous ticket-range storage with binary search for O(log R) weighted selection.
  *  - Offline winner support (accounts + BankManager inbox notification) and loan repayment on net profit.
@@ -556,7 +556,7 @@ class LotteryEngine extends EventEmitter {
   }
 
   /**
-   * Starts a fresh 10-minute lottery round with zero carried-over tickets.
+   * Starts a fresh 30-minute lottery round with zero carried-over tickets.
    * @param {number} [now=Date.now()]
    */
   _startNextRound(now = Date.now()) {

@@ -293,7 +293,14 @@
         } else {
           this.state.phase = data.phase;
           this.state.timeLeft = data.timeLeft || 0;
+          if (data.phase === 'WAITING_FOR_BETS') {
+            this.state.myTickets = [];
+            this.state.tickets = [];
+          }
           this._renderAll();
+          if (this.ui && typeof this.ui.setNavigationLocked === 'function') {
+            this.ui.setNavigationLocked(this.hasActiveBets());
+          }
         }
         if (data.phase === 'STARTING') {
           this._showEventBanner('POORTEN DICHT!', 'Alle 6 paarden staan startklaar (3.0x basis + 50% Verliezers Winnaarspot)', 'banner-start');

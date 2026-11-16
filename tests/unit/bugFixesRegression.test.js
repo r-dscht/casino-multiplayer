@@ -386,4 +386,144 @@ describe('Bug Fixes Regression Suite', () => {
       assert.deepEqual(missingNet, []);
     });
   });
+
+  describe('9. Lottery & Hi-Lo Recovery from Disconnect / Unauthenticated / Stuck Buy Lock', () => {
+    it('prevents stuck _isBuying lock in CasinoLottery on disconnect, timeout, error_msg, and auto-retries after auth_success', () => {
+      const CasinoLottery = require('../../client/js/lottery');
+      const listeners = {};
+      let emittedCount = null;
+      let reauthCalls = 0;
+      const toasts = [];
+      const btnState = { disabled: false, textContent: '', classList: { toggle: () => {} } };
+
+      const mockNetwork = {
+        isConnected: false,
+        isAuthenticated: false,
+        socket: { connected: false },
+        on: (ev, cb) => { listeners[ev] = cb; },
+        hasStoredCredentials: () => true,
+        tryAutoReauth: () => { reauthCalls += 1; return true; },
+        requestLotteryState: () => {},
+        buyLotteryTickets: (cnt) => { emittedCount = cnt; }
+      };
+      const mockUi = {
+        myPlayer: { id: null, chips: 10000 },
+        updatePlayerHUD: () => {},
+        showToast: (msg, type) => toasts.push({ msg, type })
+      };
+
+      const lot = new CasinoLottery({ network: mockNetwork, ui: mockUi });
+      lot.el.btnBuy = btnState;
+
+      // 1. Disconnected click must NOT lock _isBuying = true
+      lot.submitBuy(1);
+      assert.equal(lot._isBuying, false);
+      assert.equal(emittedCount, null);
+      assert.ok(toasts.some((t) => t.type === 'error' && t.msg.includes('Geen verbinding')));
+
+      // 2. Connected but pre-auth with stored credentials queues retry cleanly, then runs on auth_success
+      mockNetwork.isConnected = true;
+      mockNetwork.socket.connected = true;
+      lot.submitBuy(2);
+      assert.equal(reauthCalls, 1);
+      assert.equal(lot._isBuying, true);
+
+      mockNetwork.isAuthenticated = true;
+      mockUi.myPlayer.id = 'p1';
+      listeners.auth_success({});
+      assert.equal(emittedCount, 2);
+
+      // 3. Disconnect while _isBuying is true MUST unlock _isBuying and restore button
+      listeners.connection_change({ connected: false });
+      assert.equal(lot._isBuying, false);
+      assert.equal(btnState.disabled, false);
+      assert.ok(!btnState.textContent.includes('BEZIG MET KOPEN'));
+
+      // 4. error_msg while _isBuying is true MUST unlock _isBuying
+      mockNetwork.isConnected = true;
+      lot.submitBuy(1);
+      assert.equal(lot._isBuying, true);
+      listeners.error_msg({ message: 'Test fout' });
+      assert.equal(lot._isBuying, false);
+    });
+
+    it('queues and executes Hi-Lo start safely after auth_success and clears isRevealing on disconnect', () => {
+      const CasinoHilo = require('../../client/js/hilo');
+      const listeners = {};
+      let startedBet = null;
+      let reauthCalls = 0;
+      const toasts = [];
+
+      const mockNetwork = {
+        isConnected: true,
+        isAuthenticated: false,
+        socket: { connected: true },
+        on: (ev, cb) => { listeners[ev] = cb; },
+        hasStoredCredentials: () => true,
+        tryAutoReauth: () => { reauthCalls += 1; return true; },
+        hiloJoin: () => {},
+        hiloStart: (bet) => { startedBet = bet; },
+        hiloGuess: () => {}
+      };
+      const mockUi = {
+        myPlayer: { id: null, chips: 10000 },
+        updatePhase: () => {},
+        updatePlayerHUD: () => {},
+        setNavigationLocked: () => {},
+        showToast: (msg, type) => toasts.push({ msg, type })
+      };
+
+      const hilo = new CasinoHilo({ network: mockNetwork, ui: mockUi });
+      hilo.el = { betInput: { value: '250' }, view: { classList: { contains: () => false } } };
+      hilo._isActiveView = true;
+      hilo.bindNetworkEvents();
+
+      // Pre-auth click queues start & calls tryAutoReauth
+      hilo._startSoloFromInput();
+      assert.equal(reauthCalls, 1);
+      assert.equal(startedBet, null);
+
+      // Auth finishes -> auto-starts Hi-Lo with bet 250
+      mockNetwork.isAuthenticated = true;
+      mockUi.myPlayer.id = 'p1';
+      listeners.auth_success({});
+      assert.equal(startedBet, 250);
+
+      // Simulate stuck isRevealing cleared cleanly on disconnect
+      hilo.isRevealing = true;
+      listeners.connection_change({ connected: false });
+      assert.equal(hilo.isRevealing, false);
+    });
+  });
+
+  describe('10. 30-Minute Lottery, Refresh Game Persistence & Nav-Lock Stuck Prevention', () => {
+    it('configures 30-minute lottery countdown and restores active tab game across refresh cleanly', () => {
+      const CasinoLottery = require('../../client/js/lottery');
+      const { ROUND_DURATION_MS } = require('../../server/game/lotteryConstants');
+      assert.equal(ROUND_DURATION_MS, 30 * 60 * 1000);
+
+      const ctrl = new CasinoLottery({ network: { on: () => {} }, ui: { myPlayer: { chips: 10000 } } });
+      assert.equal(ctrl.state.secondsRemaining, 1800);
+
+      const appJs = fs.readFileSync(path.join(clientDir, 'js', 'app.js'), 'utf8');
+      assert.ok(appJs.includes("sessionStorage.getItem('casino_active_game')"));
+      assert.ok(appJs.includes("sessionStorage.setItem('casino_active_game'"));
+      assert.ok(appJs.includes('data.game || data.currentGame'));
+      assert.ok(appJs.includes('!mySeat.folded'));
+    });
+
+    it('PokerEngine unlocks navigation immediately once a player folds mid-hand', () => {
+      const PokerEngine = require('../../server/game/pokerEngine');
+      const pe = new PokerEngine(null, { autoStart: false });
+      pe.currentPhase = PokerEngine.PHASES ? PokerEngine.PHASES.FLOP : 'FLOP';
+      pe.seats[0].player = { id: 'p_fold', name: 'FoldPlayer' };
+      pe.seats[0].cards = [{ rank: '2', suit: 'clubs' }, { rank: '7', suit: 'diamonds' }];
+      pe.seats[0].totalCommittedThisHand = 100;
+      pe.seats[0].folded = false;
+      assert.equal(pe.hasActiveBets('p_fold'), true);
+
+      pe.seats[0].folded = true;
+      assert.equal(pe.hasActiveBets('p_fold'), false);
+    });
+  });
 });

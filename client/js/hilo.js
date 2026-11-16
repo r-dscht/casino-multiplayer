@@ -55,10 +55,115 @@
       this._flipTimeout = null;
       this._settleTimeout = null;
       this._afterRevealTimeout = null;
+      this._guessTimeout = null;
+      this._pendingStartAction = null;
       this._revealLockedCard = null;
       this._lastDisplayedCard = null;
       this._particles = [];
       this._fxRaf = null;
+    }
+
+    _isNetworkConnected() {
+      if (!this.network) return false;
+      if ('isConnected' in this.network) {
+        if (!this.network.isConnected) return false;
+        if (this.network.socket && this.network.socket.connected === false) return false;
+      }
+      return true;
+    }
+
+    _isNetworkAuthenticated() {
+      if (this.ui && this.ui.myPlayer && this.ui.myPlayer.id) return true;
+      if (this.network && 'isAuthenticated' in this.network) {
+        return Boolean(this.network.isAuthenticated);
+      }
+      return true;
+    }
+
+    _isViewVisible() {
+      return Boolean(this._isActiveView || (this.el?.view && !this.el.view.classList.contains('hidden')));
+    }
+
+    _clearGuessTimeout() {
+      if (this._guessTimeout) {
+        clearTimeout(this._guessTimeout);
+        this._guessTimeout = null;
+      }
+    }
+
+    _ensureReadyForAction(actionDesc, onAuthReady) {
+      if (!this._isNetworkConnected()) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Geen verbinding met de server. Opnieuw verbinden...', 'error');
+        }
+        return false;
+      }
+      if (!this._isNetworkAuthenticated()) {
+        const hasCreds = typeof this.network?.hasStoredCredentials === 'function' && this.network.hasStoredCredentials();
+        if (hasCreds && typeof this.network.tryAutoReauth === 'function') {
+          if (typeof onAuthReady === 'function') {
+            this._pendingStartAction = { fn: onAuthReady, expiresAt: Date.now() + 5000 };
+          }
+          this.network.tryAutoReauth({ code: 'PLAYER_NOT_FOUND' });
+          if (this.ui && typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Sessie wordt hersteld, even geduld...', 'info');
+          }
+          return false;
+        }
+        if (this.ui) {
+          if (typeof this.ui.showLoginModal === 'function') this.ui.showLoginModal();
+          if (typeof this.ui.showToast === 'function') {
+            this.ui.showToast(`Log eerst in om ${actionDesc}.`, 'error');
+          }
+        }
+        return false;
+      }
+      return true;
+    }
+
+    _startSoloFromInput() {
+      if (!this._ensureReadyForAction('Hi-Lo te starten', () => this._startSoloFromInput())) return;
+      if (this.soloLadder && this.soloLadder.status === 'ACTIVE') {
+        this.render();
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Je hebt al een actieve Hi-Lo reeks openstaan.', 'info');
+        }
+        return;
+      }
+      const rawVal = this.el?.betInput?.value;
+      const bet = Math.floor(Number(rawVal !== undefined && rawVal !== '' ? rawVal : 100));
+      if (!Number.isFinite(bet) || bet < 10 || bet > 50000) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Inzet moet tussen 10 en 50.000 fiches liggen.', 'error');
+        }
+        return;
+      }
+      if (this.ui?.myPlayer?.id && typeof this.ui.myPlayer.chips === 'number' && this.ui.myPlayer.chips < bet) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Onvoldoende fiches voor deze inzet.', 'error');
+        }
+        return;
+      }
+      this.network.hiloStart(bet);
+    }
+
+    _startBlitzFromInput() {
+      if (!this._ensureReadyForAction('mee te doen aan Hi-Lo Blitz', () => this._startBlitzFromInput())) return;
+      const rawVal = this.el?.betInput?.value;
+      const bet = Math.floor(Number(rawVal !== undefined && rawVal !== '' ? rawVal : 100));
+      if (!Number.isFinite(bet) || bet < 10 || bet > 50000) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Inzet moet tussen 10 en 50.000 fiches liggen.', 'error');
+        }
+        return;
+      }
+      if (this.ui?.myPlayer?.id && typeof this.ui.myPlayer.chips === 'number' && this.ui.myPlayer.chips < bet) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Onvoldoende fiches voor deze Blitz inzet.', 'error');
+        }
+        return;
+      }
+      this.network.hiloBlitzJoin(bet);
     }
 
     init() {
@@ -183,20 +288,19 @@
 
       if (this.el.startBtn) {
         this.el.startBtn.addEventListener('click', () => {
-          const bet = Math.floor(Number(this.el.betInput?.value || 100));
-          this.network.hiloStart(bet);
+          this._startSoloFromInput();
         });
       }
 
       if (this.el.blitzJoinBtn) {
         this.el.blitzJoinBtn.addEventListener('click', () => {
-          const bet = Math.floor(Number(this.el.betInput?.value || 100));
-          this.network.hiloBlitzJoin(bet);
+          this._startBlitzFromInput();
         });
       }
 
       if (this.el.blitzCancelBtn) {
         this.el.blitzCancelBtn.addEventListener('click', () => {
+          if (!this._ensureReadyForAction('Blitz te annuleren')) return;
           this.network.hiloBlitzCancel();
         });
       }
@@ -214,6 +318,7 @@
       if (this.el.skipBtn) {
         this.el.skipBtn.addEventListener('click', () => {
           if (this.isRevealing || this.mode !== 'solo') return;
+          if (!this._ensureReadyForAction('een kaart te wisselen')) return;
           this.network.hiloSkip();
         });
       }
@@ -221,6 +326,7 @@
       if (this.el.halfCashoutBtn) {
         this.el.halfCashoutBtn.addEventListener('click', () => {
           if (this.isRevealing || this.mode !== 'solo') return;
+          if (!this._ensureReadyForAction('50% uit te cashen')) return;
           this.network.hiloHalfCashout();
         });
       }
@@ -228,6 +334,7 @@
       if (this.el.cashoutBtn) {
         this.el.cashoutBtn.addEventListener('click', () => {
           if (this.isRevealing) return;
+          if (!this._ensureReadyForAction('uit te betalen')) return;
           if (this.mode === 'blitz') {
             this.network.hiloBlitzAction('CASHOUT');
           } else {
@@ -298,23 +405,67 @@
       });
 
       this.network.on('hilo_rejected', (data) => {
+        this._clearGuessTimeout();
         this._revealLockedCard = null;
         this.isRevealing = false;
-        if (data?.reason && this._isActiveView) {
-          this.ui.showToast(data.reason, 'error');
+        if (data?.code === 'PLAYER_NOT_FOUND' && this._pendingStartAction && Date.now() <= this._pendingStartAction.expiresAt) {
+          this.renderControlsAndStage();
+          return;
+        }
+        if (data?.reason && this._isViewVisible()) {
+          this.ui?.showToast?.(data.reason, 'error');
         }
         this.renderControlsAndStage();
       });
 
+      this.network.on('connection_change', (data) => {
+        if (!data || !data.connected) {
+          this._pendingStartAction = null;
+          this._clearGuessTimeout();
+          if (this.isRevealing) {
+            this._revealLockedCard = null;
+            this.isRevealing = false;
+            this._resetFlipCardVisual();
+            this.renderControlsAndStage();
+          }
+          return;
+        }
+      });
+
+      this.network.on('auth_success', () => {
+        if (this._isViewVisible() && typeof this.network.hiloJoin === 'function') {
+          this.network.hiloJoin();
+        }
+        const pending = this._pendingStartAction;
+        this._pendingStartAction = null;
+        if (pending && Date.now() <= pending.expiresAt && typeof pending.fn === 'function') {
+          pending.fn();
+        }
+      });
+
+      const cancelAuthHilo = () => {
+        this._pendingStartAction = null;
+        this._clearGuessTimeout();
+        if (this.isRevealing) {
+          this._revealLockedCard = null;
+          this.isRevealing = false;
+          this._resetFlipCardVisual();
+          this.renderControlsAndStage();
+        }
+      };
+      this.network.on('auth_error', cancelAuthHilo);
+      this.network.on('session_lost', cancelAuthHilo);
+
       this.network.on('hilo_started', (data) => {
         if (!data) return;
+        this._clearGuessTimeout();
         this.mode = 'solo';
         this.soloLadder = data.ladder || null;
         this._revealLockedCard = null;
         this.isRevealing = false;
         this._resetFlipCardVisual();
-        if (data.reshuffled && this._isActiveView) {
-          this.ui.showToast('Nieuwe 52-kaarten slof geschud!', 'info');
+        if (data.reshuffled && this._isViewVisible()) {
+          this.ui?.showToast?.('Nieuwe 52-kaarten slof geschud!', 'info');
         }
         this.render();
         this._syncNavLock();
@@ -323,6 +474,7 @@
 
       this.network.on('hilo_guess_result', (res) => {
         if (!res) return;
+        this._clearGuessTimeout();
         this.mode = 'solo';
         this._playCardReveal(res, () => {
           this.soloLadder = res.ladder || null;
@@ -578,6 +730,7 @@
 
     submitPrediction(prediction) {
       if (this.isRevealing) return;
+      if (!this._ensureReadyForAction('een kaartkeuze te maken')) return;
       if (this.mode === 'blitz') {
         const ve = this.blitzState?.viewerEntry;
         if (!ve || ve.status !== 'ALIVE' || this.blitzState?.phase !== 'DECISION') return;
@@ -586,6 +739,17 @@
         if (!this.soloLadder) return;
         this.isRevealing = true;
         this.renderControlsAndStage();
+        this._clearGuessTimeout();
+        this._guessTimeout = setTimeout(() => {
+          this._guessTimeout = null;
+          if (this.isRevealing && !this._revealLockedCard) {
+            this.isRevealing = false;
+            this.renderControlsAndStage();
+            if (this.ui && typeof this.ui.showToast === 'function') {
+              this.ui.showToast('Geen reactie van server. Probeer je keuze opnieuw.', 'error');
+            }
+          }
+        }, 4500);
         this.network.hiloGuess(prediction);
       }
     }
@@ -824,7 +988,7 @@
         }
         if (this.el.halfCashoutBtn) {
           this.el.halfCashoutBtn.classList.remove('hidden');
-          this.el.halfCashoutBtn.disabled = !isActive || !l.canHalfCashout || this.isRevealing;
+          this.el.halfCashoutBtn.disabled = !isActive || !l || !l.canHalfCashout || this.isRevealing;
           if (this.el.halfAmount) {
             this.el.halfAmount.textContent = l && l.canHalfCashout ? `+${formatChips(l.halfCashoutPreview)}` : '+0';
           }

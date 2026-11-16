@@ -4909,6 +4909,93 @@
   color: var(--text-secondary);
 }
 
+@media (max-width: 960px) {
+  #hilo-view {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .hilo-header-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hilo-header-left,
+  .hilo-header-right {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .hilo-main-grid {
+    grid-template-columns: 1fr;
+    flex: none;
+    overflow: visible;
+  }
+  .hilo-arena-col {
+    flex: none;
+    overflow: visible;
+  }
+  .hilo-felt-stage {
+    flex: none;
+    min-height: 290px;
+  }
+  .hilo-salon-col {
+    flex: none;
+    overflow: visible;
+  }
+  .hilo-salon-panel,
+  .hilo-feed-panel {
+    flex: none;
+    max-height: 240px;
+  }
+}
+
+@media (max-width: 600px) {
+  #hilo-view {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .hilo-felt-stage {
+    min-height: 240px;
+    padding: 10px 10px;
+    gap: 8px;
+  }
+  .hilo-cards-arena {
+    gap: 10px;
+  }
+  .hilo-card,
+  .hilo-flip-card {
+    width: 92px;
+    height: 128px;
+  }
+  .hilo-card .card-rank {
+    font-size: 28px;
+  }
+  .hilo-card .card-suit {
+    width: 24px;
+    height: 24px;
+  }
+  .hilo-entry-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hilo-start-actions {
+    width: 100%;
+  }
+  .btn-hilo-primary {
+    width: 100%;
+    text-align: center;
+  }
+  .hilo-utility-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn.is-unaffordable {
+  opacity: 0.58;
+  filter: grayscale(0.25);
+}
+
 @media (max-width: 760px) {
   .lottery-hero-card {
     flex-direction: column;

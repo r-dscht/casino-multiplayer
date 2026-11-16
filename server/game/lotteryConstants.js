@@ -10,7 +10,7 @@ const TICKET_PRICE = 2500;
 const HOUSE_FEE_RATE = 0; // 100% of ticket revenue goes directly to the winner's pot
 const MIN_PURCHASE_COUNT = 1;
 const MAX_PURCHASE_PER_REQUEST = 10000;
-const ROUND_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+const ROUND_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const DRAW_REVEAL_MS = 8000; // 8 seconds live raffle reel showcase
 const HISTORY_LIMIT = 20;
 

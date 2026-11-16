@@ -1,6 +1,6 @@
 /**
  * lotteryEngine.test.js
- * Unit tests for Casino Staatsloterij (100% pot payout, 0% house edge, 10-min rounds).
+ * Unit tests for Casino Staatsloterij (100% pot payout, 0% house edge, 30-min rounds).
  */
 
 const { describe, it, afterEach } = require('node:test');
@@ -39,10 +39,10 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
     }
   });
 
-  it('L1: enforces 2500 ticket price, 0% house edge, and exact 10-minute default round', () => {
+  it('L1: enforces 2500 ticket price, 0% house edge, and exact 30-minute default round', () => {
     assert.equal(TICKET_PRICE, 2500);
     assert.equal(HOUSE_FEE_RATE, 0);
-    assert.equal(ROUND_DURATION_MS, 10 * 60 * 1000);
+    assert.equal(ROUND_DURATION_MS, 30 * 60 * 1000);
     assert.equal(DRAW_REVEAL_MS, 8000);
     assert.deepEqual(computePlayerOdds(250, 1000), { share: 0.25, sharePct: 25 });
   });

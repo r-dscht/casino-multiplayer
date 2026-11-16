@@ -600,7 +600,7 @@ function setupSocket(httpServer, options = {}) {
   });
 
   // -------------------------------------------------------------------------
-  // Casino Staatsloterij (10-minute cycle, 100% pot payout, 0% house edge)
+  // Casino Staatsloterij (30-minute cycle, 100% pot payout, 0% house edge)
   // -------------------------------------------------------------------------
   const lotteryOptions = (options && options.lotteryOptions && typeof options.lotteryOptions === 'object')
     ? options.lotteryOptions
@@ -3345,7 +3345,7 @@ function setupSocket(httpServer, options = {}) {
     });
 
     // -----------------------------------------------------------------------
-    // 8e. Casino Staatsloterij (10-minute cycle, 0% rake)
+    // 8e. Casino Staatsloterij (30-minute cycle, 0% rake)
     // -----------------------------------------------------------------------
     socket.on('lottery_get_state', () => {
       const player = playerManager.getPlayerBySocket(socket.id);

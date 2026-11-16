@@ -467,10 +467,10 @@ class PokerEngine extends EventEmitter {
       return false;
     }
     const seat = this.seats.find(s => s.player && s.player.id === playerId);
-    if (!seat) return false;
+    if (!seat || seat.folded) return false;
 
-    // Locked if active in hand (not folded) or committed chips in current hand
-    return (!seat.folded && seat.cards.length > 0) || seat.totalCommittedThisHand > 0;
+    // Locked only while active in hand (folded players can leave or switch games immediately)
+    return seat.cards.length > 0 || seat.totalCommittedThisHand > 0;
   }
 
   /**
