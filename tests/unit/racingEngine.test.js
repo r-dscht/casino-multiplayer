@@ -48,17 +48,17 @@ function waitForEvent(socket, eventName, predicate = null, timeoutMs = 5000) {
 }
 
 describe('racingConstants & Pure Random Simulation unit tests', () => {
-  it('defines 4 track conditions, 12 stat-free thoroughbreds, single WIN ticket limit, and 3.0x base + 50% Winnaarspot rules', () => {
+  it('defines 4 track conditions, 12 stat-free thoroughbreds, single WIN ticket limit, and 3.38x base + 50% Winnaarspot rules', () => {
     assert.equal(TRACK_CONDITIONS.length, 4);
     assert.equal(HORSE_ROSTER.length, 12);
     assert.deepEqual(VALID_BET_TYPES, ['WIN']);
     assert.equal(MIN_BET, 10);
     assert.equal(MAX_BET, 50000);
     assert.equal(MAX_TICKETS_PER_PLAYER, 1);
-    assert.equal(BASE_WIN_ODDS, 3.0);
+    assert.equal(BASE_WIN_ODDS, 3.38);
     assert.equal(WINNER_POT_LOSER_SHARE, 0.50);
-    assert.equal(WINNER_POT_ROLLOVER_CAP_MULT, 2.5);
-    assert.equal(FIXED_WIN_ODDS, 3.0);
+    assert.equal(WINNER_POT_ROLLOVER_CAP_MULT, 5.0);
+    assert.equal(FIXED_WIN_ODDS, 3.38);
     assert.equal(PHOTO_FINISH_MARGIN_MS, 180);
 
     HORSE_ROSTER.forEach((h) => {
@@ -168,8 +168,8 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     const bet1 = engine.placeBet(player1.id, { horseId: 1, betType: 'WIN', amount: 1000 });
     assert.equal(bet1.ok, true);
     assert.equal(bet1.startedCountdown, true);
-    assert.equal(bet1.ticket.lockedOdds, 3.0);
-    assert.equal(bet1.ticket.potentialPayout, 3000);
+    assert.equal(bet1.ticket.lockedOdds, 3.38);
+    assert.equal(bet1.ticket.potentialPayout, 3380);
     assert.equal(engine.currentPhase, PHASES.BETTING);
     assert.equal(player1.chips, startChips - 1000);
     assert.equal(engine.hasActiveBets(player1.id), true);
@@ -205,7 +205,7 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     assert.equal(typeof engine.cashoutTicket, 'undefined');
   });
 
-  it('settles 3.0x base + 50% Verliezers Winnaarspot (50% casino cut), splits across multiple winners, handles rollover & bank repayment', () => {
+  it('settles 3.38x base + 50% Verliezers Winnaarspot, splits across multiple winners, handles rollover & bank repayment', () => {
     // Maak een echte actieve P2P lening van player2 naar player1 om winst-inhouding te testen
     const propRes = bm.createLoanProposal({
       fromId: player1.id,
@@ -238,23 +238,23 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     const s1 = engine.lastResult.settlements.find((s) => s.playerId === player1.id);
     const s2 = engine.lastResult.settlements.find((s) => s.playerId === player2.id);
 
-    // Player1 staked 600 WIN -> 600 * 3.0 = 1800 basis + 50% of loser (200 * 0.5 = 100) = 1900 gross (netProfit 1300)
-    assert.equal(s1.baseReturnTotal, 1800);
+    // Player1 staked 600 WIN -> 600 * 3.38 = 2028 basis + 50% of loser (200 * 0.5 = 100) = 2128 gross (netProfit 1528)
+    assert.equal(s1.baseReturnTotal, 2028);
     assert.equal(s1.potBonusTotal, 100);
-    assert.equal(s1.totalReturned, 1900);
-    assert.equal(s1.netProfit, 1300);
+    assert.equal(s1.totalReturned, 2128);
+    assert.equal(s1.netProfit, 1528);
     assert.equal(s2.totalReturned, 0);
     assert.equal(engine.lastResult.casinoCut, 100);
     assert.equal(engine.lastResult.potDistributed, 100);
 
     assert.ok(Array.isArray(s1.repayments) && s1.repayments.length >= 1);
-    assert.equal(accRes.loan.amountRepaid, 325);
+    assert.equal(accRes.loan.amountRepaid, 382);
 
     assert.ok(player1.stats.roundsPlayed >= 1);
     assert.ok(player1.stats.totalWon > 0);
   });
 
-  it('splits 50% losers Winnaarspot proportionally across co-winners & rolls 0-winner races over with 2.5x cap', () => {
+  it('splits 50% losers Winnaarspot proportionally across co-winners & rolls 0-winner races over with 5.0x cap', () => {
     const p3 = pm.registerPlayer('s_r3', { name: 'MultiWinB', color: '#10b981' });
     const p4 = pm.registerPlayer('s_r4', { name: 'LoserBetA', color: '#ef4444' });
 
@@ -273,12 +273,12 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     const s3 = engine.lastResult.settlements.find((s) => s.playerId === p3.id);
     assert.equal(engine.lastResult.casinoCut, 300);
     assert.equal(engine.lastResult.potDistributed, 300);
-    assert.equal(s1.baseReturnTotal, 1800);
+    assert.equal(s1.baseReturnTotal, 2028);
     assert.equal(s1.potBonusTotal, 200);
-    assert.equal(s1.totalReturned, 2000);
-    assert.equal(s3.baseReturnTotal, 900);
+    assert.equal(s1.totalReturned, 2228);
+    assert.equal(s3.baseReturnTotal, 1014);
     assert.equal(s3.potBonusTotal, 100);
-    assert.equal(s3.totalReturned, 1000);
+    assert.equal(s3.totalReturned, 1114);
 
     // Next race: 0 winners -> 50% rolls over into winnerPot, 50% to Casino!
     engine._prepareNextRace(false);
@@ -293,7 +293,7 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     assert.equal(engine.lastResult.inRacePotAddition, 500);
     assert.equal(engine.winnerPot, 500);
 
-    // Race after rollover: solo 100 chip winner claims min(500, 100 * 2.5) = 250 rollover -> 300 + 250 = 550, 250 remains in pot
+    // Race after rollover: solo 100 chip winner claims min(500, 100 * 5.0) = 500 rollover -> 338 + 500 = 838, 0 remains in pot
     engine._prepareNextRace(false);
     assert.equal(engine.placeBet(p3.id, { horseId: 1, betType: 'WIN', amount: 100 }).ok, true);
     engine._enterStartingPhase();
@@ -302,13 +302,14 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     engine._finishRace();
 
     const s3Next = engine.lastResult.settlements.find((s) => s.playerId === p3.id);
-    assert.equal(s3Next.baseReturnTotal, 300);
-    assert.equal(s3Next.potBonusTotal, 250);
-    assert.equal(s3Next.totalReturned, 550);
-    assert.equal(engine.winnerPot, 250);
+    assert.equal(s3Next.baseReturnTotal, 338);
+    assert.equal(s3Next.potBonusTotal, 500);
+    assert.equal(s3Next.totalReturned, 838);
+    assert.equal(engine.winnerPot, 0);
   });
 
-  it('maintains casino house edge (~85-91.67% RTP) across 1200 simulated multiplayer races with Winnaarspot', () => {
+  it('maintains 2% casino house edge (~98% theoretical RTP) across 1200 simulated multiplayer races with Winnaarspot', () => {
+    assert.ok(Math.abs(((BASE_WIN_ODDS + 5 * WINNER_POT_LOSER_SHARE) / 6) - 0.98) < 1e-6);
     const p3 = pm.registerPlayer('s_rtp3', { name: 'RtpP3', color: '#f59e0b' });
     let totalWagered = 0;
     let totalReturned = 0;
@@ -333,7 +334,7 @@ describe('RacingEngine Smart Timer, 1-Ticket Limit, House Edge & Bank/Stats unit
     }
 
     const rtp = (totalReturned / totalWagered) * 100;
-    assert.ok(rtp > 72 && rtp < 96.5, `Expected ~85-91.67% house-edge RTP over 1200 multiplayer races, got ${rtp.toFixed(2)}%`);
+    assert.ok(rtp > 82 && rtp < 112, `Expected ~98% RTP over 1200 multiplayer races, got ${rtp.toFixed(2)}%`);
   });
 });
 
@@ -382,8 +383,8 @@ describe('Horse Racing Socket.IO Integration & Navigation Lock tests', () => {
     const joinState = await joinPromise;
     assert.equal(joinState.phase, PHASES.WAITING_FOR_BETS);
     assert.equal(joinState.horses.length, 6);
-    assert.equal(joinState.baseWinOdds, 3.0);
-    assert.equal(joinState.fixedWinOdds, 3.0);
+    assert.equal(joinState.baseWinOdds, 3.38);
+    assert.equal(joinState.fixedWinOdds, 3.38);
     assert.equal(joinState.winnerPot, 0);
 
     const acceptP = waitForEvent(c1, 'racing_bet_accepted');
@@ -391,7 +392,7 @@ describe('Horse Racing Socket.IO Integration & Navigation Lock tests', () => {
     c1.emit('racing_place_bet', { horseId: 1, betType: 'WIN', amount: 250 });
     const [acceptRes, peerPlaced] = await Promise.all([acceptP, peerPlacedP]);
     assert.equal(acceptRes.ticket.amount, 250);
-    assert.equal(acceptRes.ticket.lockedOdds, 3.0);
+    assert.equal(acceptRes.ticket.lockedOdds, 3.38);
     assert.equal(peerPlaced.startedCountdown, true);
     assert.equal(peerPlaced.totalRacePool, 250);
     assert.equal(peerPlaced.ticket.horseId, 1);

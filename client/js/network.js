@@ -254,13 +254,10 @@
         'crash_cashout_rejected',
         'plinko_drop_rejected',
         'slots_spin_rejected',
-        'slots_cheer_rejected',
         'racing_bet_rejected',
         'racing_cheer_rejected',
         'hilo_rejected',
-        'hilo_cheer_rejected',
         'mines_rejected',
-        'mines_cheer_rejected',
         'lottery_rejected',
         'bj_seat_error',
         'bj_bet_rejected',
@@ -810,14 +807,6 @@
         this.emitInternal('slots_golden_fever', data);
       });
 
-      this.socket.on('slots_cheer_event', (data) => {
-        this.emitInternal('slots_cheer_event', data);
-      });
-
-      this.socket.on('slots_cheer_rejected', (data) => {
-        this.emitInternal('slots_cheer_rejected', data);
-      });
-
       // Multiplayer Horse Racing (Monaco Turf Club Derby) Events
       this.socket.on('racing_state', (data) => {
         this.emitInternal('racing_state', data);
@@ -888,22 +877,12 @@
       const hiloEvents = [
         'hilo_state',
         'hilo_salon_update',
-        'hilo_cheered',
-        'hilo_cheer_rejected',
         'hilo_rejected',
         'hilo_started',
         'hilo_guess_result',
         'hilo_skipped',
         'hilo_half_cashout_result',
-        'hilo_cashout_result',
-        'hilo_blitz_tick',
-        'hilo_blitz_state',
-        'hilo_blitz_joined',
-        'hilo_blitz_cancelled',
-        'hilo_blitz_action_ack',
-        'hilo_blitz_reveal',
-        'hilo_blitz_settlement',
-        'hilo_blitz_finished'
+        'hilo_cashout_result'
       ];
       hiloEvents.forEach((evt) => {
         this.socket.on(evt, (data) => {
@@ -918,8 +897,6 @@
       const minesEvents = [
         'mines_state',
         'mines_salon_update',
-        'mines_cheered',
-        'mines_cheer_rejected',
         'mines_rejected',
         'mines_solo_started',
         'mines_solo_result',
@@ -1559,15 +1536,6 @@
     }
 
     /**
-     * Sends a Hype / Juich boost (+2.5% Golden Fever) to a floor cabinet.
-     * @param {number} machineId
-     */
-    slotsCheer(machineId) {
-      if (!this.socket) return;
-      this.socket.emit('slots_cheer', { machineId });
-    }
-
-    /**
      * Requests the current Monaco Turf Club Derby race state.
      */
     racingJoin() {
@@ -1632,26 +1600,6 @@
       this.socket.emit('hilo_cashout', {});
     }
 
-    hiloCheer(targetPlayerId) {
-      if (!this.socket) return;
-      this.socket.emit('hilo_cheer', { targetPlayerId });
-    }
-
-    hiloBlitzJoin(betAmount) {
-      if (!this.socket) return;
-      this.socket.emit('hilo_blitz_join', { betAmount });
-    }
-
-    hiloBlitzCancel() {
-      if (!this.socket) return;
-      this.socket.emit('hilo_blitz_cancel', {});
-    }
-
-    hiloBlitzAction(action) {
-      if (!this.socket) return;
-      this.socket.emit('hilo_blitz_action', { action });
-    }
-
     minesJoin() {
       if (!this.socket) return;
       this.socket.emit('mines_join', {});
@@ -1697,11 +1645,6 @@
       this.socket.emit('mines_shared_cashout', {});
     }
 
-    minesCheer(targetPlayerId) {
-      if (!this.socket) return;
-      this.socket.emit('mines_cheer', { targetPlayerId });
-    }
-
     requestLotteryState() {
       if (!this.socket) return;
       this.socket.emit('lottery_get_state', {});
@@ -1710,6 +1653,11 @@
     buyLotteryTickets(count) {
       if (!this.socket) return;
       this.socket.emit('lottery_buy_tickets', { count });
+    }
+
+    ackLotteryOfflineWin(roundId) {
+      if (!this.socket) return;
+      this.socket.emit('lottery_ack_offline_win', { roundId });
     }
 
     /**

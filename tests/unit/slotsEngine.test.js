@@ -367,28 +367,19 @@ describe('SlotsEngine unit tests', () => {
     assert.equal(secondTry.freeSpinsRemaining, 3); // no infinite retrigger!
   });
 
-  it('charges Golden Fever via cheers (with cooldown), activates 1.25x multiplier at 100%, and stacks to 2.5x in Free Spins', () => {
+  it('charges Golden Fever via spins, activates 1.25x multiplier at 100%, stacks to 2.5x in Free Spins, and removes cheerMachine', () => {
     engine.ensureMachine(player1.id, 1);
     engine.ensureMachine(player2.id, 2);
+    assert.equal(typeof engine.cheerMachine, 'undefined');
 
-    const c1 = engine.cheerMachine(player2.id, 1);
-    assert.equal(c1.ok, true);
-    assert.equal(c1.cheersReceived, 1);
-    assert.equal(engine.goldenFeverProgress, 2.5);
-
-    // Immediate second cheer from player2 blocked by cooldown
-    const c2 = engine.cheerMachine(player2.id, 1);
-    assert.equal(c2.ok, false);
-    assert.equal(c2.code, 'CHEER_COOLDOWN');
-
-    // Push Golden Fever meter to 98% then cheer once to trigger floor event
-    engine.goldenFeverProgress = 98;
+    // Push Golden Fever meter to 99% then spin once to trigger floor event
+    engine.goldenFeverProgress = 99;
     const events = [];
     engine.on('golden_fever_started', (p) => events.push(p));
 
-    const triggerCheer = engine.cheerMachine(player1.id, 2);
-    assert.equal(triggerCheer.ok, true);
-    assert.equal(triggerCheer.feverTriggered, true);
+    const triggerSpin = engine.spin(player2.id, { bet: 100 });
+    assert.equal(triggerSpin.ok, true);
+    assert.equal(triggerSpin.goldenFever.active, true);
     assert.equal(events.length, 1);
     assert.equal(engine.getGoldenFeverState().active, true);
     assert.equal(engine.getGoldenFeverState().multiplier, GOLDEN_FEVER_MULTIPLIER);
@@ -460,7 +451,7 @@ describe('Slots Socket.IO integration tests', () => {
     }
   });
 
-  it('seats players on slots_join, allows machine switch, executes slots_spin, broadcasts slots_cheer, and frees cabinet on disconnect', async () => {
+  it('seats players on slots_join, allows machine switch, executes slots_spin, and frees cabinet on disconnect', async () => {
     const j1P = waitForEvent(client1, 'slots_state', (s) => s.myMachineId === 1);
     client1.emit('slots_join', {});
     const s1 = await j1P;
@@ -481,14 +472,6 @@ describe('Slots Socket.IO integration tests', () => {
     assert.equal(spinRes.ok, true);
     assert.equal(spinRes.machineId, 4);
     assert.equal(chipsData.chips, spinRes.newChips);
-
-    // client2 cheers Alice on machine #4
-    const cheerEvtP = waitForEvent(client1, 'slots_cheer_event', (e) => e.machineId === 4);
-    client2.emit('slots_cheer', { machineId: 4 });
-    const cheerEvt = await cheerEvtP;
-    assert.equal(cheerEvt.fromPlayerName, 'SlotBob');
-    assert.equal(cheerEvt.targetPlayerName, 'SlotAlice');
-    assert.ok(cheerEvt.goldenFever.progress >= 2.5);
 
     // Rejected oversized Bonus Buy
     const rejP = waitForEvent(client2, 'slots_spin_rejected');

@@ -24,11 +24,11 @@ const {
 } = require('../../server/game/minesConstants');
 const CasinoMines = require('../../client/js/mines');
 
-describe('Royal Mines Vault Engine, 96% RTP & Multiplayer Shared Vault Unit Suite', () => {
+describe('Royal Mines Vault Engine, 98% RTP & Multiplayer Shared Vault Unit Suite', () => {
   it('enforces EV <= 0.99 (< 1.00 casino advantage) across every step of 4x4, 5x5, 6x6 & 7x7 boards', () => {
     assert.deepEqual(VALID_GRID_SIDES, [4, 5, 6, 7]);
     assert.deepEqual(SHARED_BOMB_PRESETS, [3, 5, 8, 12]);
-    assert.equal(TARGET_RTP, 0.96);
+    assert.equal(TARGET_RTP, 0.98);
     assert.equal(MAX_EV_CAP, 0.99);
 
     for (const side of VALID_GRID_SIDES) {
@@ -273,12 +273,8 @@ describe('Royal Mines Vault Engine, 96% RTP & Multiplayer Shared Vault Unit Suit
     engine._handleTurnTimeout();
     assert.equal(engine.shared.participants.get(p1.id).clicksMade, 1);
 
-    // Cheer cooldown test (1500ms)
-    const ch1 = engine.cheerPlayer(p1.id, p2.id);
-    assert.equal(ch1.ok, true);
-    const ch2 = engine.cheerPlayer(p1.id, p2.id);
-    assert.equal(ch2.ok, false);
-    assert.equal(ch2.code, 'CHEER_COOLDOWN');
+    // Cheer removed from Mines (only Horse Racing keeps cheers)
+    assert.equal(typeof engine.cheerPlayer, 'undefined');
 
     engine.stop();
   });

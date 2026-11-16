@@ -134,6 +134,72 @@ describe('Lottery Socket.IO Integration & WIP Feature Hiding Contracts', () => {
     assert.equal(pAlice.chips + pBob.chips, 20000);
   });
 
+  it('draws cleanly while buyer is offline, credits saved account, and delivers myPendingOfflineWin on reconnect until acked', async () => {
+    const offSock = Client(`http://127.0.0.1:${port}`, { transports: ['websocket'], forceNew: true });
+    clients.push(offSock);
+    await new Promise((resolve) => offSock.on('connect', resolve));
+    const authP = waitForEvent(offSock, 'auth_success');
+    const lotP = waitForEvent(offSock, 'lottery_state');
+    offSock.emit('auth_session', { name: 'OffLotHero', color: '#10B981' });
+    const [authData] = await Promise.all([authP, lotP]);
+
+    const ackP = waitForEvent(offSock, 'lottery_buy_ack');
+    offSock.emit('lottery_buy_tickets', { count: 2 }); // 5,000 F -> 5,000 F left
+    const ack = await ackP;
+    assert.equal(ack.remainingChips, 5000);
+
+    // Buyer closes tab / goes completely offline before draw
+    offSock.disconnect();
+    await new Promise((r) => setTimeout(r, 80));
+
+    // Simulate restart loss of active live Map while saved account persists
+    const savedAcc = socketHandler.playerManager.accounts.get('offlothero');
+    assert.ok(savedAcc);
+    socketHandler.playerManager.players.delete(authData.player.id);
+
+    // Draw executes while player is offline
+    const drawP = new Promise((resolve) => socketHandler.lotteryEngine.once('draw_result', resolve));
+    socketHandler.lotteryEngine.roundEndsAt = Date.now() - 10;
+    socketHandler.lotteryEngine.tick(Date.now());
+    const drawRes = await drawP;
+    assert.equal(drawRes.winnerWasOffline, true);
+    assert.equal(drawRes.potWon, 5000);
+    assert.equal(savedAcc.chips, 10000);
+
+    // Reconnect later: auth_session restores chips and delivers myPendingOfflineWin immediately
+    const reSock = Client(`http://127.0.0.1:${port}`, { transports: ['websocket'], forceNew: true });
+    clients.push(reSock);
+    await new Promise((resolve) => reSock.on('connect', resolve));
+    const reAuthP = waitForEvent(reSock, 'auth_success');
+    const reLotP = waitForEvent(reSock, 'lottery_state');
+    reSock.emit('auth_session', { sessionToken: authData.sessionToken, name: 'OffLotHero' });
+    const [reAuth, reLot] = await Promise.all([reAuthP, reLotP]);
+
+    assert.equal(reAuth.player.chips, 10000);
+    assert.ok(reLot.myPendingOfflineWin, 'Reconnecting offline winner receives myPendingOfflineWin');
+    assert.equal(reLot.myPendingOfflineWin.roundId, drawRes.roundId);
+    assert.equal(reLot.myPendingOfflineWin.potWon, 5000);
+
+    // Ack clears pending notification so it does not repeat
+    reSock.emit('lottery_ack_offline_win', { roundId: drawRes.roundId });
+    const postAckP = waitForEvent(reSock, 'lottery_state');
+    reSock.emit('lottery_get_state');
+    const postAck = await postAckP;
+    assert.equal(postAck.myPendingOfflineWin, null);
+  });
+
+  it('verifies socket.js starts lotteryEngine AFTER attaching listeners and removes cheer/blitz from non-racing games', () => {
+    const socketJs = fs.readFileSync(path.join(__dirname, '../../server/socket.js'), 'utf8');
+    const listenerIdx = socketJs.indexOf("lotteryEngine.on('draw_result'");
+    const startIdx = socketJs.indexOf('lotteryEngine.start()');
+    assert.ok(listenerIdx !== -1 && startIdx !== -1 && startIdx > listenerIdx, 'lotteryEngine.start() must run after draw_result listener attaches');
+    assert.equal(socketJs.includes("socket.on('slots_cheer'"), false);
+    assert.equal(socketJs.includes("socket.on('hilo_cheer'"), false);
+    assert.equal(socketJs.includes("socket.on('mines_cheer'"), false);
+    assert.equal(socketJs.includes("socket.on('hilo_blitz_join'"), false);
+    assert.equal(socketJs.includes("socket.on('racing_cheer'"), true, 'Horse Racing cheer MUST remain active');
+  });
+
   it('hides unfinished WIP triggers/modals/perks dock in HTML/CSS while keeping DOM IDs intact', () => {
     const clientDir = path.resolve(__dirname, '../../client');
     const html = fs.readFileSync(path.join(clientDir, 'index.html'), 'utf8');

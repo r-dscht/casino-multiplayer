@@ -66,12 +66,13 @@ describe('Hi-Lo Privé Socket.IO Integration Suite', () => {
     }
   });
 
-  it('plays Solo Ladder over WebSockets, locks navigation while active, supports Skip/Cashout/Cheers & Blitz join/cancel', async () => {
+  it('plays Solo Ladder over WebSockets with 98% RTP, locks navigation while active, and supports Skip/Cashout', async () => {
     const c1 = await connectAndJoin(port, 'RenzoHL');
     const c2 = await connectAndJoin(port, 'ViktorHL');
     socketsToClose.push(c1.socket, c2.socket);
 
-    assert.equal(c1.hiloState.targetRtp, 0.94);
+    assert.equal(c1.hiloState.targetRtp, 0.98);
+    assert.equal(c1.hiloState.blitz, undefined);
 
     // Switch presence to HILO
     const swPromise = waitForEvent(c1.socket, 'game_switched');
@@ -118,38 +119,6 @@ describe('Hi-Lo Privé Socket.IO Integration Suite', () => {
     const cashed = await cashPromise;
     assert.equal(cashed.ok, true);
     assert.equal(cashed.newChips, 10000);
-
-    // 6. Cheer from Viktor -> Renzo broadcasts & cooldown enforces
-    const cheerPromise = waitForEvent(c1.socket, 'hilo_cheered');
-    c2.socket.emit('hilo_cheer', { targetPlayerId: c1.player.id });
-    const cheerEvt = await cheerPromise;
-    assert.equal(cheerEvt.targetId, c1.player.id);
-    assert.equal(cheerEvt.targetCheers, 1);
-
-    const cheerCooldownPromise = waitForEvent(c2.socket, 'hilo_cheer_rejected');
-    c2.socket.emit('hilo_cheer', { targetPlayerId: c1.player.id });
-    const cheerCooldown = await cheerCooldownPromise;
-    assert.equal(cheerCooldown.code, 'CHEER_COOLDOWN');
-
-    // 7. Blitz Join locks nav -> Blitz Cancel refunds & resets to WAITING_FOR_PLAYERS
-    const blitzJoinedPromise = waitForEvent(c1.socket, 'hilo_blitz_joined');
-    c1.socket.emit('hilo_blitz_join', { betAmount: 500 });
-    const bzJoin = await blitzJoinedPromise;
-    assert.equal(bzJoin.ok, true);
-    assert.equal(bzJoin.blitz.phase, 'BETTING');
-    assert.equal(bzJoin.newChips, 9500);
-
-    const navBlockedBlitzPromise = waitForEvent(c1.socket, 'navigation_blocked');
-    c1.socket.emit('player_set_game', { game: 'ROULETTE', location: 'ROULETTE' });
-    const bzBlocked = await navBlockedBlitzPromise;
-    assert.equal(bzBlocked.code, 'CANNOT_LEAVE_ACTIVE_BETS');
-
-    const blitzCancelPromise = waitForEvent(c1.socket, 'hilo_blitz_cancelled');
-    c1.socket.emit('hilo_blitz_cancel', {});
-    const bzCancel = await blitzCancelPromise;
-    assert.equal(bzCancel.ok, true);
-    assert.equal(bzCancel.newChips, 10000);
-    assert.equal(bzCancel.blitz.phase, 'WAITING_FOR_PLAYERS');
 
     // Navigation now succeeds cleanly!
     const unlockedSwPromise = waitForEvent(c1.socket, 'game_switched');

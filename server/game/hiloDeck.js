@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cryptographic 52-card shoe & dynamic 94%-RTP Hi-Lo odds engine.
+ * @fileoverview Cryptographic 52-card shoe & dynamic 98%-RTP Hi-Lo odds engine.
  * Guarantees EV <= MAX_EV_CAP across every shoe state so neither card-counting
  * nor extreme shoe tails ever produce a +EV bet against the house.
  */

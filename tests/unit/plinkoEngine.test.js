@@ -79,7 +79,7 @@ describe('PlinkoEngine unit tests', () => {
         assert.equal(MULTIPLIER_TABLES[16].high[0], 1000);
         assert.equal(MULTIPLIER_TABLES[16].high[16], 1000);
 
-        // Verify genuine casino house edge (~5-7% edge => RTP between 0.90 and 0.96) across every table
+        // Verify genuine 2% casino house edge (~98% RTP: between 0.975 and 0.985) across every table
         for (const rows of VALID_ROWS) {
             for (const risk of VALID_RISKS) {
                 const table = MULTIPLIER_TABLES[rows][risk];
@@ -91,8 +91,8 @@ describe('PlinkoEngine unit tests', () => {
                     rtp += (comb / denom) * table[k];
                 }
                 assert.ok(
-                    rtp >= 0.90 && rtp <= 0.96,
-                    `Expected Plinko casino house edge (90%-96% RTP) for rows=${rows}, risk=${risk}, got ${(rtp * 100).toFixed(2)}%`
+                    rtp >= 0.975 && rtp <= 0.985,
+                    `Expected Plinko 2% casino house edge (~98% RTP) for rows=${rows}, risk=${risk}, got ${(rtp * 100).toFixed(3)}%`
                 );
             }
         }

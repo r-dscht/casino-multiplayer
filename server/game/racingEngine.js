@@ -135,7 +135,7 @@ class RacingEngine extends EventEmitter {
       this.liveSpeeds[h.horseId] = 0;
     });
     this.emittedCommentaries.clear();
-    this.activeCommentary = 'Kies 1 winnaar (3.0x basis + 50% Verliezers Winnaarspot). Klok start bij 1e inzet!';
+    this.activeCommentary = 'Kies 1 winnaar (3.38x basis + 50% Verliezers Winnaarspot). Klok start bij 1e inzet!';
     this.photoFinishActive = false;
     this.settled = false;
     this.lastResult = null;
@@ -153,7 +153,7 @@ class RacingEngine extends EventEmitter {
     if (this.currentPhase !== PHASES.WAITING_FOR_BETS) return;
     this.currentPhase = PHASES.BETTING;
     this.timeLeft = this.bettingDuration;
-    this.activeCommentary = 'Inzetten geopend! Pak 3.0x basis + 50% Verliezers Winnaarspot!';
+    this.activeCommentary = 'Inzetten geopend! Pak 3.38x basis + 50% Verliezers Winnaarspot!';
 
     this.emit('phase_change', {
       phase: this.currentPhase,
@@ -318,7 +318,7 @@ class RacingEngine extends EventEmitter {
   }
 
   /**
-   * Rondt de race af, betaalt winnende 5.5x WIN tickets uit en start volgende ronde.
+   * Rondt de race af, betaalt winnende WIN tickets uit (3.38x + Winnaarspot) en start volgende ronde.
    * @private
    */
   _finishRace() {
@@ -569,7 +569,7 @@ class RacingEngine extends EventEmitter {
   }
 
   /**
-   * Plaatst maximaal 1 WIN-inzet (5.5x) voor de huidige race.
+   * Plaatst maximaal 1 WIN-inzet (3.38x basis + Winnaarspot) voor de huidige race.
    * @param {string} playerId
    * @param {{ horseId: number, betType?: string, amount: number }} payload
    */
@@ -589,7 +589,7 @@ class RacingEngine extends EventEmitter {
       return {
         ok: false,
         code: 'INVALID_BET_TYPE',
-        error: 'Alleen enkelvoudige WIN-inzet (3.0x basis + 50% Winnaarspot) is beschikbaar.',
+        error: `Alleen enkelvoudige WIN-inzet (${BASE_WIN_ODDS.toFixed(2)}x basis + 50% Winnaarspot) is beschikbaar.`,
       };
     }
 
@@ -715,7 +715,7 @@ class RacingEngine extends EventEmitter {
       }
       this.currentPhase = PHASES.WAITING_FOR_BETS;
       this.timeLeft = this.bettingDuration;
-      this.activeCommentary = 'Kies 1 winnaar (3.0x basis + 50% Verliezers Winnaarspot). Klok start bij 1e inzet!';
+      this.activeCommentary = 'Kies 1 winnaar (3.38x basis + 50% Verliezers Winnaarspot). Klok start bij 1e inzet!';
       this.emit('phase_change', {
         phase: this.currentPhase,
         timeLeft: this.timeLeft,

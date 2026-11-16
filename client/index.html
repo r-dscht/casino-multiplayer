@@ -222,10 +222,10 @@
           <span>Beurs</span>
         </button>
 
-        <button type="button" class="btn-service-hud btn-lottery-hud" id="btn-open-lottery" title="Casino Staatsloterij (30-min trekking, 100% spelerspot, 0% casinovoordeel)">
+        <button type="button" class="btn-service-hud btn-lottery-hud" id="btn-open-lottery" title="Casino Staatsloterij (10-min trekking, 100% spelerspot, 0% casinovoordeel)">
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><use href="#icon-lottery"></use></svg>
           <span class="lottery-hud-label">Loterij</span>
-          <span class="lottery-hud-timer" id="hud-lottery-timer">30:00</span>
+          <span class="lottery-hud-timer" id="hud-lottery-timer">10:00</span>
           <span class="lottery-hud-pot" id="hud-lottery-pot">0 F</span>
         </button>
         </div>
@@ -1060,7 +1060,7 @@
             </div>
 
             <!-- Shared Golden Fever Floor Meter -->
-            <div class="slots-fever-box" id="slots-fever-box" title="Vul de vloermeter samen door te spinnen of spelers aan te moedigen voor 30s Golden Fever (1.25x + Extra Wilds)">
+            <div class="slots-fever-box" id="slots-fever-box" title="Vul de vloermeter samen door te spinnen voor 30s Golden Fever (1.25x + Extra Wilds)">
               <div class="slots-fever-top">
                 <span class="slots-fever-title">GOLDEN FEVER</span>
                 <span class="slots-fever-status" id="slots-fever-label">0%</span>
@@ -1187,7 +1187,6 @@
                 </div>
                 <div class="slots-spotlight-footer">
                   <div class="slots-spotlight-stats" id="slots-spotlight-stats"></div>
-                  <button type="button" class="btn btn-slots-cheer" id="btn-slots-cheer-spotlight">JUICH +2.5%</button>
                 </div>
               </div>
 
@@ -1337,20 +1336,14 @@
           </div>
         </div>
 
-        <!-- 7. Monte Carlo Hi-Lo Prive View (Solo Ladder + Multiplayer Blitz + Live Zaal) -->
+        <!-- 7. Monte Carlo Hi-Lo Prive View (Solo Ladder + Live Zaal) -->
         <div id="hilo-view" class="game-view-pane hidden">
           <div class="hilo-header-bar glass-panel">
             <div class="hilo-header-left">
               <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-hilo"></use></svg>
               <div class="hilo-title-group">
                 <span class="hilo-main-title">MONTE CARLO HI-LO PRIVÉ</span>
-                <span class="hilo-sub-title">6% Huisvoordeel (94% RTP) • 52-Kaarten Slof</span>
-              </div>
-              <div class="hilo-mode-tabs" role="tablist" aria-label="Hi-Lo spelmodi">
-                <button type="button" class="hilo-mode-tab active" id="btn-hilo-mode-solo" data-mode="solo">SOLO LADDER</button>
-                <button type="button" class="hilo-mode-tab" id="btn-hilo-mode-blitz" data-mode="blitz">
-                  MULTIPLAYER BLITZ <span class="hilo-blitz-dot" id="hilo-blitz-dot"></span>
-                </button>
+                <span class="hilo-sub-title">2% Huisvoordeel (98% RTP) • 52-Kaarten Slof</span>
               </div>
             </div>
             <div class="hilo-header-right">
@@ -1373,23 +1366,6 @@
               <div class="hilo-top-strip glass-panel">
                 <div class="hilo-card-trail" id="hilo-card-trail">
                   <span class="hilo-trail-empty">Start een ronde om kaartgeschiedenis te zien...</span>
-                </div>
-                <div class="hilo-blitz-banner hidden" id="hilo-blitz-banner">
-                  <div class="blitz-meta">
-                    <span class="blitz-round-tag" id="hilo-blitz-round">BLITZ #0</span>
-                    <span class="blitz-phase-tag" id="hilo-blitz-phase">WACHT OP SPELERS</span>
-                    <span class="blitz-timer-badge" id="hilo-blitz-countdown">--s</span>
-                    <span class="blitz-survivors-tag" id="hilo-blitz-survivors">0 actief</span>
-                  </div>
-                  <div class="blitz-crowd-wrap" id="hilo-blitz-crowd-wrap">
-                    <span class="crowd-label">ZAAL STEMMING:</span>
-                    <div class="crowd-bar">
-                      <div class="crowd-seg crowd-higher" id="hilo-crowd-higher" style="width:0%"></div>
-                      <div class="crowd-seg crowd-equal" id="hilo-crowd-equal" style="width:0%"></div>
-                      <div class="crowd-seg crowd-lower" id="hilo-crowd-lower" style="width:0%"></div>
-                    </div>
-                    <span class="crowd-pcts" id="hilo-crowd-pcts">0% / 0% / 0%</span>
-                  </div>
                 </div>
               </div>
 
@@ -1481,8 +1457,6 @@
                   </div>
                   <div class="hilo-start-actions">
                     <button type="button" class="btn btn-hilo-primary" id="btn-hilo-start">START HI-LO LADDER</button>
-                    <button type="button" class="btn btn-hilo-primary hidden" id="btn-hilo-blitz-join">DOE MEE AAN BLITZ</button>
-                    <button type="button" class="btn btn-danger hidden" id="btn-hilo-blitz-cancel">ANNULEER INZET</button>
                   </div>
                 </div>
 
@@ -1551,7 +1525,7 @@
                   <div class="hilo-empty-note">Nog geen uitbetalingen in deze sessie.</div>
                 </div>
                 <div class="hilo-feed-list hidden" id="hilo-feed-history">
-                  <div class="hilo-empty-note">Speel een Solo Ladder of Blitz voor jouw historiek.</div>
+                  <div class="hilo-empty-note">Speel een Solo Ladder voor jouw historiek.</div>
                 </div>
               </div>
             </div>
@@ -1568,7 +1542,7 @@
                   <span class="backlog-game-title">Monaco Turf Club &amp; Port Hercule Derby</span>
                   <span class="racing-race-badge" id="racing-race-badge">RACE #1</span>
                 </div>
-                <span class="backlog-game-sub">6 Gelijke Paarden • 3.0x Basis + 50% Verliezers Winnaarspot</span>
+                <span class="backlog-game-sub">6 Gelijke Paarden • 3.38x Basis + 50% Verliezers Winnaarspot</span>
               </div>
             </div>
             <div class="racing-header-metrics">
@@ -1580,9 +1554,9 @@
                 <span class="racing-jp-label">WINNAARSPOT (+50%)</span>
                 <span class="racing-jp-val" id="racing-winner-pot-val">0 F</span>
               </div>
-              <div class="racing-odds-fixed-pill" title="3.00x vaste basis + 50% van alle verliezers verdeeld over winnaars (50% voor Casino)">
+              <div class="racing-odds-fixed-pill" title="3.38x vaste basis + 50% van alle verliezers verdeeld over winnaars (98% RTP)">
                 <span class="racing-jp-label">BASIS • 1/6 KANS</span>
-                <span class="racing-jp-val" id="racing-fixed-odds-val">3.00x + POT</span>
+                <span class="racing-jp-val" id="racing-fixed-odds-val">3.38x + POT</span>
               </div>
               <div class="racing-countdown-pill">
                 <span class="racing-timer-label" id="racing-timer-label">SLIMME KLOK (1E INZET):</span>
@@ -1598,7 +1572,7 @@
                 <div class="racing-live-strip glass-panel">
                   <div class="racing-commentary-box">
                     <span class="commentary-tag">LIVE VERSLAG</span>
-                    <span id="racing-commentary-text">Kies 1 winnaar (3.0x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!</span>
+                    <span id="racing-commentary-text">Kies 1 winnaar (3.38x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!</span>
                   </div>
                   <div class="racing-live-top3" id="racing-live-top3"></div>
                 </div>
@@ -1628,18 +1602,18 @@
                   <div class="racing-select-wrap">
                     <label for="racing-horse-select" class="racing-label">Geselecteerd Paard (1 op 6 kans)</label>
                     <select id="racing-horse-select" class="racing-select">
-                      <option value="1">#1 Prince de Monaco (3.0x + Pot)</option>
-                      <option value="2">#2 Azure Mirage (3.0x + Pot)</option>
-                      <option value="3">#3 Obsidian Stealth (3.0x + Pot)</option>
-                      <option value="4">#4 Belle Epoque Royal (3.0x + Pot)</option>
-                      <option value="5">#5 Grimaldi Champion (3.0x + Pot)</option>
-                      <option value="6">#6 Riviera Lightning (3.0x + Pot)</option>
+                      <option value="1">#1 Prince de Monaco (3.38x + Pot)</option>
+                      <option value="2">#2 Azure Mirage (3.38x + Pot)</option>
+                      <option value="3">#3 Obsidian Stealth (3.38x + Pot)</option>
+                      <option value="4">#4 Belle Epoque Royal (3.38x + Pot)</option>
+                      <option value="5">#5 Grimaldi Champion (3.38x + Pot)</option>
+                      <option value="6">#6 Riviera Lightning (3.38x + Pot)</option>
                     </select>
                   </div>
 
                   <div class="racing-single-mode-pill">
                     <span>ENKEL WIN (#1 + WINNAARSPOT)</span>
-                    <strong>3.00x + 50% VERLIEZERS</strong>
+                    <strong>3.38x + 50% VERLIEZERS</strong>
                   </div>
 
                   <div class="racing-bet-wrap">
@@ -1661,14 +1635,14 @@
                   </div>
 
                   <div class="racing-potential-box" id="racing-potential-payout">
-                    Bij winst op #1: <strong>300</strong> fiches basis (3.00x + Winnaarspot)
+                    Bij winst op #1: <strong>338</strong> fiches basis (3.38x + Winnaarspot)
                   </div>
 
                   <button type="button" class="btn btn-gold btn-lg racing-submit-btn" id="btn-place-racing-bet">ZET IN OP PAARD #1</button>
 
                   <div class="racing-cheer-box">
                     <button type="button" class="btn-racing-cheer" id="btn-racing-cheer">JUICH VOOR PAARD #1</button>
-                    <span class="racing-fair-note">100% Random (1/6): 50% verliezers in Pot, 50% voor Casino.</span>
+                    <span class="racing-fair-note">100% Random (1/6): 50% verliezers in Pot (98% RTP).</span>
                   </div>
                 </div>
 
@@ -1690,7 +1664,7 @@
               <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-mines"></use></svg>
               <div class="mines-title-group">
                 <span class="mines-main-title">ROYAL MINES VAULT</span>
-                <span class="mines-sub-title">4% Huisvoordeel (96% RTP) • Diamanten &amp; Bommen</span>
+                <span class="mines-sub-title">2% Huisvoordeel (98% RTP) • Diamanten &amp; Bommen</span>
               </div>
               <div class="mines-mode-tabs" role="tablist" aria-label="Mines spelmodi">
                 <button type="button" class="mines-mode-tab active" id="btn-mines-mode-solo" data-mode="solo">SOLO KLUIS</button>
@@ -1802,7 +1776,7 @@
                     </div>
                     <div class="mines-stat-chip">
                       <span class="stat-lbl">VOLGENDE</span>
-                      <strong id="mines-stat-next">1.20x (120 F)</strong>
+                      <strong id="mines-stat-next">1.22x (122 F)</strong>
                     </div>
                     <div class="mines-stat-chip">
                       <span class="stat-lbl">KANS</span>
@@ -2450,7 +2424,7 @@
       </div>
     </div>
 
-    <!-- Casino Staatsloterij (30-Minuten Multiplayer Trekking, 100% Spelerspot, 0% Huisvoordeel) -->
+    <!-- Casino Staatsloterij (10-Minuten Multiplayer Trekking, 100% Spelerspot, 0% Huisvoordeel) -->
     <div class="modal-overlay hidden" id="lottery-modal" role="dialog" aria-modal="true" aria-labelledby="lottery-modal-title">
       <div class="modal-content luxury-modal-container lottery-modal-shell glass-panel">
         <div class="luxury-modal-header">
@@ -2478,12 +2452,14 @@
             </div>
             <div class="lottery-hero-timer-block">
               <span class="lottery-timer-caption">VOLGENDE TREKKING</span>
-              <span class="lottery-timer-val" id="lottery-timer-val">30:00</span>
+              <span class="lottery-timer-val" id="lottery-timer-val">10:00</span>
             </div>
           </div>
 
-          <!-- Animated Raffle Reel Showcase (shown during 8s DRAWING / after last draw) -->
+          <!-- Animated Raffle Reel Showcase (shown during 12s DRAWING / after last draw) -->
+          <div class="lottery-draw-status hidden" id="lottery-draw-status"></div>
           <div class="lottery-reel-stage hidden" id="lottery-reel-stage">
+            <canvas id="lottery-fx-canvas" class="lottery-fx-canvas" aria-hidden="true"></canvas>
             <div class="lottery-reel-pointer" aria-hidden="true"></div>
             <div class="lottery-reel-track" id="lottery-reel-track"></div>
           </div>

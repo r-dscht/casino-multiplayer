@@ -2,7 +2,7 @@
  * slotsEngine.js
  * Server-authoritative Multiplayer 5x3 Luxury Slots Engine.
  * Features:
- *  - 8 live multiplayer slot cabinets with real-time floor presence, streaks & cheers
+ *  - 8 live multiplayer slot cabinets with real-time floor presence & streaks
  *  - Cryptographic RNG stop generation on 32-stop reel strips
  *  - 20 fixed paylines with Wild substitution, 3x Free Spins & Sticky Wilds
  *  - Bonus Buy (75x totalBet -> instant 3+ Scatters Free Spins entry)
@@ -68,7 +68,6 @@ class SlotsEngine extends EventEmitter {
       winStreak: 0,
       totalSpins: 0,
       lastGrid: null,
-      cheersReceived: 0,
     }));
 
     /** @type {Map<string, number>} playerId -> machineId (1..8) */
@@ -76,9 +75,6 @@ class SlotsEngine extends EventEmitter {
 
     /** @type {Map<string, { remaining: number, bet: number, totalBonusWin: number, hasRetriggered: boolean }>} */
     this.playerFreeSpins = new Map();
-
-    /** @type {Map<string, number>} fromPlayerId -> last cheer timestamp */
-    this.cheerCooldowns = new Map();
   }
 
   /**
@@ -283,55 +279,6 @@ class SlotsEngine extends EventEmitter {
     }
     this.playerMachines.delete(playerId);
     return true;
-  }
-
-  /**
-   * Lets a player cheer/hype an occupied cabinet, slightly charging Golden Fever.
-   * Rate-limited to once per 2000ms per sender.
-   * @param {string} fromPlayerId
-   * @param {number} machineId
-   */
-  cheerMachine(fromPlayerId, machineId) {
-    const sender = this.playerManager && this.playerManager.getPlayerById(fromPlayerId);
-    if (!sender) {
-      return { ok: false, code: 'PLAYER_NOT_FOUND', error: 'Speler niet gevonden.' };
-    }
-
-    const idNum = Number(machineId);
-    if (!Number.isInteger(idNum) || idNum < 1 || idNum > NUM_MACHINES) {
-      return { ok: false, code: 'INVALID_MACHINE', error: 'Ongeldige gokkast.' };
-    }
-
-    const target = this.machines[idNum - 1];
-    if (!target.occupiedBy) {
-      return { ok: false, code: 'EMPTY_MACHINE', error: 'Er zit niemand op deze kast om toe te juichen.' };
-    }
-
-    const now = Date.now();
-    const lastCheer = this.cheerCooldowns.get(fromPlayerId) || 0;
-    if (now - lastCheer < 2000) {
-      return { ok: false, code: 'CHEER_COOLDOWN', error: 'Wacht even voor je volgende hype-boost.' };
-    }
-    this.cheerCooldowns.set(fromPlayerId, now);
-
-    target.cheersReceived += 1;
-    const feverTriggered = this._advanceFeverMeter(2.5, sender);
-
-    const payload = {
-      machineId: idNum,
-      fromPlayerId: sender.id,
-      fromPlayerName: sender.name,
-      fromPlayerColor: sender.color || '#D4AF37',
-      targetPlayerId: target.occupiedBy.playerId,
-      targetPlayerName: target.occupiedBy.playerName,
-      cheersReceived: target.cheersReceived,
-      feverTriggered,
-      goldenFever: this.getGoldenFeverState(),
-      machines: this.getPublicMachines(),
-    };
-    this.emit('machine_cheered', payload);
-
-    return { ok: true, ...payload };
   }
 
   /**
@@ -753,7 +700,6 @@ class SlotsEngine extends EventEmitter {
       totalSpins: m.totalSpins,
       lastSpinAt: m.lastSpinAt,
       lastGrid: m.lastGrid ? m.lastGrid.map((c) => [...c]) : null,
-      cheersReceived: m.cheersReceived,
     }));
   }
 

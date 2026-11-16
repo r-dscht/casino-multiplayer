@@ -1,8 +1,8 @@
 /**
  * lottery.js
- * Frontend controller for Casino Staatsloterij (100% player pot, 0% house edge, 30-minute cycle).
- * Syncs top HUD timer/pot badge, live buy preview, animated raffle drum reel,
- * participant odds bars, and recent winner history.
+ * Frontend controller for Casino Staatsloterij (100% player pot, 0% house edge, 10-minute cycle).
+ * Syncs top HUD timer/pot badge, live buy preview, offline backup/clock continuity,
+ * dramatic 3-stage animated raffle drum reel with canvas sparks, participant odds bars, and history.
  *
  * Strict Guardrails: 100% Silent Mode (Zero Audio) and Zero Unicode Emojis.
  */
@@ -60,7 +60,8 @@
       this.state = {
         roundId: 1,
         phase: 'OPEN',
-        secondsRemaining: 1800,
+        secondsRemaining: 600,
+        roundEndsAt: 0,
         ticketPrice: TICKET_PRICE,
         houseEdgePct: 0,
         pot: 0,
@@ -68,18 +69,28 @@
         uniqueParticipants: 0,
         participants: [],
         mySummary: { tickets: 0, totalSpent: 0, sharePct: 0, ranges: [] },
+        myPendingOfflineWin: null,
         lastDraw: null,
         history: []
       };
 
       this._reelTimer = null;
+      this._stageTimers = [];
+      this._toastTimer = null;
+      this._fxRaf = null;
+      this._animatingDrawRoundId = null;
+      this._localTickTimer = null;
+      this._lastServerTickAt = 0;
+      this._announcedOfflineWinRounds = new Set();
       this._buyTimeout = null;
       this._pendingBuy = null;
       this._isBuying = false;
 
+      this._loadOfflineBackup();
       this._cacheElements();
       this._bindEvents();
       this._bindNetworkEvents();
+      this._startLocalClock();
       this.renderAll();
     }
 
@@ -98,7 +109,9 @@
         potCounter: byId('lottery-jackpot-counter'),
         totalTickets: byId('lottery-total-tickets'),
         participantsCount: byId('lottery-participants-count'),
+        drawStatus: byId('lottery-draw-status'),
         reelStage: byId('lottery-reel-stage'),
+        fxCanvas: byId('lottery-fx-canvas'),
         reelTrack: byId('lottery-reel-track'),
         drawBanner: byId('lottery-draw-banner'),
         qtyInput: byId('lottery-qty-input'),
@@ -178,12 +191,15 @@
 
       this.network.on('lottery_tick', (tick) => {
         if (!tick || typeof tick !== 'object') return;
+        this._lastServerTickAt = Date.now();
         this.state.roundId = tick.roundId ?? this.state.roundId;
         this.state.phase = tick.phase || this.state.phase;
         this.state.secondsRemaining = typeof tick.secondsRemaining === 'number' ? tick.secondsRemaining : this.state.secondsRemaining;
+        if (typeof tick.roundEndsAt === 'number') this.state.roundEndsAt = tick.roundEndsAt;
         this.state.pot = typeof tick.pot === 'number' ? tick.pot : this.state.pot;
         this.state.totalTickets = typeof tick.totalTickets === 'number' ? tick.totalTickets : this.state.totalTickets;
         this.state.uniqueParticipants = typeof tick.uniqueParticipants === 'number' ? tick.uniqueParticipants : this.state.uniqueParticipants;
+        this._saveOfflineBackup();
         this.renderHeaderHud();
         this.renderTimerAndStats();
       });
@@ -442,20 +458,193 @@
       }
     }
 
+    _loadOfflineBackup() {
+      try {
+        if (typeof localStorage === 'undefined') return;
+        const raw = localStorage.getItem('casino_lottery_backup');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        if (parsed.savedAt && Date.now() - parsed.savedAt > 12 * 60 * 60 * 1000) return;
+
+        let computedSecs = typeof parsed.secondsRemaining === 'number' ? parsed.secondsRemaining : 600;
+        if (parsed.phase === 'OPEN' && typeof parsed.roundEndsAt === 'number' && parsed.roundEndsAt > 0) {
+          computedSecs = Math.max(0, Math.min(600, Math.ceil((parsed.roundEndsAt - Date.now()) / 1000)));
+        }
+
+        this.state = {
+          ...this.state,
+          roundId: parsed.roundId ?? this.state.roundId,
+          phase: parsed.phase || 'OPEN',
+          secondsRemaining: computedSecs,
+          roundEndsAt: parsed.roundEndsAt || 0,
+          pot: parsed.pot || 0,
+          totalTickets: parsed.totalTickets || 0,
+          uniqueParticipants: parsed.uniqueParticipants || 0,
+          participants: Array.isArray(parsed.participants) ? parsed.participants : [],
+          mySummary: parsed.mySummary || this.state.mySummary,
+          lastDraw: parsed.lastDraw || null,
+          history: Array.isArray(parsed.history) ? parsed.history : []
+        };
+      } catch (_) {}
+    }
+
+    _saveOfflineBackup() {
+      try {
+        if (typeof localStorage === 'undefined') return;
+        const snapshot = {
+          roundId: this.state.roundId,
+          phase: this.state.phase,
+          secondsRemaining: this.state.secondsRemaining,
+          roundEndsAt: this.state.roundEndsAt || (this.state.phase === 'OPEN' ? Date.now() + (this.state.secondsRemaining * 1000) : 0),
+          pot: this.state.pot,
+          totalTickets: this.state.totalTickets,
+          uniqueParticipants: this.state.uniqueParticipants,
+          participants: Array.isArray(this.state.participants) ? this.state.participants.slice(0, 30) : [],
+          mySummary: this.state.mySummary,
+          lastDraw: this.state.lastDraw,
+          history: Array.isArray(this.state.history) ? this.state.history.slice(0, 10) : [],
+          savedAt: Date.now()
+        };
+        localStorage.setItem('casino_lottery_backup', JSON.stringify(snapshot));
+      } catch (_) {}
+    }
+
+    _startLocalClock() {
+      if (this._localTickTimer) return;
+      this._localTickTimer = setInterval(() => {
+        if (this.state.phase !== 'OPEN') return;
+        const sinceServer = Date.now() - (this._lastServerTickAt || 0);
+        if (sinceServer < 1100) return;
+        if (this.state.secondsRemaining > 0) {
+          this.state.secondsRemaining -= 1;
+          this.renderHeaderHud();
+          this.renderTimerAndStats();
+        }
+      }, 1000);
+      if (this._localTickTimer && typeof this._localTickTimer.unref === 'function') {
+        this._localTickTimer.unref();
+      }
+    }
+
+    _clearReelChoreography() {
+      if (this._reelTimer) {
+        clearTimeout(this._reelTimer);
+        this._reelTimer = null;
+      }
+      if (Array.isArray(this._stageTimers)) {
+        this._stageTimers.forEach((t) => clearTimeout(t));
+        this._stageTimers = [];
+      }
+      if (this._fxRaf && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this._fxRaf);
+        this._fxRaf = null;
+      }
+    }
+
+    _burstLotterySparks() {
+      const canvas = this.el.fxCanvas;
+      if (!canvas || typeof canvas.getContext !== 'function') return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const w = canvas.clientWidth || (this.el.reelStage && this.el.reelStage.clientWidth) || 560;
+      const h = canvas.clientHeight || (this.el.reelStage && this.el.reelStage.clientHeight) || 108;
+      canvas.width = w;
+      canvas.height = h;
+
+      const colors = ['#facc15', '#fde047', '#10b981', '#34d399', '#fef08a', '#ffffff'];
+      const sparks = [];
+      for (let i = 0; i < 64; i += 1) {
+        const angle = -Math.PI + Math.random() * Math.PI * 2;
+        const speed = 1.6 + Math.random() * 5.2;
+        sparks.push({
+          x: w * 0.5 + (Math.random() - 0.5) * 40,
+          y: h * 0.5 + (Math.random() - 0.5) * 20,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1.2,
+          size: 2 + Math.random() * 3.5,
+          alpha: 1,
+          color: colors[i % colors.length]
+        });
+      }
+
+      const startAt = Date.now();
+      const step = () => {
+        const elapsed = Date.now() - startAt;
+        ctx.clearRect(0, 0, w, h);
+        let alive = 0;
+        for (const s of sparks) {
+          s.x += s.vx;
+          s.y += s.vy;
+          s.vy += 0.08;
+          s.alpha = Math.max(0, 1 - elapsed / 2200);
+          if (s.alpha <= 0) continue;
+          alive += 1;
+          ctx.globalAlpha = s.alpha;
+          ctx.fillStyle = s.color;
+          ctx.fillRect(s.x, s.y, s.size, s.size * 0.8);
+        }
+        ctx.globalAlpha = 1;
+        if (alive > 0 && elapsed < 2300 && typeof requestAnimationFrame === 'function') {
+          this._fxRaf = requestAnimationFrame(step);
+        } else {
+          ctx.clearRect(0, 0, w, h);
+          this._fxRaf = null;
+        }
+      };
+
+      if (typeof requestAnimationFrame === 'function') {
+        this._fxRaf = requestAnimationFrame(step);
+      }
+    }
+
     applyState(nextState) {
       const prevRoundId = this.state.roundId;
       const prevPhase = this.state.phase;
+      this._lastServerTickAt = Date.now();
 
       this.state = {
         ...this.state,
         ...nextState,
         mySummary: nextState.mySummary || this.state.mySummary
       };
+      this._saveOfflineBackup();
+
+      // Announce any won lottery round that settled while this player was offline
+      const offWin = nextState.myPendingOfflineWin;
+      if (offWin && offWin.roundId && !this._announcedOfflineWinRounds.has(offWin.roundId)) {
+        this._announcedOfflineWinRounds.add(offWin.roundId);
+        if (typeof offWin.newChips === 'number' && this.ui && this.ui.myPlayer) {
+          this.ui.myPlayer.chips = offWin.newChips;
+          if (typeof this.ui.updatePlayerHUD === 'function') this.ui.updatePlayerHUD();
+        }
+        if (this.ui && typeof this.ui.triggerWinShimmer === 'function') {
+          this.ui.triggerWinShimmer(4500);
+        }
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast(
+            `STAATSLOTERIJ GEWONNEN (TERWIJL OFFLINE)! +${(offWin.potWon || 0).toLocaleString()} fiches (Lot #${offWin.winningTicketDisplay}, Ronde #${offWin.roundId})!`,
+            'success'
+          );
+        }
+        if (this.network && typeof this.network.ackLotteryOfflineWin === 'function') {
+          this.network.ackLotteryOfflineWin(offWin.roundId);
+        }
+      }
 
       // Clear draw celebration banner cleanly when a new OPEN round starts
       if (this.state.phase === 'OPEN' && (this.state.roundId !== prevRoundId || prevPhase === 'DRAWING')) {
+        this._animatingDrawRoundId = null;
+        this._clearReelChoreography();
         if (this.el.drawBanner) {
           this.el.drawBanner.classList.add('hidden');
+        }
+        if (this.el.drawStatus) {
+          this.el.drawStatus.classList.add('hidden');
+        }
+        if (this.el.reelStage) {
+          this.el.reelStage.classList.remove('is-spinning-up', 'is-near-miss', 'is-celebrating');
         }
       }
 
@@ -465,14 +654,24 @@
     handleDrawResult(res) {
       this.renderReel(res);
       this.renderHistory();
+      this._saveOfflineBackup();
 
       const myId = this.ui && this.ui.myPlayer && this.ui.myPlayer.id;
       const isWinner = Boolean(myId && res.winnerId === myId);
+      const modalWatchingLive = this.isOpen();
+      const delayMs = modalWatchingLive ? 10050 : 0;
 
-      if (this.ui && typeof this.ui.showToast === 'function') {
+      if (this._toastTimer) {
+        clearTimeout(this._toastTimer);
+        this._toastTimer = null;
+      }
+
+      const fireDrawToast = () => {
+        this._toastTimer = null;
+        if (!this.ui || typeof this.ui.showToast !== 'function') return;
         if (isWinner) {
           if (typeof this.ui.triggerWinShimmer === 'function') {
-            this.ui.triggerWinShimmer(3200);
+            this.ui.triggerWinShimmer(4200);
           }
           this.ui.showToast(
             `STAATSLOTERIJ GEWONNEN! +${(res.potWon || 0).toLocaleString()} fiches (Lot #${res.winningTicketDisplay})!`,
@@ -484,6 +683,12 @@
             'info'
           );
         }
+      };
+
+      if (delayMs > 0) {
+        this._toastTimer = setTimeout(fireDrawToast, delayMs);
+      } else {
+        fireDrawToast();
       }
     }
 
@@ -494,7 +699,7 @@
       this.renderBuyPreview();
       this.renderParticipants();
       this.renderHistory();
-      if (this.state.phase === 'DRAWING' && this.state.lastDraw) {
+      if (this.state.phase === 'DRAWING' && this.state.lastDraw && this._animatingDrawRoundId !== this.state.lastDraw.roundId) {
         this.renderReel(this.state.lastDraw, { skipAnimation: true });
       }
     }
@@ -645,6 +850,7 @@
       const entries = Array.isArray(drawResult.reelEntries) ? drawResult.reelEntries : [];
       if (entries.length === 0) {
         this.el.reelStage.classList.add('hidden');
+        if (this.el.drawStatus) this.el.drawStatus.classList.add('hidden');
         return;
       }
 
@@ -657,19 +863,32 @@
         </div>
       `).join('');
 
-      const winnerSlot = typeof drawResult.winnerSlot === 'number' ? drawResult.winnerSlot : 36;
+      const winnerSlot = typeof drawResult.winnerSlot === 'number' ? drawResult.winnerSlot : 52;
       const cardStepPx = 114; // 106px width + 8px gap
       const stageWidth = this.el.reelStage.clientWidth || 560;
       const targetOffset = -((winnerSlot * cardStepPx) + (106 / 2) - (stageWidth / 2));
 
-      if (this._reelTimer) {
-        clearTimeout(this._reelTimer);
-        this._reelTimer = null;
-      }
+      this._clearReelChoreography();
 
-      const showWinnerBanner = () => {
+      const setDrawStatus = (text, mode = '') => {
+        if (!this.el.drawStatus) return;
+        this.el.drawStatus.textContent = text;
+        this.el.drawStatus.classList.remove('hidden', 'is-near-miss', 'is-winner');
+        if (mode) this.el.drawStatus.classList.add(mode);
+      };
+
+      const showWinnerBanner = (fireFx = true) => {
+        this.el.reelStage.classList.remove('is-spinning-up', 'is-near-miss');
+        this.el.reelStage.classList.add('is-celebrating');
         const winCard = this.el.reelTrack.querySelector(`.lottery-reel-card[data-slot="${winnerSlot}"]`);
         if (winCard) winCard.classList.add('landed-highlight');
+        setDrawStatus(
+          `OFFICIELE UITSLAG RONDE #${drawResult.roundId} — ${drawResult.winnerName.toUpperCase()} WINT!`,
+          'is-winner'
+        );
+        if (fireFx) {
+          this._burstLotterySparks();
+        }
         if (this.el.drawBanner) {
           this.el.drawBanner.innerHTML = `
             <span class="lottery-draw-badge">WINNAAR RONDE #${drawResult.roundId}</span>
@@ -680,22 +899,46 @@
       };
 
       if (skipAnimation) {
+        this._animatingDrawRoundId = null;
         this.el.reelTrack.style.transition = 'none';
         this.el.reelTrack.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
-        showWinnerBanner();
+        showWinnerBanner(false);
         return;
       }
 
+      this._animatingDrawRoundId = drawResult.roundId;
       if (this.el.drawBanner) this.el.drawBanner.classList.add('hidden');
+      this.el.reelStage.classList.remove('is-near-miss', 'is-celebrating');
+      this.el.reelStage.classList.add('is-spinning-up');
+      setDrawStatus(
+        `TREKKING GESTART — ${(drawResult.totalTickets || 0).toLocaleString()} LOTEN IN DE TROMMEL (${(drawResult.potWon || 0).toLocaleString()} F POT)...`
+      );
+
       this.el.reelTrack.style.transition = 'none';
       this.el.reelTrack.style.transform = 'translate3d(0px, 0, 0)';
       void this.el.reelTrack.offsetWidth;
-      this.el.reelTrack.style.transition = 'transform 6.2s cubic-bezier(0.10, 0.86, 0.18, 1)';
-      this.el.reelTrack.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
+
+      const launchTimer = setTimeout(() => {
+        this.el.reelStage.classList.remove('is-spinning-up');
+        setDrawStatus(`TROMMEL DRAAIT OP VOLLE SNELHEID — RONDE #${drawResult.roundId}...`);
+        this.el.reelTrack.style.transition = 'transform 9.4s cubic-bezier(0.06, 0.88, 0.14, 1)';
+        this.el.reelTrack.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
+      }, 450);
+
+      const nearMissTimer = setTimeout(() => {
+        this.el.reelStage.classList.add('is-near-miss');
+        setDrawStatus('SPANNING STIJGT — TROMMEL VERTRAGT BIJ DE LAATSTE LOTEN...', 'is-near-miss');
+      }, 5000);
+
+      const finalBreathTimer = setTimeout(() => {
+        setDrawStatus('LAATSTE SECONDEN — WIE HEEFT HET WINNENDE LOT?!', 'is-near-miss');
+      }, 7800);
+
+      this._stageTimers.push(launchTimer, nearMissTimer, finalBreathTimer);
 
       this._reelTimer = setTimeout(() => {
-        showWinnerBanner();
-      }, 6300);
+        showWinnerBanner(true);
+      }, 9950);
     }
   }
 

@@ -122,8 +122,8 @@ async function runEmpiricalChallenge() {
 
   const stake = 100;
   let totalEvaluations = 0;
-  const targetGrossReturn = 36 / 37;
-  const targetHouseEdge = 1 / 37;
+  const targetGrossReturn = 36.26 / 37;
+  const targetHouseEdge = 0.74 / 37;
 
   for (const b of allBets) {
     let winCount = 0;
@@ -136,11 +136,13 @@ async function runEmpiricalChallenge() {
 
       if (res.won) {
         winCount++;
-        assert.strictEqual(res.payout, stake * b.multiplier, `${b.name} payout mismatch on winning pocket ${pocket}`);
-        assert.strictEqual(res.profit, stake * (b.multiplier - 1), `${b.name} profit mismatch on winning pocket ${pocket}`);
+        const zeroBonus = pocket === 0 ? Math.floor(stake * 0.26) : 0;
+        assert.strictEqual(res.payout, stake * b.multiplier + zeroBonus, `${b.name} payout mismatch on winning pocket ${pocket}`);
+        assert.strictEqual(res.profit, stake * (b.multiplier - 1) + zeroBonus, `${b.name} profit mismatch on winning pocket ${pocket}`);
       } else {
-        assert.strictEqual(res.payout, 0, `${b.name} payout must be 0 on losing pocket ${pocket}`);
-        assert.strictEqual(res.profit, -stake, `${b.name} profit must be -stake on losing pocket ${pocket}`);
+        const expectedZeroShield = pocket === 0 ? Math.floor(stake * 0.26) : 0;
+        assert.strictEqual(res.payout, expectedZeroShield, `${b.name} payout mismatch on losing pocket ${pocket}`);
+        assert.strictEqual(res.profit, expectedZeroShield - stake, `${b.name} profit mismatch on losing pocket ${pocket}`);
       }
 
       totalGrossPayout += res.payout;
@@ -162,7 +164,7 @@ async function runEmpiricalChallenge() {
     );
   }
 
-  recordPass(`Exhaustively evaluated all 157 bets across all 37 pockets (${totalEvaluations} calculations). Every single bet has exact gross return of 36/37 (~97.297%) and house edge of 1/37 (~2.7027%).`);
+  recordPass(`Exhaustively evaluated all 157 bets across all 37 pockets (${totalEvaluations} calculations). Every single bet has exact gross return of 36.26/37 (98.000%) and house edge of 0.74/37 (2.000%).`);
 
   // ---------------------------------------------------------------------------
   // PART 2: Zero (0) Green Pocket Strict Invariant Audit
@@ -186,51 +188,51 @@ async function runEmpiricalChallenge() {
 
   for (const ob of outsideBetsToTest) {
     const res = evaluateBet({ type: ob.type, value: ob.value, amount: 500 }, 0);
-    assert.strictEqual(res.won, false, `Outside bet ${ob.type} (${ob.value}) must lose on 0`);
-    assert.strictEqual(res.payout, 0, `Outside bet ${ob.type} payout must be 0 on 0`);
-    assert.strictEqual(res.profit, -500, `Outside bet ${ob.type} profit must be -amount on 0`);
+    assert.strictEqual(res.won, false, `Outside bet ${ob.type} (${ob.value}) must not win outright on 0`);
+    assert.strictEqual(res.payout, 130, `Outside bet ${ob.type} receives 26% Zero Shield on 0`);
+    assert.strictEqual(res.profit, -370, `Outside bet ${ob.type} profit must be -74% on 0`);
   }
-  recordPass('Verified 100% loss for all outside bets (Red, Black, Even, Odd, Low, High, Columns 1-3, Dozens 1-3) on winning number 0.');
+  recordPass('Verified 26% Zero Shield for all outside bets (Red, Black, Even, Odd, Low, High, Columns 1-3, Dozens 1-3) on winning number 0.');
 
   // Straight bet on 0
   const straightZeroRes = evaluateBet({ type: BET_TYPES.STRAIGHT, value: 0, amount: 250 }, 0);
   assert.strictEqual(straightZeroRes.won, true, 'Straight on 0 must win on 0');
-  assert.strictEqual(straightZeroRes.payout, 250 * 36, 'Straight on 0 must pay 36x gross (36 * 250 = 9000)');
-  assert.strictEqual(straightZeroRes.profit, 250 * 35, 'Straight on 0 must profit 35:1 (35 * 250 = 8750)');
-  recordPass('Verified straight bet on 0 pays exactly 35:1 profit (36x gross return).');
+  assert.strictEqual(straightZeroRes.payout, 250 * 36 + 65, 'Straight on 0 must pay 36x gross + 26% Zero Bonus');
+  assert.strictEqual(straightZeroRes.profit, 250 * 35 + 65, 'Straight on 0 must profit 35:1 + 26% Zero Bonus');
+  recordPass('Verified straight bet on 0 pays 35:1 profit + 26% Zero Bonus.');
 
   // Zero-covering inside bets
   const zeroSplits = [[0, 1], [0, 2], [0, 3]];
   for (const zs of zeroSplits) {
     const res = evaluateBet({ type: BET_TYPES.SPLIT, value: zs, amount: 100 }, 0);
     assert.strictEqual(res.won, true);
-    assert.strictEqual(res.payout, 1800);
-    assert.strictEqual(res.profit, 1700);
+    assert.strictEqual(res.payout, 1826);
+    assert.strictEqual(res.profit, 1726);
   }
-  recordPass('Verified all zero-adjacent splits [0,1], [0,2], [0,3] win 17:1 (18x) on 0.');
+  recordPass('Verified all zero-adjacent splits [0,1], [0,2], [0,3] win 17:1 + 26% Zero Bonus on 0.');
 
   const zeroStreets = [[0, 1, 2], [0, 2, 3]];
   for (const zst of zeroStreets) {
     const res = evaluateBet({ type: BET_TYPES.STREET, value: zst, amount: 100 }, 0);
     assert.strictEqual(res.won, true);
-    assert.strictEqual(res.payout, 1200);
-    assert.strictEqual(res.profit, 1100);
+    assert.strictEqual(res.payout, 1226);
+    assert.strictEqual(res.profit, 1126);
   }
-  recordPass('Verified zero-trio streets [0,1,2] and [0,2,3] win 11:1 (12x) on 0.');
+  recordPass('Verified zero-trio streets [0,1,2] and [0,2,3] win 11:1 + 26% Zero Bonus on 0.');
 
   const basketRes = evaluateBet({ type: BET_TYPES.CORNER, value: [0, 1, 2, 3], amount: 100 }, 0);
   assert.strictEqual(basketRes.won, true);
-  assert.strictEqual(basketRes.payout, 900);
-  assert.strictEqual(basketRes.profit, 800);
-  recordPass('Verified First Four basket corner [0,1,2,3] wins 8:1 (9x) on 0.');
+  assert.strictEqual(basketRes.payout, 926);
+  assert.strictEqual(basketRes.profit, 826);
+  recordPass('Verified First Four basket corner [0,1,2,3] wins 8:1 + 26% Zero Bonus on 0.');
 
-  // Inside bets NOT covering 0 must lose on 0
+  // Inside bets NOT covering 0 receive 26% Zero Shield on 0
   for (let n = 1; n <= 36; n++) {
     const res = evaluateBet({ type: BET_TYPES.STRAIGHT, value: n, amount: 100 }, 0);
     assert.strictEqual(res.won, false);
-    assert.strictEqual(res.payout, 0);
+    assert.strictEqual(res.payout, 26);
   }
-  recordPass('Verified all non-zero straight bets (1..36) lose 100% on 0.');
+  recordPass('Verified all non-zero straight bets (1..36) return 26% Zero Shield on 0.');
 
   // ---------------------------------------------------------------------------
   // PART 3: Monte Carlo Simulation (100,000 Spins) & RNG Uniformity
@@ -265,7 +267,7 @@ async function runEmpiricalChallenge() {
 
     for (const bet of portfolioBets) {
       const outcome = evaluateBet(bet, winningPocket);
-      if (outcome.won) {
+      if (outcome.payout > 0) {
         totalReturned += outcome.payout;
       }
     }
@@ -286,7 +288,7 @@ async function runEmpiricalChallenge() {
 
   // 2. Expected Gross Return & Convergence
   const empiricalReturn = totalReturned / totalWagered;
-  const theoreticalReturn = 36 / 37;
+  const theoreticalReturn = 36.26 / 37;
   const absoluteDifference = Math.abs(empiricalReturn - theoreticalReturn);
   console.log(`  Total chips wagered: ${totalWagered.toLocaleString()}`);
   console.log(`  Total chips returned: ${totalReturned.toLocaleString()}`);
@@ -298,7 +300,7 @@ async function runEmpiricalChallenge() {
     absoluteDifference < 0.006,
     `Empirical return ${(empiricalReturn * 100).toFixed(3)}% deviated too far from theoretical ${(theoreticalReturn * 100).toFixed(3)}%`
   );
-  recordPass(`Monte Carlo simulation verified: empirical gross return is ${(empiricalReturn * 100).toFixed(3)}%, converging tightly to theoretical 97.297% (House edge = ${(100 - empiricalReturn * 100).toFixed(3)}% vs 2.703%).`);
+  recordPass(`Monte Carlo simulation verified: empirical gross return is ${(empiricalReturn * 100).toFixed(3)}%, converging tightly to theoretical 98.000% (House edge = ${(100 - empiricalReturn * 100).toFixed(3)}% vs 2.000%).`);
 
   // ---------------------------------------------------------------------------
   // PART 4: Socket Concurrency, Race Conditions & Stress Harness

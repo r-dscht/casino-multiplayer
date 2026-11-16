@@ -42,18 +42,18 @@ const PAYLINES = Object.freeze([
   [1, 1, 0, 1, 1], // Payline 20: Center peak at reel 2
 ]);
 
-// Multipliers expressed as multiples of lineBet (= totalBet / 20)
+// Multipliers expressed as multiples of lineBet (= totalBet / 20), calibrated for ~98% RTP (2% house edge)
 const PAYTABLE = Object.freeze({
-  '10':        { 3: 5,   4: 21,  5: 74 },
-  'J':         { 3: 6,   4: 25,  5: 92 },
-  'Q':         { 3: 9,   4: 33,  5: 120 },
-  'K':         { 3: 11,  4: 43,  5: 170 },
-  'A':         { 3: 16,  4: 62,  5: 215 },
-  'EMERALD':   { 3: 26,  4: 100, 5: 345 },
-  'GOLD_BARS': { 3: 35,  4: 175, 5: 605 },
-  'DIAMOND':   { 3: 53,  4: 300, 5: 1200 },
-  'CREST':     { 2: 5,   3: 120, 4: 605, 5: 2400 },
-  'WILD':      { 3: 120, 4: 605, 5: 2400 },
+  '10':        { 3: 4,   4: 17,  5: 59 },
+  'J':         { 3: 5,   4: 20,  5: 72 },
+  'Q':         { 3: 7,   4: 25,  5: 93 },
+  'K':         { 3: 9,   4: 32,  5: 132 },
+  'A':         { 3: 13,  4: 47,  5: 170 },
+  'EMERALD':   { 3: 20,  4: 78,  5: 268 },
+  'GOLD_BARS': { 3: 27,  4: 134, 5: 472 },
+  'DIAMOND':   { 3: 40,  4: 232, 5: 916 },
+  'CREST':     { 2: 4,   3: 92,  4: 465, 5: 1830 },
+  'WILD':      { 3: 92,  4: 465, 5: 1830 },
 });
 
 // Balanced 32-stop reel strips
@@ -82,8 +82,8 @@ const GOLDEN_FEVER_REEL_STRIPS = Object.freeze(
 
 const SCATTER_REWARDS = Object.freeze({
   3: { freeSpins: 10, multiplier: 5 },
-  4: { freeSpins: 15, multiplier: 15 },
-  5: { freeSpins: 20, multiplier: 35 },
+  4: { freeSpins: 15, multiplier: 11 },
+  5: { freeSpins: 20, multiplier: 21 },
 });
 
 const VALID_BETS = Object.freeze([20, 40, 100, 200, 500, 1000, 2500, 5000, 10000]);

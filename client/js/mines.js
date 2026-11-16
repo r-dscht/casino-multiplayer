@@ -5,7 +5,7 @@
  * - Shared Vault Multiplayer (Smart Timer 8s start on first bet, live board/bomb voting,
  *   turn-based clicking with 10s turn clock, auto-random click on timeout, >= 1 click before Cashout,
  *   clicker initials stamped on shared diamonds, shared detonation vs cashed-out survivors)
- * - Live Mines Zaal player cards + Cheers + Big Wins & Personal History tabs
+ * - Live Mines Zaal player cards + Big Wins & Personal History tabs
  * - Canvas particle celebration & shockwave FX (zero emojis, zero audio)
  */
 (function (root, factory) {
@@ -61,7 +61,7 @@
     const M = Math.floor(Number(mineCount) || 5);
     if (diamondsFound <= 0 || M < 1 || M >= N) return 1.0;
 
-    const targetRtp = 0.96;
+    const targetRtp = 0.98;
     const maxEvCap = 0.99;
     let prev = 1.0;
     let fairMult = 1.0;
@@ -127,6 +127,9 @@
       this.recentWins = [];
       this.personalHistory = [];
       this.pendingAction = false;
+      this._pendingKind = null;
+      this._queuedCashout = false;
+      this._actionTimeout = null;
       this.viewActive = false;
 
       this.particles = [];
@@ -142,6 +145,50 @@
       this._bindNetworkEvents();
       this._buildBoardGrid();
       this._renderAll();
+    }
+
+    _setPendingAction(kind) {
+      this.pendingAction = true;
+      this._pendingKind = kind || 'action';
+      if (this._actionTimeout) clearTimeout(this._actionTimeout);
+      this._actionTimeout = setTimeout(() => {
+        this._clearPendingAction();
+      }, 4000);
+    }
+
+    _clearPendingAction() {
+      this.pendingAction = false;
+      this._pendingKind = null;
+      if (this._actionTimeout) {
+        clearTimeout(this._actionTimeout);
+        this._actionTimeout = null;
+      }
+    }
+
+    _executeCashoutNow() {
+      if (this.mode === 'solo') {
+        if (!this.soloGame || !this.soloGame.canCashout) return false;
+        this._queuedCashout = false;
+        this._setPendingAction('cashout');
+        this.network.minesSoloCashout();
+        return true;
+      }
+      const myId = this._getMyId();
+      const s = this.sharedState;
+      const myP = myId && s && Array.isArray(s.participants)
+        ? s.participants.find((p) => p.playerId === myId)
+        : null;
+      if (!s || s.phase !== 'PLAYING' || !myP || myP.status !== 'ALIVE') return false;
+      if (!myP.canCashout) {
+        if (this.ui) {
+          this.ui.showToast('Open eerst minstens 1 eigen vakje voordat je mag cashen.', 'info');
+        }
+        return false;
+      }
+      this._queuedCashout = false;
+      this._setPendingAction('cashout');
+      this.network.minesSharedCashout();
+      return true;
     }
 
     onViewActivated() {
@@ -338,7 +385,8 @@
       if (this.els.btnSoloStart) {
         this.els.btnSoloStart.addEventListener('click', () => {
           if (this.pendingAction) return;
-          this.pendingAction = true;
+          this._queuedCashout = false;
+          this._setPendingAction('start');
           this.soloLastReveal = null;
           this.network.minesSoloStart({
             betAmount: this.betAmount,
@@ -351,7 +399,8 @@
       if (this.els.btnSharedJoin) {
         this.els.btnSharedJoin.addEventListener('click', () => {
           if (this.pendingAction) return;
-          this.pendingAction = true;
+          this._queuedCashout = false;
+          this._setPendingAction('shared_join');
           this.network.minesSharedJoin({
             betAmount: this.betAmount,
             gridSide: this.sharedVoteSide,
@@ -368,15 +417,15 @@
 
       if (this.els.btnCashout) {
         this.els.btnCashout.addEventListener('click', () => {
-          if (this.pendingAction) return;
-          if (this.mode === 'solo') {
-            if (!this.soloGame || !this.soloGame.canCashout) return;
-            this.pendingAction = true;
-            this.network.minesSoloCashout();
-          } else {
-            this.pendingAction = true;
-            this.network.minesSharedCashout();
+          if (this.pendingAction) {
+            if (this._pendingKind === 'cashout') return;
+            if (this._pendingKind === 'tile') {
+              this._queuedCashout = true;
+              return;
+            }
+            this._clearPendingAction();
           }
+          this._executeCashoutNow();
         });
       }
 
@@ -387,15 +436,6 @@
           const idx = Number(tileBtn.dataset.tileIndex);
           if (!Number.isInteger(idx)) return;
           this._handleTileClick(idx);
-        });
-      }
-
-      if (this.els.salonList) {
-        this.els.salonList.addEventListener('click', (e) => {
-          const cheerBtn = e.target.closest('.btn-mines-cheer');
-          if (!cheerBtn) return;
-          const targetId = cheerBtn.dataset.playerId;
-          if (targetId) this.network.minesCheer(targetId);
         });
       }
 
@@ -425,14 +465,16 @@
         if (!this.soloGame || this.soloGame.status !== 'ACTIVE') return;
         const already = (this.soloGame.revealedDiamonds || []).some((d) => d.tileIndex === tileIndex);
         if (already) return;
-        this.pendingAction = true;
+        this._queuedCashout = false;
+        this._setPendingAction('tile');
         this.network.minesSoloClick(tileIndex);
       } else {
         const myId = this._getMyId();
         if (!myId || this.sharedState.phase !== 'PLAYING' || this.sharedState.turnPlayerId !== myId) return;
         const already = (this.sharedState.revealedTiles || []).some((t) => t.tileIndex === tileIndex);
         if (already) return;
-        this.pendingAction = true;
+        this._queuedCashout = false;
+        this._setPendingAction('tile');
         this.network.minesSharedClick(tileIndex);
       }
     }
@@ -440,9 +482,26 @@
     _bindNetworkEvents() {
       if (!this.network || typeof this.network.on !== 'function') return;
 
+      const clearAllPending = () => {
+        this._clearPendingAction();
+        this._queuedCashout = false;
+      };
+      this.network.on('connection_change', (data) => {
+        if (!data || !data.connected) clearAllPending();
+      });
+      this.network.on('session_required', clearAllPending);
+      this.network.on('session_lost', clearAllPending);
+      this.network.on('auth_error', clearAllPending);
+      this.network.on('auth_success', () => {
+        clearAllPending();
+        if (this.viewActive && typeof this.network.minesJoin === 'function') {
+          this.network.minesJoin();
+        }
+      });
+
       this.network.on('mines_state', (data) => {
         if (!data) return;
-        this.pendingAction = false;
+        clearAllPending();
         this.soloGame = data.solo || null;
         if (this.soloGame) {
           this.soloGridSide = this.soloGame.gridSide;
@@ -476,7 +535,7 @@
       });
 
       this.network.on('mines_rejected', (err) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (err && err.reason && this.ui) {
           const isRecovering =
             err.code === 'PLAYER_NOT_FOUND' &&
@@ -487,21 +546,8 @@
         }
       });
 
-      this.network.on('mines_cheer_rejected', (err) => {
-        if (err && err.reason && this.ui) this.ui.showToast(err.reason, 'info');
-      });
-
-      this.network.on('mines_cheered', (data) => {
-        if (!data) return;
-        const myId = this._getMyId();
-        if (data.targetPlayerId === myId && this.ui) {
-          this.ui.showToast(`${data.fromPlayerName} juichte je aan in Mines Zaal!`, 'info');
-        }
-        this._renderSalonList();
-      });
-
       this.network.on('mines_solo_started', (res) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (!res || !res.solo) return;
         this.soloGame = res.solo;
         this.soloLastReveal = null;
@@ -515,14 +561,24 @@
       });
 
       this.network.on('mines_solo_result', (res) => {
-        this.pendingAction = false;
-        if (!res) return;
+        const hadQueuedCashout = this._queuedCashout;
+        this._clearPendingAction();
+        if (!res) {
+          this._queuedCashout = false;
+          return;
+        }
 
         if (res.outcome === 'DIAMOND') {
           this.soloGame = res.solo;
           this._renderAll();
           this._spawnTileParticles(res.tileIndex, 'diamond', 14);
+          if (hadQueuedCashout && this.soloGame && this.soloGame.canCashout) {
+            this._executeCashoutNow();
+          } else {
+            this._queuedCashout = false;
+          }
         } else if (res.outcome === 'MINE') {
+          this._queuedCashout = false;
           const gridSide = this.soloGame ? this.soloGame.gridSide : this.soloGridSide;
           const mineCount = this.soloGame ? this.soloGame.mineCount : this.soloMineCount;
           this.soloGame = null;
@@ -542,6 +598,7 @@
           this._spawnTileParticles(res.tileIndex, 'bomb', 28);
           this._showResultBanner(`BOEM! -${formatChips(Math.abs(res.netProfit || this.betAmount))} F`, false);
         } else if (res.outcome === 'CASHOUT' || res.outcome === 'GRAND_CLEAR') {
+          this._queuedCashout = false;
           const gridSide = this.soloGame ? this.soloGame.gridSide : this.soloGridSide;
           const mineCount = this.soloGame ? this.soloGame.mineCount : this.soloMineCount;
           this.soloGame = null;
@@ -583,11 +640,11 @@
       });
 
       this.network.on('mines_shared_vote_ack', () => {
-        this.pendingAction = false;
+        this._clearPendingAction();
       });
 
       this.network.on('mines_shared_joined', (res) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (res && res.shared) {
           this.sharedState = res.shared;
           this._buildBoardGrid();
@@ -601,7 +658,7 @@
       });
 
       this.network.on('mines_shared_cancelled', (res) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (res && res.shared) {
           this.sharedState = res.shared;
           this._buildBoardGrid();
@@ -617,6 +674,7 @@
         const sizeChanged = Number(shared.gridSide) !== Number(this.sharedState.gridSide);
         this.sharedState = shared;
         if (shared.phase === 'WAITING_FOR_PLAYERS' || shared.phase === 'BETTING') {
+          clearAllPending();
           this._hideResultBanner();
         }
         if (sizeChanged || !this.els.board || this.els.board.children.length !== shared.totalTiles) {
@@ -628,26 +686,45 @@
       });
 
       this.network.on('mines_shared_tile', (payload) => {
-        this.pendingAction = false;
-        if (!payload) return;
+        const hadQueued = this._queuedCashout;
+        this._clearPendingAction();
+        if (!payload) {
+          this._queuedCashout = false;
+          return;
+        }
         if (payload.shared) this.sharedState = payload.shared;
         this._renderAll();
         if (payload.tileInfo && payload.tileInfo.type === 'DIAMOND') {
           this._spawnTileParticles(payload.tileInfo.tileIndex, 'diamond', 14);
+          if (hadQueued && this.mode === 'shared') {
+            this._executeCashoutNow();
+          }
+        } else {
+          this._queuedCashout = false;
         }
         this._syncNavLock();
       });
 
-      this.network.on('mines_shared_click_ack', () => {
-        this.pendingAction = false;
+      this.network.on('mines_shared_click_ack', (res) => {
+        const hadQueued = this._queuedCashout;
+        this._clearPendingAction();
+        if (res && res.shared) {
+          this.sharedState = res.shared;
+          this._renderAll();
+        }
+        if (hadQueued && res && res.outcome === 'DIAMOND' && this.mode === 'shared') {
+          this._executeCashoutNow();
+        } else {
+          this._queuedCashout = false;
+        }
       });
 
       this.network.on('mines_shared_cashout_ack', () => {
-        this.pendingAction = false;
+        clearAllPending();
       });
 
       this.network.on('mines_shared_settlement', (s) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (!s) return;
         if (s.historyEntry) this._prependHistory(s.historyEntry);
         if (this.ui) {
@@ -662,7 +739,7 @@
       });
 
       this.network.on('mines_shared_finished', (payload) => {
-        this.pendingAction = false;
+        clearAllPending();
         if (!payload) return;
         if (payload.shared) this.sharedState = payload.shared;
         this._renderAll();
@@ -783,7 +860,7 @@
           this.els.statusBanner.innerHTML = [
             `<span class="mines-status-pill">SOLO KLUIS</span>`,
             `<span class="mines-status-detail">Kies bord (${this.soloGridSide}x${this.soloGridSide}) &amp; aantal bommen (${this.soloMineCount})</span>`,
-            `<span class="mines-status-mult">1e Diamant: <strong>${previewNext.toFixed(2)}x</strong> • 96% RTP (4% Huisvoordeel)</span>`,
+            `<span class="mines-status-mult">1e Diamant: <strong>${previewNext.toFixed(2)}x</strong> • 98% RTP (2% Huisvoordeel)</span>`,
           ].join('');
         }
       }
@@ -1075,7 +1152,6 @@
               <div class="salon-sub">${escapeHtml(detail)}</div>
             </div>
             <span class="salon-mode-badge ${p.isTurn ? 'turn-hot' : ''}">${escapeHtml(badge)}</span>
-            ${!isMe ? `<button type="button" class="btn-mines-cheer" data-player-id="${escapeHtml(p.playerId)}" title="Moedig aan">+1 (${p.cheers || 0})</button>` : `<span class="salon-cheers-self">${p.cheers || 0} cheers</span>`}
           </div>
         `;
       }).join('');

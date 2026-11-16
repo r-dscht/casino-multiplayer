@@ -5,7 +5,7 @@
  *  - 5x3 luxury reel strip animator with elastic stops, slow-mo anticipation & slam-stop
  *  - 20-payline Canvas laser visualizer & coin fountain particle system
  *  - Clean 2x Free Spins + Bonus Buy (30x) confirmation
- *  - 8-cabinet live multiplayer floor strip, cabinet peeking & +2.5% Golden Fever cheers
+ *  - 8-cabinet live multiplayer floor strip & cabinet peeking
  *  - Shared Progressive Grand Jackpot ticker & 30s Golden Fever countdown aura
  *  - Synchronized pendingPayoutHold HUD animation + Turbo + Spacebar shortcut
  *  - Pure inline vector SVG artwork: zero Unicode emojis and zero audio APIs.
@@ -269,7 +269,6 @@
         spotlightPlayer: document.getElementById('slots-spotlight-player'),
         spectateMiniGrid: document.getElementById('slots-spectate-mini-grid'),
         spotlightStats: document.getElementById('slots-spotlight-stats'),
-        btnCheerSpotlight: document.getElementById('btn-slots-cheer-spotlight'),
         bigWinsList: document.getElementById('slots-big-wins-list'),
         rollHistoryList: document.getElementById('slots-roll-history-list'),
         rollSummary: document.getElementById('slots-roll-summary'),
@@ -339,15 +338,6 @@
 
       if (this.els.floorStrip) {
         this.els.floorStrip.addEventListener('click', (e) => {
-          const cheerBtn = e.target.closest('.slots-card-cheer-btn');
-          if (cheerBtn) {
-            e.stopPropagation();
-            const mId = Number(cheerBtn.dataset.machineId);
-            if (mId && this.network && typeof this.network.slotsCheer === 'function') {
-              this.network.slotsCheer(mId);
-            }
-            return;
-          }
           const card = e.target.closest('.slots-floor-card');
           if (!card) return;
           const machineId = Number(card.dataset.machineId);
@@ -360,15 +350,6 @@
           this.spotlightMachineId = this.myMachineId || 1;
           this.renderFloor();
           this.renderSpotlight();
-        });
-      }
-
-      if (this.els.btnCheerSpotlight) {
-        this.els.btnCheerSpotlight.addEventListener('click', () => {
-          const targetId = this.spotlightMachineId || this.myMachineId;
-          if (targetId && this.network && typeof this.network.slotsCheer === 'function') {
-            this.network.slotsCheer(targetId);
-          }
         });
       }
 
@@ -387,12 +368,6 @@
       this.network.on('slots_spin_rejected', (err) => this.onSpinRejected(err));
       this.network.on('slots_big_win', (entry) => this.onBigWinEvent(entry));
       this.network.on('slots_golden_fever', (fever) => this.onGoldenFeverEvent(fever));
-      this.network.on('slots_cheer_event', (evt) => this.onCheerEvent(evt));
-      this.network.on('slots_cheer_rejected', (err) => {
-        if (err && err.reason && this.ui) {
-          this.ui.showToast(err.reason, err.code === 'PLAYER_NOT_FOUND' ? 'info' : 'error');
-        }
-      });
     }
 
     onViewActivated() {
@@ -1490,7 +1465,6 @@
             status: 'IDLE',
             lastMultiplier: 0,
             winStreak: 0,
-            cheersReceived: 0,
           }));
 
       const myId = this.ui && this.ui.myPlayer ? this.ui.myPlayer.id : null;
@@ -1510,10 +1484,6 @@
               : (m.winStreak >= 2 ? `${m.winStreak}x STREAK` : (m.lastMultiplier >= 2 ? `${m.lastMultiplier}x` : 'SPEELT')))
           : 'VRIJ';
 
-        const cheerBtn = occ
-          ? `<button type="button" class="slots-card-cheer-btn" data-machine-id="${m.machineId}" title="Moedig aan (+2.5% Golden Fever)">+HYPE</button>`
-          : '';
-
         return `
           <div class="slots-floor-card ${badgeCls}${isMine ? ' is-mine' : ''}${isFocused ? ' is-spotlight' : ''}" data-machine-id="${m.machineId}" role="listitem">
             <div class="slots-card-top">
@@ -1526,8 +1496,7 @@
                 : `<span class="slots-card-open-lbl">Kies Kast</span>`}
             </div>
             <div class="slots-card-foot">
-              <span class="slots-card-cheers">${m.cheersReceived > 0 ? `${m.cheersReceived} hype` : escapeHtml(m.name)}</span>
-              ${cheerBtn}
+              <span class="slots-card-label">${escapeHtml(m.name)}</span>
             </div>
           </div>
         `;
@@ -1583,44 +1552,10 @@
       if (this.els.spotlightStats) {
         if (m) {
           const lastW = m.lastWin ? `${m.lastWin.toLocaleString()} F (${m.lastMultiplier}x)` : 'Nog geen winst';
-          this.els.spotlightStats.textContent = `Laatste: ${lastW} \u2022 ${m.cheersReceived || 0} cheers`;
+          this.els.spotlightStats.textContent = `Laatste: ${lastW} \u2022 ${m.totalSpins || 0} spins`;
         } else {
           this.els.spotlightStats.textContent = '';
         }
-      }
-
-      if (this.els.btnCheerSpotlight) {
-        this.els.btnCheerSpotlight.disabled = !occ;
-      }
-    }
-
-    onCheerEvent(evt) {
-      if (!evt || !evt.machineId) return;
-      if (Array.isArray(evt.machines)) this.machines = evt.machines;
-      if (evt.goldenFever) {
-        this.goldenFever = { ...this.goldenFever, ...evt.goldenFever };
-        this._updateFeverUI();
-      }
-      this.renderFloor();
-      this.renderSpotlight();
-
-      // Floating +2.5% HYPE pill on the cheered cabinet card
-      if (this.els.floorStrip) {
-        const card = this.els.floorStrip.querySelector(`.slots-floor-card[data-machine-id="${evt.machineId}"]`);
-        if (card) {
-          const floater = document.createElement('span');
-          floater.className = 'slots-cheer-floater';
-          floater.textContent = '+2.5% HYPE';
-          card.appendChild(floater);
-          setTimeout(() => {
-            if (floater.parentNode) floater.parentNode.removeChild(floater);
-          }, 1200);
-        }
-      }
-
-      const myId = this.ui && this.ui.myPlayer ? this.ui.myPlayer.id : null;
-      if (myId && evt.targetPlayerId === myId && evt.fromPlayerId !== myId && this.ui) {
-        this.ui.showToast(`${evt.fromPlayerName} moedigt jouw gokkast aan (+2.5% Golden Fever)!`, 'info');
       }
     }
 

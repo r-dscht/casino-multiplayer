@@ -3,7 +3,7 @@
  * Server-authoritative Multiplayer Crash Game Engine.
  *
  * Features:
- * - Cryptographically fair crash point generation (crypto.randomInt) with 3% house edge (1.00x to 1000.00x).
+ * - Cryptographically fair crash point generation (crypto.randomInt) with 2% house edge (1.00x to 1000.00x).
  * - Synchronized real-time exponential flight trajectory: M(t) = exp(0.065 * t^1.18).
  * - Continuous 3-phase state machine: BETTING (8s) -> RUNNING (dynamic) -> CRASHED (4s).
  * - Live manual 1-click Cash Out + authoritative server-side Auto-Cashout.
@@ -119,18 +119,18 @@ class CrashEngine extends EventEmitter {
   }
 
   /**
-   * Generates a cryptographically fair crash multiplier with a 3% house edge (0.97 RTP).
-   * - 3% chance of instant crash at 1.00x
-   * - Otherwise M = floor((0.97 / (1 - u)) * 100) / 100, capped at 1000.00x
+   * Generates a cryptographically fair crash multiplier with a 2% house edge (0.98 RTP).
+   * - 2% chance of instant crash at 1.00x
+   * - Otherwise M = floor((0.98 / (1 - u)) * 100) / 100, capped at 1000.00x
    * @returns {number}
    */
   generateCrashPoint() {
     const randInt = crypto.randomInt(0, 1000000);
     const u = randInt / 1000000;
-    if (u < 0.03) {
+    if (u < 0.02) {
       return 1.00;
     }
-    const raw = 0.97 / (1 - u);
+    const raw = 0.98 / (1 - u);
     const mult = Math.floor(raw * 100) / 100;
     return Math.min(MAX_MULTIPLIER, Math.max(1.01, mult));
   }

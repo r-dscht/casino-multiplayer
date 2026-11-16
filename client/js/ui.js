@@ -1344,11 +1344,6 @@
           MINES_BET: ['SHARED INZET', 'phase-betting'],
           MINES_PLAY: ['KLUIS LIVE', 'phase-player-turns'],
           MINES_REVEAL: ['KLUIS ONTHULD', 'phase-payout'],
-          BLITZ_WAIT: ['BLITZ WACHT', 'phase-waiting'],
-          BLITZ_BET: ['BLITZ INZETTEN', 'phase-betting'],
-          BLITZ_DECISION: ['BLITZ KEUZE', 'phase-player-turns'],
-          BLITZ_REVEAL: ['KAART DRAAIT', 'phase-spinning'],
-          BLITZ_SETTLED: ['BLITZ UITSLAG', 'phase-payout'],
           READY: ['ACTIEF', 'phase-betting']
         };
         const mapped = phaseMap[phase];

@@ -920,7 +920,17 @@ class BankManager {
   processWinRepayment(borrowerPlayerId, netWin) {
     if (!netWin || netWin <= 0) return [];
 
-    const borrower = this.playerManager.getPlayerById(borrowerPlayerId);
+    let borrower = this.playerManager.getPlayerById(borrowerPlayerId);
+    let borrowerIsOfflineAccount = false;
+    if (!borrower && this.playerManager.accounts && typeof this.playerManager.accounts.values === 'function') {
+      for (const acc of this.playerManager.accounts.values()) {
+        if (acc && acc.id === borrowerPlayerId) {
+          borrower = acc;
+          borrowerIsOfflineAccount = true;
+          break;
+        }
+      }
+    }
     if (!borrower) return [];
 
     const activeLoans = Array.from(this.loans.values())
@@ -944,8 +954,14 @@ class BankManager {
       const deduction = Math.min(remaining, Math.max(1, Math.floor(netWin * (loan.winDeductionPct / 100))));
       if (deduction <= 0) continue;
 
-      if (borrower.chips >= deduction) {
-        this.playerManager.deductChips(borrowerPlayerId, deduction);
+      if ((borrower.chips || 0) >= deduction) {
+        if (borrowerIsOfflineAccount) {
+          borrower.chips -= deduction;
+          if (typeof this.playerManager.scheduleSave === 'function') this.playerManager.scheduleSave();
+          if (typeof this.playerManager.saveAccounts === 'function') this.playerManager.saveAccounts();
+        } else {
+          this.playerManager.deductChips(borrowerPlayerId, deduction);
+        }
 
         let lender = this.playerManager.getPlayerById(loan.lenderId);
         if (!lender && loan.lenderKey) {

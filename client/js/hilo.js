@@ -1,8 +1,8 @@
 /**
- * @fileoverview Monte Carlo Hi-Lo Prive client controller.
- * Manages Hybrid Solo Ladder & Multiplayer Blitz modes, 3D card flip reveals with
- * slow-mo suspense, canvas particle FX, live Salon player cards, hype cheers,
- * 50% Half-Cashout, free Card Swaps, and personal ladder history.
+ * @fileoverview Monte Carlo Hi-Lo Prive client controller (Solo Ladder).
+ * Manages Solo Ladder mode, 3D card flip reveals with slow-mo suspense,
+ * canvas particle FX, live Zaal player cards, 50% Half-Cashout, free Card Swaps,
+ * and personal ladder history.
  * Zero emojis, zero audio APIs.
  */
 
@@ -42,10 +42,9 @@
       this.network = network;
       this.ui = ui;
 
-      this.mode = 'solo'; // 'solo' | 'blitz'
+      this.mode = 'solo';
       this.feedTab = 'wins'; // 'wins' | 'history'
       this.soloLadder = null;
-      this.blitzState = null;
       this.salonPlayers = [];
       this.recentWins = [];
       this.personalHistory = [];
@@ -147,25 +146,6 @@
       this.network.hiloStart(bet);
     }
 
-    _startBlitzFromInput() {
-      if (!this._ensureReadyForAction('mee te doen aan Hi-Lo Blitz', () => this._startBlitzFromInput())) return;
-      const rawVal = this.el?.betInput?.value;
-      const bet = Math.floor(Number(rawVal !== undefined && rawVal !== '' ? rawVal : 100));
-      if (!Number.isFinite(bet) || bet < 10 || bet > 50000) {
-        if (this.ui && typeof this.ui.showToast === 'function') {
-          this.ui.showToast('Inzet moet tussen 10 en 50.000 fiches liggen.', 'error');
-        }
-        return;
-      }
-      if (this.ui?.myPlayer?.id && typeof this.ui.myPlayer.chips === 'number' && this.ui.myPlayer.chips < bet) {
-        if (this.ui && typeof this.ui.showToast === 'function') {
-          this.ui.showToast('Onvoldoende fiches voor deze Blitz inzet.', 'error');
-        }
-        return;
-      }
-      this.network.hiloBlitzJoin(bet);
-    }
-
     init() {
       this.cacheElements();
       if (!this.el.view) return;
@@ -177,9 +157,6 @@
     cacheElements() {
       this.el = {
         view: document.getElementById('hilo-view'),
-        modeSoloBtn: document.getElementById('btn-hilo-mode-solo'),
-        modeBlitzBtn: document.getElementById('btn-hilo-mode-blitz'),
-        blitzDot: document.getElementById('hilo-blitz-dot'),
         tierPill: document.getElementById('hilo-tier-pill'),
         tierLabel: document.getElementById('hilo-tier-label'),
         streakCount: document.getElementById('hilo-streak-count'),
@@ -187,15 +164,6 @@
         potValue: document.getElementById('hilo-pot-value'),
 
         cardTrail: document.getElementById('hilo-card-trail'),
-        blitzBanner: document.getElementById('hilo-blitz-banner'),
-        blitzRound: document.getElementById('hilo-blitz-round'),
-        blitzPhase: document.getElementById('hilo-blitz-phase'),
-        blitzCountdown: document.getElementById('hilo-blitz-countdown'),
-        blitzSurvivors: document.getElementById('hilo-blitz-survivors'),
-        crowdHigher: document.getElementById('hilo-crowd-higher'),
-        crowdEqual: document.getElementById('hilo-crowd-equal'),
-        crowdLower: document.getElementById('hilo-crowd-lower'),
-        crowdPcts: document.getElementById('hilo-crowd-pcts'),
 
         stage: document.getElementById('hilo-stage'),
         fxCanvas: document.getElementById('hilo-fx-canvas'),
@@ -227,8 +195,6 @@
         entryControls: document.getElementById('hilo-entry-controls'),
         betInput: document.getElementById('hilo-bet-input'),
         startBtn: document.getElementById('btn-hilo-start'),
-        blitzJoinBtn: document.getElementById('btn-hilo-blitz-join'),
-        blitzCancelBtn: document.getElementById('btn-hilo-blitz-cancel'),
 
         activeControls: document.getElementById('hilo-active-controls'),
         higherBtn: document.getElementById('btn-hilo-higher'),
@@ -258,13 +224,6 @@
     }
 
     bindUiEvents() {
-      if (this.el.modeSoloBtn) {
-        this.el.modeSoloBtn.addEventListener('click', () => this.switchMode('solo'));
-      }
-      if (this.el.modeBlitzBtn) {
-        this.el.modeBlitzBtn.addEventListener('click', () => this.switchMode('blitz'));
-      }
-
       document.querySelectorAll('#hilo-view [data-hilo-bet]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const val = parseInt(btn.getAttribute('data-hilo-bet'), 10);
@@ -292,19 +251,6 @@
         });
       }
 
-      if (this.el.blitzJoinBtn) {
-        this.el.blitzJoinBtn.addEventListener('click', () => {
-          this._startBlitzFromInput();
-        });
-      }
-
-      if (this.el.blitzCancelBtn) {
-        this.el.blitzCancelBtn.addEventListener('click', () => {
-          if (!this._ensureReadyForAction('Blitz te annuleren')) return;
-          this.network.hiloBlitzCancel();
-        });
-      }
-
       if (this.el.higherBtn) {
         this.el.higherBtn.addEventListener('click', () => this.submitPrediction('HIGHER'));
       }
@@ -317,7 +263,7 @@
 
       if (this.el.skipBtn) {
         this.el.skipBtn.addEventListener('click', () => {
-          if (this.isRevealing || this.mode !== 'solo') return;
+          if (this.isRevealing) return;
           if (!this._ensureReadyForAction('een kaart te wisselen')) return;
           this.network.hiloSkip();
         });
@@ -325,7 +271,7 @@
 
       if (this.el.halfCashoutBtn) {
         this.el.halfCashoutBtn.addEventListener('click', () => {
-          if (this.isRevealing || this.mode !== 'solo') return;
+          if (this.isRevealing) return;
           if (!this._ensureReadyForAction('50% uit te cashen')) return;
           this.network.hiloHalfCashout();
         });
@@ -335,11 +281,7 @@
         this.el.cashoutBtn.addEventListener('click', () => {
           if (this.isRevealing) return;
           if (!this._ensureReadyForAction('uit te betalen')) return;
-          if (this.mode === 'blitz') {
-            this.network.hiloBlitzAction('CASHOUT');
-          } else {
-            this.network.hiloCashout();
-          }
+          this.network.hiloCashout();
         });
       }
 
@@ -348,15 +290,6 @@
       }
       if (this.el.tabHistory) {
         this.el.tabHistory.addEventListener('click', () => this.switchFeedTab('history'));
-      }
-
-      if (this.el.salonList) {
-        this.el.salonList.addEventListener('click', (e) => {
-          const btn = e.target.closest('[data-cheer-target]');
-          if (!btn) return;
-          const targetId = btn.getAttribute('data-cheer-target');
-          if (targetId) this.network.hiloCheer(targetId);
-        });
       }
 
       if (typeof document !== 'undefined') {
@@ -371,7 +304,6 @@
         this.recentWins = Array.isArray(data.recentWins) ? data.recentWins : [];
         this.personalHistory = Array.isArray(data.personalHistory) ? data.personalHistory : [];
         if ('soloLadder' in data) this.soloLadder = data.soloLadder;
-        if (data.blitz) this.blitzState = data.blitz;
         this._revealLockedCard = null;
         this.isRevealing = false;
         this._resetFlipCardVisual();
@@ -384,24 +316,8 @@
         if (!data) return;
         if (Array.isArray(data.players)) this.salonPlayers = data.players;
         if (Array.isArray(data.recentWins)) this.recentWins = data.recentWins;
-        if (data.blitz) this._mergePublicBlitz(data.blitz);
         this.renderSalonList();
         this.renderFeedPanels();
-        if (this.mode === 'blitz' && !this.isRevealing) this.renderControlsAndStage();
-      });
-
-      this.network.on('hilo_cheered', (data) => {
-        if (!data) return;
-        if (this._isActiveView && data.targetId === this.ui?.myPlayer?.id) {
-          this.ui.showToast(`${data.fromName} juicht voor je in Hi-Lo!`, 'success');
-          this._spawnParticles('gold', 14);
-        }
-      });
-
-      this.network.on('hilo_cheer_rejected', (data) => {
-        if (this._isActiveView && data?.reason) {
-          this.ui.showToast(data.reason, 'info');
-        }
       });
 
       this.network.on('hilo_rejected', (data) => {
@@ -542,151 +458,6 @@
         this._syncNavLock();
         this._syncTopPhase();
       });
-
-      // Multiplayer Blitz Listeners
-      this.network.on('hilo_blitz_tick', (tick) => {
-        if (!tick) return;
-        if (!this.blitzState) this.blitzState = {};
-        this.blitzState.phase = tick.phase;
-        this.blitzState.timerSeconds = tick.timerSeconds;
-        this.renderBlitzStatus();
-        this._syncTopPhase();
-      });
-
-      this.network.on('hilo_blitz_state', (state) => {
-        if (!state) return;
-        this._mergePublicBlitz(state);
-        if (!this.isRevealing) {
-          this.render();
-        } else {
-          this.renderBlitzStatus();
-        }
-        this._syncNavLock();
-        this._syncTopPhase();
-      });
-
-      this.network.on('hilo_blitz_joined', (res) => {
-        if (!res) return;
-        this.mode = 'blitz';
-        if (res.blitz) this.blitzState = res.blitz;
-        this.ui.showToast('Ingeschreven voor Hi-Lo Blitz!', 'success');
-        this.render();
-        this._syncNavLock();
-        this._syncTopPhase();
-      });
-
-      this.network.on('hilo_blitz_cancelled', (res) => {
-        if (!res) return;
-        if (res.blitz) this.blitzState = res.blitz;
-        this.ui.showToast(`Blitz inzet (${formatChips(res.refunded)} F) geannuleerd.`, 'info');
-        this.render();
-        this._syncNavLock();
-        this._syncTopPhase();
-      });
-
-      this.network.on('hilo_blitz_action_ack', (res) => {
-        if (!res) return;
-        if (res.blitz) this.blitzState = res.blitz;
-        this.renderControlsAndStage();
-        this._syncNavLock();
-      });
-
-      this.network.on('hilo_blitz_reveal', (reveal) => {
-        if (!reveal) return;
-        const previousCard = reveal.previousCard || this._revealLockedCard || this._lastDisplayedCard || this.blitzState?.currentCard || null;
-        if (reveal.blitz) this._mergePublicBlitz(reveal.blitz);
-        const myId = this.ui?.myPlayer?.id;
-        const winners = Array.isArray(reveal.winners) ? reveal.winners : [];
-        const busted = Array.isArray(reveal.busted) ? reveal.busted : [];
-        const didWin = winners.some((w) => w.playerId === myId);
-        const didBust = busted.some((b) => b.playerId === myId);
-        const didParticipate = didWin || didBust;
-        const multiplier = didWin
-          ? ((winners.find((w) => w.playerId === myId) || {}).multiplier || 1)
-          : 0;
-        const resPayload = {
-          won: didWin || (!didBust && winners.length > 0),
-          previousCard,
-          nextCard: reveal.nextCard,
-          multiplier,
-          newPot: didWin ? ((winners.find((w) => w.playerId === myId) || {}).newPot || 0) : 0,
-          slowMo: Boolean(reveal.slowMo),
-          isBlitz: true,
-          didBust,
-          didParticipate
-        };
-        if (this.mode === 'blitz') {
-          this._playCardReveal(resPayload, () => {
-            this.render();
-            if (!didBust && (reveal.winners || []).length > 0) this._triggerPromoteAnim();
-            this._syncNavLock();
-            this._syncTopPhase();
-          });
-        } else {
-          this.renderBlitzStatus();
-        }
-      });
-
-      this.network.on('hilo_blitz_settlement', (s) => {
-        if (!s) return;
-        if (typeof s.newChips === 'number' && this.ui?.myPlayer) {
-          this.ui.myPlayer.chips = s.newChips;
-          this.ui.updatePlayerHUD();
-        }
-        if (this.blitzState && this.blitzState.viewerEntry && s.playerId === this.ui?.myPlayer?.id) {
-          this.blitzState.viewerEntry.status = s.outcome;
-        }
-        this.personalHistory.unshift({
-          mode: 'BLITZ',
-          initialBet: s.initialBet,
-          payout: s.payout,
-          netProfit: s.netProfit,
-          maxStreak: s.streak,
-          outcome: s.outcome,
-          timestamp: Date.now()
-        });
-        if (this.personalHistory.length > 25) this.personalHistory.length = 25;
-
-        if (this.mode === 'blitz' || this._isActiveView) {
-          this._spawnParticles('gold', 28);
-          this.ui.showToast(`Blitz uitbetaling: +${formatChips(s.payout)} fiches (${s.streak}x)!`, 'success');
-        }
-        if (!this.isRevealing) {
-          this.render();
-          this._syncNavLock();
-          this._syncTopPhase();
-        }
-      });
-
-      this.network.on('hilo_blitz_finished', (data) => {
-        if (data?.blitz) this._mergePublicBlitz(data.blitz);
-        if (!this.isRevealing) {
-          this.render();
-          this._syncNavLock();
-          this._syncTopPhase();
-        }
-      });
-    }
-
-    /** Preserves the player's own viewerEntry while applying public Blitz updates. */
-    _mergePublicBlitz(publicBlitz) {
-      if (!publicBlitz) return;
-      const myId = this.ui?.myPlayer?.id;
-      let viewerEntry = publicBlitz.viewerEntry || null;
-      if (!viewerEntry && myId && Array.isArray(publicBlitz.participants)) {
-        const prev = this.blitzState?.viewerEntry;
-        const pEntry = publicBlitz.participants.find((p) => p.playerId === myId);
-        if (pEntry) {
-          viewerEntry = {
-            ...pEntry,
-            choice: prev && prev.playerId === myId && pEntry.hasChoice ? prev.choice : null
-          };
-        }
-      }
-      this.blitzState = {
-        ...publicBlitz,
-        viewerEntry
-      };
     }
 
     onViewActivated() {
@@ -701,23 +472,7 @@
     }
 
     hasActiveBets() {
-      if (this.soloLadder && this.soloLadder.status === 'ACTIVE') return true;
-      const ve = this.blitzState?.viewerEntry;
-      const phase = this.blitzState?.phase;
-      if (ve && ve.status === 'ALIVE' && ['BETTING', 'DECISION', 'REVEALING'].includes(phase)) {
-        return true;
-      }
-      return false;
-    }
-
-    switchMode(newMode) {
-      if (newMode !== 'solo' && newMode !== 'blitz') return;
-      this.mode = newMode;
-      this._revealLockedCard = null;
-      this.isRevealing = false;
-      this._resetFlipCardVisual();
-      this.render();
-      this._syncTopPhase();
+      return Boolean(this.soloLadder && this.soloLadder.status === 'ACTIVE');
     }
 
     switchFeedTab(tab) {
@@ -731,27 +486,21 @@
     submitPrediction(prediction) {
       if (this.isRevealing) return;
       if (!this._ensureReadyForAction('een kaartkeuze te maken')) return;
-      if (this.mode === 'blitz') {
-        const ve = this.blitzState?.viewerEntry;
-        if (!ve || ve.status !== 'ALIVE' || this.blitzState?.phase !== 'DECISION') return;
-        this.network.hiloBlitzAction(prediction);
-      } else {
-        if (!this.soloLadder) return;
-        this.isRevealing = true;
-        this.renderControlsAndStage();
-        this._clearGuessTimeout();
-        this._guessTimeout = setTimeout(() => {
-          this._guessTimeout = null;
-          if (this.isRevealing && !this._revealLockedCard) {
-            this.isRevealing = false;
-            this.renderControlsAndStage();
-            if (this.ui && typeof this.ui.showToast === 'function') {
-              this.ui.showToast('Geen reactie van server. Probeer je keuze opnieuw.', 'error');
-            }
+      if (!this.soloLadder) return;
+      this.isRevealing = true;
+      this.renderControlsAndStage();
+      this._clearGuessTimeout();
+      this._guessTimeout = setTimeout(() => {
+        this._guessTimeout = null;
+        if (this.isRevealing && !this._revealLockedCard) {
+          this.isRevealing = false;
+          this.renderControlsAndStage();
+          if (this.ui && typeof this.ui.showToast === 'function') {
+            this.ui.showToast('Geen reactie van server. Probeer je keuze opnieuw.', 'error');
           }
-        }, 4500);
-        this.network.hiloGuess(prediction);
-      }
+        }
+      }, 4500);
+      this.network.hiloGuess(prediction);
     }
 
     handleKeyDown(e) {
@@ -769,16 +518,12 @@
       } else if (key === 'l' || e.key === 'ArrowDown') {
         e.preventDefault();
         this.submitPrediction('LOWER');
-      } else if (key === 's' && this.mode === 'solo' && this.soloLadder && this.soloLadder.skipsRemaining > 0) {
+      } else if (key === 's' && this.soloLadder && this.soloLadder.skipsRemaining > 0) {
         e.preventDefault();
         this.network.hiloSkip();
-      } else if (key === 'c') {
+      } else if (key === 'c' && this.soloLadder) {
         e.preventDefault();
-        if (this.mode === 'solo' && this.soloLadder) {
-          this.network.hiloCashout();
-        } else if (this.mode === 'blitz' && this.blitzState?.viewerEntry?.streak >= 1) {
-          this.network.hiloBlitzAction('CASHOUT');
-        }
+        this.network.hiloCashout();
       }
     }
 
@@ -790,15 +535,7 @@
 
     _syncTopPhase() {
       if (!this._isActiveView || !this.ui || typeof this.ui.updatePhase !== 'function') return;
-      if (this.mode === 'blitz' && this.blitzState) {
-        const p = this.blitzState.phase;
-        const sec = this.blitzState.timerSeconds || 0;
-        if (p === 'BETTING') this.ui.updatePhase('BLITZ_BET', 8, sec);
-        else if (p === 'DECISION') this.ui.updatePhase('BLITZ_DECISION', 8, sec);
-        else if (p === 'REVEALING') this.ui.updatePhase('BLITZ_REVEAL', 3, sec);
-        else if (p === 'SETTLED') this.ui.updatePhase('BLITZ_SETTLED', 5, sec);
-        else this.ui.updatePhase('BLITZ_WAIT', 0, 'OPEN');
-      } else if (this.soloLadder) {
+      if (this.soloLadder) {
         this.ui.updatePhase('HILO_ACTIVE', 0, `${this.soloLadder.streak}x`);
       } else {
         this.ui.updatePhase('HILO_READY', 0, 'SOLO');
@@ -807,13 +544,6 @@
 
     render() {
       if (!this.el.view) return;
-      if (this.el.modeSoloBtn) this.el.modeSoloBtn.classList.toggle('active', this.mode === 'solo');
-      if (this.el.modeBlitzBtn) this.el.modeBlitzBtn.classList.toggle('active', this.mode === 'blitz');
-
-      const blitzActive =
-        this.blitzState && ['BETTING', 'DECISION', 'REVEALING'].includes(this.blitzState.phase);
-      if (this.el.blitzDot) this.el.blitzDot.classList.toggle('live', Boolean(blitzActive));
-
       this.renderHeaderMetrics();
       this.renderTopStrip();
       this.renderControlsAndStage();
@@ -822,26 +552,13 @@
     }
 
     renderHeaderMetrics() {
-      const activeData =
-        this.mode === 'blitz'
-          ? (this.blitzState?.viewerEntry && this.blitzState.viewerEntry.status === 'ALIVE'
-              ? {
-                  streak: this.blitzState.viewerEntry.streak,
-                  pot: this.blitzState.viewerEntry.pot,
-                  shoeRemaining: this.blitzState.shoeRemaining ?? 52
-                }
-              : {
-                  streak: 0,
-                  pot: 0,
-                  shoeRemaining: this.blitzState?.shoeRemaining ?? 52
-                })
-          : this.soloLadder
-          ? {
-              streak: this.soloLadder.streak,
-              pot: this.soloLadder.pot,
-              shoeRemaining: this.soloLadder.shoeRemaining
-            }
-          : { streak: 0, pot: 0, shoeRemaining: 52 };
+      const activeData = this.soloLadder
+        ? {
+            streak: this.soloLadder.streak,
+            pot: this.soloLadder.pot,
+            shoeRemaining: this.soloLadder.shoeRemaining
+          }
+        : { streak: 0, pot: 0, shoeRemaining: 52 };
 
       const streak = activeData.streak || 0;
       let tierKey = 'tier-start';
@@ -877,19 +594,10 @@
     }
 
     renderTopStrip() {
-      const showBlitz = this.mode === 'blitz';
-      if (this.el.cardTrail) this.el.cardTrail.classList.toggle('hidden', showBlitz);
-      if (this.el.blitzBanner) this.el.blitzBanner.classList.toggle('hidden', !showBlitz);
-
-      if (showBlitz) {
-        this.renderBlitzStatus();
-        return;
-      }
-
       if (!this.el.cardTrail) return;
       const trail = this.soloLadder?.cardTrail || [];
       if (trail.length === 0) {
-        this.el.cardTrail.innerHTML = '<span class="hilo-trail-empty">Start een Solo Ladder of schakel over naar Multiplayer Blitz...</span>';
+        this.el.cardTrail.innerHTML = '<span class="hilo-trail-empty">Start een Solo Ladder om kaartgeschiedenis te zien...</span>';
         return;
       }
       this.el.cardTrail.innerHTML = trail
@@ -902,101 +610,35 @@
         .join('');
     }
 
-    renderBlitzStatus() {
-      const b = this.blitzState;
-      if (!b) return;
-      if (this.el.blitzRound) this.el.blitzRound.textContent = `BLITZ #${b.roundId || 0}`;
-      const phaseNames = {
-        WAITING_FOR_PLAYERS: 'WACHT OP EERSTE INZET',
-        BETTING: 'INSCHRIJVEN OPEN',
-        DECISION: `KAART ${b.cardIndex || 1}/${b.maxCards || 8} • KIES`,
-        REVEALING: 'KAART DRAAIT...',
-        SETTLED: 'RONDE AFGEROND'
-      };
-      if (this.el.blitzPhase) {
-        this.el.blitzPhase.textContent = phaseNames[b.phase] || b.phase;
-      }
-      if (this.el.blitzCountdown) {
-        this.el.blitzCountdown.textContent = b.timerSeconds > 0 ? `${b.timerSeconds}s` : '--';
-      }
-      if (this.el.blitzSurvivors) {
-        this.el.blitzSurvivors.textContent = `${b.aliveCount || 0} actief`;
-      }
-      const cv = b.crowdVotes || { higher: 0, equal: 0, lower: 0 };
-      if (this.el.crowdHigher) this.el.crowdHigher.style.width = `${cv.higher}%`;
-      if (this.el.crowdEqual) this.el.crowdEqual.style.width = `${cv.equal}%`;
-      if (this.el.crowdLower) this.el.crowdLower.style.width = `${cv.lower}%`;
-      if (this.el.crowdPcts) {
-        this.el.crowdPcts.textContent = `${cv.higher}% / ${cv.equal}% / ${cv.lower}%`;
-      }
-    }
-
     renderControlsAndStage() {
       let cardToDisplay = { rank: 'K', suit: 'spades', value: 13 };
-      let odds = null;
-      let pot = 0;
+      const l = this.soloLadder;
+      if (l && l.currentCard) cardToDisplay = l.currentCard;
+      const odds = l ? l.odds : null;
+      const pot = l ? l.pot : 0;
 
-      if (this.mode === 'blitz') {
-        const b = this.blitzState;
-        if (b && b.currentCard) cardToDisplay = b.currentCard;
-        odds = b ? b.odds : null;
-        const ve = b?.viewerEntry;
-        pot = ve && ve.status === 'ALIVE' ? ve.pot : 0;
+      const isActive = Boolean(l && l.status === 'ACTIVE');
+      if (this.el.entryControls) this.el.entryControls.classList.toggle('hidden', isActive);
+      if (this.el.activeControls) this.el.activeControls.classList.toggle('hidden', !isActive);
 
-        const isDecision = Boolean(b && b.phase === 'DECISION' && ve && ve.status === 'ALIVE');
-        const showEntry = !isDecision;
-        if (this.el.entryControls) this.el.entryControls.classList.toggle('hidden', !showEntry);
-        if (this.el.activeControls) this.el.activeControls.classList.toggle('hidden', !isDecision);
+      if (this.el.startBtn) this.el.startBtn.classList.remove('hidden');
 
-        if (this.el.startBtn) this.el.startBtn.classList.add('hidden');
-        const canJoin = Boolean(!ve && (!b || b.phase === 'WAITING_FOR_PLAYERS' || b.phase === 'BETTING'));
-        const canCancel = Boolean(ve && b && b.phase === 'BETTING');
-        if (this.el.blitzJoinBtn) {
-          this.el.blitzJoinBtn.classList.toggle('hidden', !showEntry);
-          this.el.blitzJoinBtn.disabled = !canJoin;
+      if (this.el.skipBtn) {
+        this.el.skipBtn.classList.remove('hidden');
+        const skipsLeft = l ? l.skipsRemaining : 2;
+        this.el.skipBtn.disabled = !isActive || skipsLeft <= 0 || this.isRevealing;
+        if (this.el.skipCount) this.el.skipCount.textContent = `${skipsLeft}/2`;
+      }
+      if (this.el.halfCashoutBtn) {
+        this.el.halfCashoutBtn.classList.remove('hidden');
+        this.el.halfCashoutBtn.disabled = !isActive || !l || !l.canHalfCashout || this.isRevealing;
+        if (this.el.halfAmount) {
+          this.el.halfAmount.textContent = l && l.canHalfCashout ? `+${formatChips(l.halfCashoutPreview)}` : '+0';
         }
-        if (this.el.blitzCancelBtn) {
-          this.el.blitzCancelBtn.classList.toggle('hidden', !canCancel);
-        }
-
-        if (this.el.skipBtn) this.el.skipBtn.classList.add('hidden');
-        if (this.el.halfCashoutBtn) this.el.halfCashoutBtn.classList.add('hidden');
-        if (this.el.cashoutBtn) {
-          const canBlitzCash = isDecision && ve && ve.streak >= 1;
-          this.el.cashoutBtn.disabled = !canBlitzCash || this.isRevealing;
-          if (this.el.currentPayout) this.el.currentPayout.textContent = formatChips(pot);
-        }
-      } else {
-        const l = this.soloLadder;
-        if (l && l.currentCard) cardToDisplay = l.currentCard;
-        odds = l ? l.odds : null;
-        pot = l ? l.pot : 0;
-
-        const isActive = Boolean(l && l.status === 'ACTIVE');
-        if (this.el.entryControls) this.el.entryControls.classList.toggle('hidden', isActive);
-        if (this.el.activeControls) this.el.activeControls.classList.toggle('hidden', !isActive);
-
-        if (this.el.startBtn) this.el.startBtn.classList.remove('hidden');
-        if (this.el.blitzJoinBtn) this.el.blitzJoinBtn.classList.add('hidden');
-        if (this.el.blitzCancelBtn) this.el.blitzCancelBtn.classList.add('hidden');
-
-        if (this.el.skipBtn) {
-          this.el.skipBtn.classList.remove('hidden');
-          const skipsLeft = l ? l.skipsRemaining : 2;
-          this.el.skipBtn.disabled = !isActive || skipsLeft <= 0 || this.isRevealing;
-          if (this.el.skipCount) this.el.skipCount.textContent = `${skipsLeft}/2`;
-        }
-        if (this.el.halfCashoutBtn) {
-          this.el.halfCashoutBtn.classList.remove('hidden');
-          this.el.halfCashoutBtn.disabled = !isActive || !l || !l.canHalfCashout || this.isRevealing;
-          if (this.el.halfAmount) {
-            this.el.halfAmount.textContent = l && l.canHalfCashout ? `+${formatChips(l.halfCashoutPreview)}` : '+0';
-          }
-        }
-        if (this.el.cashoutBtn) {
-          this.el.cashoutBtn.disabled = !isActive || this.isRevealing;
-          if (this.el.currentPayout) this.el.currentPayout.textContent = formatChips(pot);
-        }
+      }
+      if (this.el.cashoutBtn) {
+        this.el.cashoutBtn.disabled = !isActive || this.isRevealing;
+        if (this.el.currentPayout) this.el.currentPayout.textContent = formatChips(pot);
       }
 
       if (this.isRevealing && this._revealLockedCard) {
@@ -1041,12 +683,9 @@
       if (this.el.probEqualBar) this.el.probEqualBar.style.width = `${e.pct}%`;
       if (this.el.probLowerBar) this.el.probLowerBar.style.width = `${l.pct}%`;
 
-      const selectedBlitzChoice =
-        this.mode === 'blitz' && this.blitzState?.viewerEntry ? this.blitzState.viewerEntry.choice : null;
-
-      this._bindDirBtn(this.el.higherBtn, this.el.higherOdds, this.el.higherPayout, h, pot, selectedBlitzChoice === 'HIGHER');
-      this._bindDirBtn(this.el.equalBtn, this.el.equalOdds, this.el.equalPayout, e, pot, selectedBlitzChoice === 'EQUAL');
-      this._bindDirBtn(this.el.lowerBtn, this.el.lowerOdds, this.el.lowerPayout, l, pot, selectedBlitzChoice === 'LOWER');
+      this._bindDirBtn(this.el.higherBtn, this.el.higherOdds, this.el.higherPayout, h, pot, false);
+      this._bindDirBtn(this.el.equalBtn, this.el.equalOdds, this.el.equalPayout, e, pot, false);
+      this._bindDirBtn(this.el.lowerBtn, this.el.lowerOdds, this.el.lowerPayout, l, pot, false);
     }
 
     _bindDirBtn(btn, oddsEl, payoutEl, dirOdds, pot, isSelected) {
@@ -1085,10 +724,7 @@
           const cardHtml = p.currentCard
             ? `<span class="hilo-mini-card${isRedSuit(p.currentCard.suit) ? ' is-red' : ''}">${escapeHtml(p.currentCard.rank)}<svg viewBox="0 0 24 24"><use href="${SUIT_SYMBOL_MAP[p.currentCard.suit] || '#suit-spade'}"></use></svg></span>`
             : '';
-          const modeLabel = p.activeBlitz ? 'BLITZ' : p.activeSolo ? 'SOLO' : 'KIJKT';
-          const cheerBtn = isSelf
-            ? `<span class="hilo-count-pill">${p.cheers || 0} juich</span>`
-            : `<button type="button" class="btn-hilo-cheer" data-cheer-target="${escapeHtml(p.id)}">JUICH (${p.cheers || 0})</button>`;
+          const modeLabel = p.activeSolo ? 'SOLO' : 'KIJKT';
           return `
             <div class="hilo-salon-card">
               <div class="hilo-salon-player">
@@ -1100,7 +736,6 @@
               </div>
               <div class="hilo-salon-actions">
                 ${cardHtml}
-                ${cheerBtn}
               </div>
             </div>`;
         })
@@ -1126,7 +761,7 @@
 
       if (this.el.feedHistory) {
         if (!this.personalHistory || this.personalHistory.length === 0) {
-          this.el.feedHistory.innerHTML = '<div class="hilo-empty-note">Speel een Solo Ladder of Blitz voor jouw historiek.</div>';
+          this.el.feedHistory.innerHTML = '<div class="hilo-empty-note">Speel een Solo Ladder voor jouw historiek.</div>';
         } else {
           this.el.feedHistory.innerHTML = this.personalHistory
             .map((h) => {
@@ -1180,7 +815,7 @@
     _playCardReveal(res, onDone) {
       const fallbackCard =
         this._lastDisplayedCard ||
-        (this.mode === 'blitz' ? this.blitzState?.currentCard : this.soloLadder?.currentCard) ||
+        this.soloLadder?.currentCard ||
         null;
       const lockedPreviousCard = res.previousCard || fallbackCard;
 
@@ -1223,12 +858,11 @@
           if (isWin) {
             const winBanner = res.multiplier
               ? `GOED! ${res.multiplier.toFixed(2)}x`
-              : (res.isBlitz && !res.didParticipate ? 'TAFEL DOOR!' : 'GOED! WINST');
+              : 'GOED! WINST';
             this._showBanner(winBanner, 'win');
             this._spawnParticles(slowMo ? 'gold' : 'emerald', slowMo ? 32 : 18);
           } else {
-            const lossBanner = res.isBlitz && !res.didParticipate ? 'TAFEL MIS!' : 'MIS! REEKS VOORBIJ';
-            this._showBanner(lossBanner, 'loss');
+            this._showBanner('MIS! REEKS VOORBIJ', 'loss');
             this._spawnParticles('crimson', 16);
           }
 

@@ -2,7 +2,7 @@
  * bugFixesRegression.test.js
  * Regression test suite verifying all 7 bug fixes:
  *  1. Blackjack BETTING lock parity, bj_bet_placed lock, & navigation_blocked UI revert
- *  2. Hi-Lo Blitz spectator loss banner when table busts (never false win)
+ *  2. Mines Cash Out queues cleanly during in-flight tile clicks & clears pending locks on disconnect
  *  3. game_switched / view-switch deactivates Hi-Lo and Poker controllers
  *  4. Poker bankManager.processWinRepayment settlement on cashout / disconnect
  *  5. Poker live HUD top phase bar & timer sync + Poker phaseMap entries in ui.js
@@ -73,75 +73,100 @@ describe('Bug Fixes Regression Suite', () => {
     });
   });
 
-  describe('2. Hi-Lo Blitz Spectator Reveal Logic', () => {
-    it('shows loss banner to spectator when Blitz players bust and win banner to winners', () => {
+  describe('2. Mines Cash Out Queuing & Pending Lock Recovery', () => {
+    it('queues Solo Cash Out during in-flight tile click, auto-executes on result, and resets on disconnect', () => {
+      const CasinoMines = require('../../client/js/mines');
       const listeners = {};
+      let cashoutCalls = 0;
+      let clickCalls = 0;
+
       const mockNetwork = {
+        isConnected: true,
+        isAuthenticated: true,
         on: (ev, cb) => { listeners[ev] = cb; },
-        emit: () => {},
-        hiloJoin: () => {},
-        hiloAction: () => {}
+        minesJoin: () => {},
+        minesSoloClick: () => { clickCalls += 1; },
+        minesSoloCashout: () => { cashoutCalls += 1; }
       };
       const mockUi = {
-        myPlayer: { id: 'p_spec', name: 'Toeschouwer', chips: 5000 },
+        myPlayer: { id: 'p_mines', name: 'VaultRunner', chips: 5000 },
         updatePhase: () => {},
-        updateTimer: () => {},
         updatePlayerHUD: () => {},
         setNavigationLocked: () => {},
         showToast: () => {}
       };
 
-      const hilo = new CasinoHilo({ network: mockNetwork, ui: mockUi });
-      hilo.mode = 'blitz';
-      hilo.el = {};
+      let clickHandler = null;
+      const fakeBtnCashout = {
+        classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+        addEventListener: (ev, fn) => { if (ev === 'click') clickHandler = fn; }
+      };
+      global.document = {
+        getElementById: () => null,
+        querySelectorAll: () => []
+      };
+      const mines = new CasinoMines({ network: mockNetwork, ui: mockUi });
+      mines.els = {
+        sizeBtns: [],
+        soloMinePresetBtns: [],
+        sharedMineBtns: [],
+        chipBtns: [],
+        btnCashout: fakeBtnCashout
+      };
+      mines._bindNetworkEvents();
+      mines._bindUIEvents();
+      mines.soloGame = {
+        active: true,
+        status: 'ACTIVE',
+        gridSide: 5,
+        mineCount: 5,
+        bet: 100,
+        revealedDiamonds: [],
+        canCashout: false,
+        currentMultiplier: 1,
+        currentPayout: 100
+      };
 
-      const banners = [];
-      const particleBursts = [];
-      hilo._showBanner = (text, tone) => banners.push({ text, tone });
-      hilo._spawnParticles = (color, count) => particleBursts.push({ color, count });
-      hilo._resetFlipCardVisual = () => {};
-      hilo._playFlipReset = () => {};
-      hilo.render = () => {};
-      hilo._triggerPromoteAnim = () => {};
-      hilo._syncNavLock = () => {};
-      hilo._syncTopPhase = () => {};
+      // Simulate rapid tile click followed immediately by Cash Out click before server responds
+      mines._handleTileClick(3);
+      assert.equal(clickCalls, 1);
+      assert.equal(mines.pendingAction, true);
+      assert.equal(mines._pendingKind, 'tile');
 
-      // Intercept timeouts briefly so reveal callback executes immediately
-      const origSetTimeout = global.setTimeout;
-      global.setTimeout = (fn) => { fn(); return 0; };
-      try {
-        hilo.bindNetworkEvents();
+      assert.ok(typeof clickHandler === 'function', 'Cash Out button listener registered');
+      clickHandler();
+      assert.equal(mines._queuedCashout, true);
+      assert.equal(cashoutCalls, 0);
 
-        // Case A: Spectator watches all Blitz players bust (winners = [])
-        listeners.hilo_blitz_reveal({
-          previousCard: { rank: '9', suit: 'spades', value: 9 },
-          nextCard: { rank: '2', suit: 'clubs', value: 2 },
-          winners: [],
-          busted: [{ playerId: 'p_other', playerName: 'Speler1' }],
-          blitz: { phase: 'BLITZ_REVEAL', participants: [] }
-        });
+      // Server confirms diamond on tile 3 -> queued Cash Out executes immediately
+      listeners.mines_solo_result({
+        outcome: 'DIAMOND',
+        tileIndex: 3,
+        revealedDiamonds: [{ tileIndex: 3 }],
+        canCashout: true,
+        currentMultiplier: 1.25,
+        currentPayout: 125,
+        newChips: 4900,
+        solo: {
+          status: 'ACTIVE',
+          gridSide: 5,
+          mineCount: 5,
+          bet: 100,
+          revealedDiamonds: [{ tileIndex: 3 }],
+          canCashout: true,
+          currentMultiplier: 1.25,
+          currentPayout: 125
+        }
+      });
+      assert.equal(cashoutCalls, 1);
+      assert.equal(mines._queuedCashout, false);
 
-        assert.equal(banners.length, 1);
-        assert.equal(banners[0].tone, 'loss');
-        assert.equal(banners[0].text, 'TAFEL MIS!');
-        assert.equal(particleBursts[0].color, 'crimson');
-
-        // Case B: Active participant wins -> GOED! <mult> win banner
-        mockUi.myPlayer.id = 'p_winner';
-        listeners.hilo_blitz_reveal({
-          previousCard: { rank: '4', suit: 'hearts', value: 4 },
-          nextCard: { rank: 'K', suit: 'diamonds', value: 13 },
-          winners: [{ playerId: 'p_winner', multiplier: 1.55, newPot: 310 }],
-          busted: [],
-          blitz: { phase: 'BLITZ_REVEAL', participants: [] }
-        });
-
-        assert.equal(banners.length, 2);
-        assert.equal(banners[1].tone, 'win');
-        assert.equal(banners[1].text, 'GOED! 1.55x');
-      } finally {
-        global.setTimeout = origSetTimeout;
-      }
+      // Disconnect clears pendingAction & _queuedCashout cleanly
+      mines._queuedCashout = true;
+      mines.pendingAction = true;
+      listeners.connection_change({ connected: false });
+      assert.equal(mines.pendingAction, false);
+      assert.equal(mines._queuedCashout, false);
     });
   });
 
@@ -496,14 +521,15 @@ describe('Bug Fixes Regression Suite', () => {
     });
   });
 
-  describe('10. 30-Minute Lottery, Refresh Game Persistence & Nav-Lock Stuck Prevention', () => {
-    it('configures 30-minute lottery countdown and restores active tab game across refresh cleanly', () => {
+  describe('10. 10-Minute Lottery, Refresh Game Persistence & Nav-Lock Stuck Prevention', () => {
+    it('configures 10-minute lottery countdown and restores active tab game across refresh cleanly', () => {
       const CasinoLottery = require('../../client/js/lottery');
       const { ROUND_DURATION_MS } = require('../../server/game/lotteryConstants');
-      assert.equal(ROUND_DURATION_MS, 30 * 60 * 1000);
+      assert.equal(ROUND_DURATION_MS, 10 * 60 * 1000);
 
       const ctrl = new CasinoLottery({ network: { on: () => {} }, ui: { myPlayer: { chips: 10000 } } });
-      assert.equal(ctrl.state.secondsRemaining, 1800);
+      assert.equal(ctrl.state.secondsRemaining, 600);
+      if (ctrl._localTickTimer) clearInterval(ctrl._localTickTimer);
 
       const appJs = fs.readFileSync(path.join(clientDir, 'js', 'app.js'), 'utf8');
       assert.ok(appJs.includes("sessionStorage.getItem('casino_active_game')"));

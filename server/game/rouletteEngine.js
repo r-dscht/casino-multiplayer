@@ -146,7 +146,7 @@ class RouletteEngine extends EventEmitter {
       for (const bet of playerBets) {
         totalBet += bet.amount;
         const evaluation = evaluateBet(bet, this.winningNumber);
-        if (evaluation.won) {
+        if (evaluation.won || evaluation.payout > 0) {
           totalWon += evaluation.payout;
           winningBets.push({
             id: bet.id,
@@ -154,7 +154,8 @@ class RouletteEngine extends EventEmitter {
             value: bet.value,
             amount: bet.amount,
             won: evaluation.payout,
-            profit: evaluation.profit
+            profit: evaluation.profit,
+            zeroRebate: Boolean(evaluation.zeroRebate)
           });
         }
       }

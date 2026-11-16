@@ -10,8 +10,8 @@ const TICKET_PRICE = 2500;
 const HOUSE_FEE_RATE = 0; // 100% of ticket revenue goes directly to the winner's pot
 const MIN_PURCHASE_COUNT = 1;
 const MAX_PURCHASE_PER_REQUEST = 10000;
-const ROUND_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-const DRAW_REVEAL_MS = 8000; // 8 seconds live raffle reel showcase
+const ROUND_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+const DRAW_REVEAL_MS = 12000; // 12 seconds dramatic 3-stage raffle reel showcase
 const HISTORY_LIMIT = 20;
 
 const PHASES = Object.freeze({
@@ -93,8 +93,8 @@ function buildRaffleReelEntries(
   winningTicketIdx,
   totalTickets,
   rng = Math.random,
-  slotCount = 48,
-  winnerSlot = 36
+  slotCount = 64,
+  winnerSlot = 52
 ) {
   if (!Array.isArray(ranges) || ranges.length === 0 || totalTickets <= 0 || !winningRange) {
     return [];

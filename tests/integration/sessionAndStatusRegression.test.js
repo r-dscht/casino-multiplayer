@@ -224,8 +224,8 @@ test('Integration: multi-tab sockets stay authenticated and propagate session_re
   const reqLoc = await reqLocPromise;
   assert.equal(reqLoc.code, 'PLAYER_NOT_FOUND');
 
-  const cheerRejPromise = waitForEvent(guestSocket, 'slots_cheer_rejected');
-  guestSocket.emit('slots_cheer', { machineId: 1 });
+  const cheerRejPromise = waitForEvent(guestSocket, 'racing_cheer_rejected');
+  guestSocket.emit('racing_cheer', { horseId: 1 });
   const cheerRej = await cheerRejPromise;
   assert.equal(cheerRej.code, 'PLAYER_NOT_FOUND');
   guestSocket.disconnect();

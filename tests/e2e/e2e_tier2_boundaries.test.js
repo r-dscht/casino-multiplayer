@@ -385,12 +385,12 @@ describe('E2E Tier 2: Boundary & Corner Cases', () => {
       const result = await resultPromise;
 
       const playerResult = result.results.find((r) => r.playerId === client.playerId);
-      assert.equal(playerResult.totalWon, 0, 'All outside even-money bets must lose on 0');
+      assert.equal(playerResult.totalWon, 156, 'Outside even-money bets receive 26% Zero Shield (600 * 0.26 = 156)');
       assert.equal(playerResult.totalBet, 600);
-      assert.equal(playerResult.net, -600);
+      assert.equal(playerResult.net, -444);
     });
 
-    it('5.2 should result in 0 payout for all columns and dozens when 0 lands', async () => {
+    it('5.2 should return 26% Zero Shield for all columns and dozens when 0 lands', async () => {
       env.engine.transitionToBetting();
       await client.placeBet({ type: 'column', value: 1, amount: 200 });
       await client.placeBet({ type: 'column', value: 2, amount: 200 });
@@ -406,11 +406,11 @@ describe('E2E Tier 2: Boundary & Corner Cases', () => {
       const result = await resultPromise;
 
       const playerResult = result.results.find((r) => r.playerId === client.playerId);
-      assert.equal(playerResult.totalWon, 0, 'All columns and dozens must lose on 0');
-      assert.equal(playerResult.net, -800);
+      assert.equal(playerResult.totalWon, 208, 'Columns and dozens receive 26% Zero Shield (800 * 0.26 = 208)');
+      assert.equal(playerResult.net, -592);
     });
 
-    it('5.3 should pay 36x gross (35:1 profit) for straight bet on 0 when 0 lands', async () => {
+    it('5.3 should pay 36x gross + 26% Zero Bonus for straight bet on 0 when 0 lands', async () => {
       env.engine.transitionToBetting();
       await client.placeBet({ type: 'straight', value: 0, amount: 500 });
 
@@ -423,11 +423,11 @@ describe('E2E Tier 2: Boundary & Corner Cases', () => {
       const result = await resultPromise;
 
       const playerResult = result.results.find((r) => r.playerId === client.playerId);
-      assert.equal(playerResult.totalWon, 500 * 36, 'Straight 0 must pay 36x stake');
-      assert.equal(playerResult.net, 500 * 35);
+      assert.equal(playerResult.totalWon, 500 * 36 + 130, 'Straight 0 must pay 36x stake + 26% Zero Bonus');
+      assert.equal(playerResult.net, 500 * 35 + 130);
     });
 
-    it('5.4 should pay 18x for split [0, 2] and 0 for non-zero split [1, 2] when 0 lands', async () => {
+    it('5.4 should pay 18x + 26% for split [0, 2] and 26% Zero Shield for non-zero split [1, 2] when 0 lands', async () => {
       env.engine.transitionToBetting();
       await client.placeBet({ type: 'split', value: [0, 2], amount: 200 });
       await client.placeBet({ type: 'split', value: [1, 2], amount: 200 });
@@ -441,12 +441,12 @@ describe('E2E Tier 2: Boundary & Corner Cases', () => {
       const result = await resultPromise;
 
       const playerResult = result.results.find((r) => r.playerId === client.playerId);
-      assert.equal(playerResult.winningBets.length, 1);
-      assert.equal(playerResult.winningBets[0].type, 'split');
-      assert.equal(playerResult.totalWon, 200 * 18, 'Split covering 0 must pay 18x stake');
+      assert.equal(playerResult.winningBets.filter((b) => (b.profit || 0) > 0).length, 1);
+      assert.equal(playerResult.winningBets.find((b) => (b.profit || 0) > 0).type, 'split');
+      assert.equal(playerResult.totalWon, 200 * 18 + 52 + 52, 'Covering split gets 18x+26% and non-zero split gets 26% Zero Shield');
     });
 
-    it('5.5 should pay 9x for First Four corner [0, 1, 2, 3] and 0 for non-zero corner when 0 lands', async () => {
+    it('5.5 should pay 9x + 26% for First Four corner [0, 1, 2, 3] and 26% Zero Shield for non-zero corner when 0 lands', async () => {
       env.engine.transitionToBetting();
       await client.placeBet({ type: 'corner', value: [0, 1, 2, 3], amount: 100 });
       await client.placeBet({ type: 'corner', value: [1, 2, 4, 5], amount: 100 });
@@ -460,8 +460,8 @@ describe('E2E Tier 2: Boundary & Corner Cases', () => {
       const result = await resultPromise;
 
       const playerResult = result.results.find((r) => r.playerId === client.playerId);
-      assert.equal(playerResult.winningBets.length, 1);
-      assert.equal(playerResult.totalWon, 100 * 9, 'Corner covering 0 must pay 9x stake');
+      assert.equal(playerResult.winningBets.filter((b) => (b.profit || 0) > 0).length, 1);
+      assert.equal(playerResult.totalWon, 100 * 9 + 26 + 26, 'Covering corner gets 9x+26% and non-zero corner gets 26% Zero Shield');
 
       // Reset engine to BETTING
       env.engine.transitionToBetting();

@@ -5,8 +5,8 @@
  * House Edge & Eerlijkheid:
  * - 6 paarden per race, elk met exact 1/6 (16.67%) gelijke winstkans (geen statistieken, geen verborgen gewichten).
  * - Maximaal 1 inzet per speler per race (enkelvoudige WIN-inzet op #1).
- * - 3.0x vaste basisuitbetaling + 50% van alle verliezende inzetten verdeeld over de winnaars (Winnaarspot); andere 50% gaat naar het Casino.
- * - Bij 0 winnaars schuift 50% door naar de Winnaarspot van de volgende race (rollover max 2.5x winnende inzet -> altijd max 91.67% RTP / >= 8.33% huisvoordeel).
+ * - 3.38x vaste basisuitbetaling + 50% van alle verliezende inzetten verdeeld over de winnaars (Winnaarspot); rest gaat naar het Casino.
+ * - Bij 0 winnaars schuift 50% door naar de Winnaarspot van de volgende race (rollover max 5.0x winnende inzet -> ~98.00% RTP / 2% huisvoordeel).
  */
 
 const PHASES = Object.freeze({
@@ -22,9 +22,9 @@ const VALID_BET_TYPES = Object.freeze(['WIN']);
 const MIN_BET = 10;
 const MAX_BET = 50000;
 const MAX_TICKETS_PER_PLAYER = 1;
-const BASE_WIN_ODDS = 3.0;
+const BASE_WIN_ODDS = 3.38;
 const WINNER_POT_LOSER_SHARE = 0.50;
-const WINNER_POT_ROLLOVER_CAP_MULT = 2.5;
+const WINNER_POT_ROLLOVER_CAP_MULT = 5.0;
 const FIXED_WIN_ODDS = BASE_WIN_ODDS;
 
 const BETTING_DURATION_SEC = 18;
@@ -189,7 +189,7 @@ function shuffleWithRng(arr, rng = Math.random) {
 
 /**
  * Genereert 6 eerlijke random deelnemers zonder statistieken of verborgen modifiers.
- * Ieder paard heeft exact 1/6 (16.67%) kans en 3.0x basis + 50% verliezers Winnaarspot.
+ * Ieder paard heeft exact 1/6 (16.67%) kans en 3.38x basis + 50% verliezers Winnaarspot (98% RTP / 2% huisvoordeel).
  */
 function generateRaceCard(rng = Math.random) {
   const track = pickTrackCondition(rng);

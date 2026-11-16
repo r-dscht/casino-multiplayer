@@ -1,7 +1,7 @@
 /**
- * @fileoverview Monte Carlo Hi-Lo Prive constants, house-edge rules & Blitz timing.
- * Enforces strict 6% house edge (0.94 TARGET_RTP) across both Solo Ladder and
- * Multiplayer Blitz modes with zero +EV states and zero auto-bet.
+ * @fileoverview Monte Carlo Hi-Lo Prive constants & house-edge rules.
+ * Enforces strict 2% house edge (0.98 TARGET_RTP) on Solo Ladder
+ * with zero +EV states and zero auto-bet.
  */
 
 const RANKS = Object.freeze([
@@ -40,8 +40,8 @@ const SUIT_RED = Object.freeze({
   diamonds: true
 });
 
-/** Strict 6% casino house edge (94% RTP). */
-const TARGET_RTP = 0.94;
+/** Strict 2% casino house edge (98% RTP). */
+const TARGET_RTP = 0.98;
 
 /** Hard cap on effective EV on extreme near-reshuffle deck states (< 1.00 preserves casino house edge while keeping 2->HIGHER and A->LOWER playable). */
 const MAX_EV_CAP = 0.99;
@@ -60,7 +60,6 @@ const MIN_SHOE_CARDS = 13;
 
 const CARD_TRAIL_LIMIT = 7;
 const SLOW_MO_STREAK_THRESHOLD = 4;
-const CHEER_COOLDOWN_MS = 1500;
 const HISTORY_LIMIT = 25;
 const RECENT_WINS_LIMIT = 15;
 const BIG_WIN_MIN_NET_PROFIT = 200;
@@ -70,24 +69,6 @@ const PREDICTIONS = Object.freeze({
   HIGHER: 'HIGHER',
   EQUAL: 'EQUAL',
   LOWER: 'LOWER'
-});
-
-const BLITZ_MAX_CARDS = 8;
-
-const BLITZ_PHASES = Object.freeze({
-  WAITING_FOR_PLAYERS: 'WAITING_FOR_PLAYERS',
-  BETTING: 'BETTING',
-  DECISION: 'DECISION',
-  REVEALING: 'REVEALING',
-  SETTLED: 'SETTLED'
-});
-
-const BLITZ_DURATIONS = Object.freeze({
-  ENTRY_SEC: 8,
-  DECISION_SEC: 8,
-  EARLY_LOCK_SEC: 1,
-  REVEAL_MS: 2800,
-  SETTLE_MS: 4500
 });
 
 const STREAK_TIERS = Object.freeze([
@@ -130,15 +111,11 @@ module.exports = {
   MIN_SHOE_CARDS,
   CARD_TRAIL_LIMIT,
   SLOW_MO_STREAK_THRESHOLD,
-  CHEER_COOLDOWN_MS,
   HISTORY_LIMIT,
   RECENT_WINS_LIMIT,
   BIG_WIN_MIN_NET_PROFIT,
   BIG_WIN_MIN_STREAK,
   PREDICTIONS,
-  BLITZ_MAX_CARDS,
-  BLITZ_PHASES,
-  BLITZ_DURATIONS,
   STREAK_TIERS,
   getStreakTier
 };

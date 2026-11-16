@@ -328,10 +328,10 @@ describe('Payout Calculations for Every Bet Type', () => {
   });
 });
 
-describe('Zero (0) Outcome Payout & Loss Rules', () => {
+describe('Zero (0) Outcome Payout & Loss Rules (26% Zero Shield — 98% RTP)', () => {
   const STAKE = 100;
 
-  it('Zero outcome must cause ALL outside bets to lose', () => {
+  it('Zero outcome returns 26% Zero Shield on all outside bets (net -74%)', () => {
     const outsideBets = [
       { type: BET_TYPES.RED, value: null, amount: STAKE },
       { type: BET_TYPES.BLACK, value: null, amount: STAKE },
@@ -349,45 +349,45 @@ describe('Zero (0) Outcome Payout & Loss Rules', () => {
 
     for (const b of outsideBets) {
       const res = evaluateBet(b, 0);
-      assert.equal(res.won, false, `Bet ${b.type} should lose on 0`);
-      assert.equal(res.payout, 0, `Bet ${b.type} should have 0 payout on 0`);
-      assert.equal(res.profit, -STAKE);
+      assert.equal(res.won, false, `Bet ${b.type} should not win outright on 0`);
+      assert.equal(res.payout, 26, `Bet ${b.type} should receive 26% Zero Shield on 0`);
+      assert.equal(res.profit, -74);
     }
   });
 
-  it('Zero outcome must reward inside bets covering 0', () => {
-    // Straight 0
+  it('Zero outcome rewards inside bets covering 0 plus 26% Zero Bonus', () => {
+    // Straight 0: 3600 + 26
     const straight0 = evaluateBet({ type: BET_TYPES.STRAIGHT, value: 0, amount: STAKE }, 0);
     assert.equal(straight0.won, true);
-    assert.equal(straight0.payout, 3600);
+    assert.equal(straight0.payout, 3626);
 
-    // Split [0, 1]
+    // Split [0, 1]: 1800 + 26
     const split01 = evaluateBet({ type: BET_TYPES.SPLIT, value: [0, 1], amount: STAKE }, 0);
     assert.equal(split01.won, true);
-    assert.equal(split01.payout, 1800);
+    assert.equal(split01.payout, 1826);
 
-    // Street [0, 1, 2]
+    // Street [0, 1, 2]: 1200 + 26
     const street012 = evaluateBet({ type: BET_TYPES.STREET, value: [0, 1, 2], amount: STAKE }, 0);
     assert.equal(street012.won, true);
-    assert.equal(street012.payout, 1200);
+    assert.equal(street012.payout, 1226);
 
-    // Corner First Four [0, 1, 2, 3]
+    // Corner First Four [0, 1, 2, 3]: 900 + 26
     const corner0123 = evaluateBet({ type: BET_TYPES.CORNER, value: [0, 1, 2, 3], amount: STAKE }, 0);
     assert.equal(corner0123.won, true);
-    assert.equal(corner0123.payout, 900);
+    assert.equal(corner0123.payout, 926);
   });
 
-  it('Zero outcome must lose for inside bets not covering 0', () => {
-    assert.equal(evaluateBet({ type: BET_TYPES.STRAIGHT, value: 17, amount: STAKE }, 0).payout, 0);
-    assert.equal(evaluateBet({ type: BET_TYPES.SPLIT, value: [14, 17], amount: STAKE }, 0).payout, 0);
-    assert.equal(evaluateBet({ type: BET_TYPES.STREET, value: [4, 5, 6], amount: STAKE }, 0).payout, 0);
-    assert.equal(evaluateBet({ type: BET_TYPES.CORNER, value: [7, 8, 10, 11], amount: STAKE }, 0).payout, 0);
-    assert.equal(evaluateBet({ type: BET_TYPES.SIX_LINE, value: [1, 2, 3, 4, 5, 6], amount: STAKE }, 0).payout, 0);
+  it('Zero outcome returns 26% Zero Shield for inside bets not covering 0', () => {
+    assert.equal(evaluateBet({ type: BET_TYPES.STRAIGHT, value: 17, amount: STAKE }, 0).payout, 26);
+    assert.equal(evaluateBet({ type: BET_TYPES.SPLIT, value: [14, 17], amount: STAKE }, 0).payout, 26);
+    assert.equal(evaluateBet({ type: BET_TYPES.STREET, value: [4, 5, 6], amount: STAKE }, 0).payout, 26);
+    assert.equal(evaluateBet({ type: BET_TYPES.CORNER, value: [7, 8, 10, 11], amount: STAKE }, 0).payout, 26);
+    assert.equal(evaluateBet({ type: BET_TYPES.SIX_LINE, value: [1, 2, 3, 4, 5, 6], amount: STAKE }, 0).payout, 26);
   });
 });
 
 describe('Mathematical Expected Value (House Edge Verification)', () => {
-  it('Every European bet type must yield exactly 2.7027% house edge (97.297% EV)', () => {
+  it('Every European bet type must yield exactly 2.000% house edge (98.000% EV)', () => {
     const testCases = [
       { type: BET_TYPES.STRAIGHT, value: 17, expectedWins: 1, multiplier: 36 },
       { type: BET_TYPES.SPLIT, value: [14, 17], expectedWins: 2, multiplier: 18 },
@@ -419,14 +419,14 @@ describe('Mathematical Expected Value (House Edge Verification)', () => {
 
       assert.equal(actualWins, tc.expectedWins, `Mismatch in winning count for ${tc.type}`);
       const ev = totalGross / TOTAL_POCKETS;
-      const expectedEv = (tc.expectedWins / TOTAL_POCKETS) * tc.multiplier * STAKE;
+      const expectedEv = ((tc.expectedWins * tc.multiplier * STAKE) + (STAKE * 0.26)) / TOTAL_POCKETS;
 
       assert.ok(
         Math.abs(ev - expectedEv) < 0.00001,
         `EV discrepancy for ${tc.type}: got ${ev}, expected ${expectedEv}`
       );
       assert.ok(
-        Math.abs(ev - 97.2972972972973) < 0.001,
+        Math.abs(ev - 98.0) < 0.001,
         `House edge mismatch for ${tc.type}: EV was ${ev}`
       );
     }

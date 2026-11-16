@@ -1,6 +1,6 @@
 /**
  * @fileoverview Royal Mines Vault constants, multiplier table builder & fair board generator.
- * Enforces strict 4% casino house edge (0.96 TARGET_RTP) with hard EV < 1.00 cap across all
+ * Enforces strict 2% casino house edge (0.98 TARGET_RTP) with hard EV < 1.00 cap across all
  * supported grid sizes (4x4, 5x5, 6x6, 7x7) and mine counts (1..gridSize-1).
  */
 
@@ -16,8 +16,8 @@ const GRID_CONFIGS = Object.freeze({
 /** Preset bomb counts selectable for Multiplayer Shared Vault voting. */
 const SHARED_BOMB_PRESETS = Object.freeze([3, 5, 8, 12]);
 
-/** Strict 4% casino house edge (96% RTP). */
-const TARGET_RTP = 0.96;
+/** Strict 2% casino house edge (98% RTP). */
+const TARGET_RTP = 0.98;
 
 /** Hard cap on effective EV per pick step so no ultra-low-risk configuration ever exceeds 0.99 EV (< 1.00). */
 const MAX_EV_CAP = 0.99;
@@ -26,7 +26,6 @@ const MIN_BET = 10;
 const MAX_BET = 50000;
 const MAX_PAYOUT = 5000000;
 
-const CHEER_COOLDOWN_MS = 1500;
 const HISTORY_LIMIT = 25;
 const RECENT_WINS_LIMIT = 15;
 const BIG_WIN_MIN_NET_PROFIT = 200;
@@ -206,7 +205,6 @@ module.exports = {
   MIN_BET,
   MAX_BET,
   MAX_PAYOUT,
-  CHEER_COOLDOWN_MS,
   HISTORY_LIMIT,
   RECENT_WINS_LIMIT,
   BIG_WIN_MIN_NET_PROFIT,

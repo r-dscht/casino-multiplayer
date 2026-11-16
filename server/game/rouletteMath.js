@@ -394,14 +394,27 @@ function evaluateBet(bet, winningNumber) {
     }
   }
 
+  const zeroFactor = winningNumber === 0 ? Math.floor(amount * 0.26) : 0;
+
   if (won) {
-    const payout = amount * ratio.grossMultiplier;
-    const profit = amount * ratio.profitRatio;
+    const payout = amount * ratio.grossMultiplier + zeroFactor;
+    const profit = payout - amount;
     return {
       won: true,
       payout,
       profit,
-      multiplier: ratio.grossMultiplier
+      multiplier: ratio.grossMultiplier,
+      zeroBonus: zeroFactor
+    };
+  }
+
+  if (zeroFactor > 0) {
+    return {
+      won: false,
+      payout: zeroFactor,
+      profit: zeroFactor - amount,
+      multiplier: 0,
+      zeroRebate: true
     };
   }
 

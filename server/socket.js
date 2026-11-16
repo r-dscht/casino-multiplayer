@@ -135,7 +135,7 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
       code: 'CANNOT_LEAVE_ACTIVE_BETS',
       game: 'HiLo',
       amount: typeof hiloEngine.getActiveBetTotal === 'function' ? hiloEngine.getActiveBetTotal(playerId) : 0,
-      reason: 'Je hebt een actieve Hi-Lo reeks of Blitz ronde openstaan. Cash uit of speel deze eerst af.',
+      reason: 'Je hebt een actieve Hi-Lo reeks openstaan. Cash uit of speel deze eerst af.',
       message: 'Active bet present on Hi-Lo.'
     };
   }
@@ -300,10 +300,6 @@ function setupSocket(httpServer, options = {}) {
     broadcastSlotsFloor();
   });
 
-  slotsEngine.on('machine_cheered', (payload) => {
-    io.emit('slots_cheer_event', payload);
-  });
-
   const racingEngine = new RacingEngine({ playerManager, bankManager });
   io.racingEngine = racingEngine;
 
@@ -431,13 +427,8 @@ function setupSocket(httpServer, options = {}) {
     const pub = hiloEngine.getPublicSalonState(null);
     io.emit('hilo_salon_update', {
       players: pub.players,
-      recentWins: pub.recentWins,
-      blitz: pub.blitz
+      recentWins: pub.recentWins
     });
-  });
-
-  hiloEngine.on('player_cheered', (payload) => {
-    io.emit('hilo_cheered', payload);
   });
 
   hiloEngine.on('big_moment', (payload) => {
@@ -465,38 +456,6 @@ function setupSocket(httpServer, options = {}) {
       scope: 'global',
       table: 'all'
     });
-  });
-
-  hiloEngine.on('blitz_tick', (payload) => {
-    io.emit('hilo_blitz_tick', payload);
-  });
-
-  hiloEngine.on('blitz_phase_change', (payload) => {
-    io.emit('hilo_blitz_state', payload);
-    if (payload && (payload.phase === 'WAITING_FOR_PLAYERS' || payload.phase === 'SETTLED')) {
-      broadcastPlayersUpdate();
-    }
-  });
-
-  hiloEngine.on('blitz_update', (payload) => {
-    io.emit('hilo_blitz_state', payload);
-  });
-
-  hiloEngine.on('blitz_reveal', (payload) => {
-    io.emit('hilo_blitz_reveal', payload);
-  });
-
-  hiloEngine.on('blitz_settlement', (s) => {
-    emitToPlayer(s.playerId, 'hilo_blitz_settlement', s);
-    if (typeof s.newChips === 'number') {
-      emitToPlayer(s.playerId, 'chips_update', { chips: s.newChips, source: 'hilo_blitz' });
-    }
-    emitHiloRepayments(s.playerId, s.playerName, s.repayments, 'Hi-Lo Blitz');
-  });
-
-  hiloEngine.on('blitz_finished', (payload) => {
-    io.emit('hilo_blitz_finished', payload);
-    broadcastPlayersUpdate();
   });
 
   // Royal Mines Vault (Solo + Multiplayer Shared Vault)
@@ -538,10 +497,6 @@ function setupSocket(httpServer, options = {}) {
       recentWins: pub.recentWins,
       shared: pub.shared
     });
-  });
-
-  minesEngine.on('player_cheered', (payload) => {
-    io.emit('mines_cheered', payload);
   });
 
   minesEngine.on('big_moment', (payload) => {
@@ -607,13 +562,15 @@ function setupSocket(httpServer, options = {}) {
     : {};
   const lotteryEngine = new LotteryEngine(playerManager, { bankManager, ...lotteryOptions });
   io.lotteryEngine = lotteryEngine;
-  lotteryEngine.start();
 
   function emitPersonalizedLotteryStates() {
     const baseState = lotteryEngine.getPublicState(null);
     io.emit('lottery_state', baseState);
     for (const p of playerManager.players.values()) {
-      if (p && p.connected && lotteryEngine.participants.has(p.id)) {
+      if (!p || !p.connected) continue;
+      const needsPersonal = lotteryEngine.participants.has(p.id) ||
+        (typeof lotteryEngine.hasPendingOfflineWin === 'function' && lotteryEngine.hasPendingOfflineWin(p.id, p.name));
+      if (needsPersonal) {
         emitToPlayer(p.id, 'lottery_state', lotteryEngine.getPublicState(p.id));
       }
     }
@@ -669,6 +626,9 @@ function setupSocket(httpServer, options = {}) {
     });
     broadcastPlayersUpdate();
   });
+
+  // Start Lottery AFTER listeners attach so offline catch-up draws broadcast and persist cleanly
+  lotteryEngine.start();
 
   // Lightweight sliding-window rate limiter per socket & event
   const rateLimitBuckets = new Map();
@@ -754,7 +714,7 @@ function setupSocket(httpServer, options = {}) {
         code: 'CANNOT_LEAVE_ACTIVE_BETS',
         game: 'HiLo',
         amount: typeof hiloEngine.getActiveBetTotal === 'function' ? hiloEngine.getActiveBetTotal(playerId) : 0,
-        reason: 'Je hebt een actieve Hi-Lo reeks of Blitz ronde openstaan. Cash uit of speel deze eerst af.',
+        reason: 'Je hebt een actieve Hi-Lo reeks openstaan. Cash uit of speel deze eerst af.',
         message: 'Active bet present on Hi-Lo.'
       };
     }
@@ -2936,24 +2896,6 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
-    socket.on('slots_cheer', (payload = {}) => {
-      const player = playerManager.getPlayerBySocket(socket.id);
-      if (!player) {
-        socket.emit('slots_cheer_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Log eerst in om iemand aan te moedigen.' });
-        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: 'Log eerst in om iemand aan te moedigen.' });
-        return;
-      }
-
-      const res = slotsEngine.cheerMachine(player.id, payload && payload.machineId);
-      if (!res.ok) {
-        socket.emit('slots_cheer_rejected', { code: res.code, reason: res.error });
-        socket.emit('error_msg', { code: res.code, message: res.error });
-        return;
-      }
-
-      broadcastSlotsFloor();
-    });
-
     // 8e. Multiplayer Monaco Turf Club (Horse Racing) Protocol
     socket.on('racing_join', () => {
       const player = playerManager.getPlayerBySocket(socket.id);
@@ -3137,59 +3079,6 @@ function setupSocket(httpServer, options = {}) {
       broadcastPlayersUpdate();
     });
 
-    socket.on('hilo_cheer', (payload = {}) => {
-      const player = requireHiloPlayer('hilo_cheer_rejected', 'iemand aan te moedigen');
-      if (!player) return;
-      const res = hiloEngine.cheerPlayer(player.id, payload && payload.targetPlayerId);
-      if (!res.ok) {
-        socket.emit('hilo_cheer_rejected', { code: res.code, reason: res.message });
-      }
-    });
-
-    socket.on('hilo_blitz_join', (payload = {}) => {
-      if (!checkRateLimit(socket.id, 'hilo_action', 16, 2000)) {
-        socket.emit('hilo_rejected', { code: 'RATE_LIMITED', reason: 'Je speelt iets te snel.' });
-        return;
-      }
-      const player = requireHiloPlayer('hilo_rejected', 'mee te doen aan Hi-Lo Blitz');
-      if (!player) return;
-      const res = hiloEngine.blitzJoin(player.id, payload && payload.betAmount);
-      if (!res.ok) {
-        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
-        socket.emit('error_msg', { code: res.code, message: res.message });
-        return;
-      }
-      socket.emit('hilo_blitz_joined', res);
-      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo_blitz' });
-      broadcastPlayersUpdate();
-    });
-
-    socket.on('hilo_blitz_cancel', () => {
-      const player = requireHiloPlayer('hilo_rejected', 'Blitz te annuleren');
-      if (!player) return;
-      const res = hiloEngine.blitzCancel(player.id);
-      if (!res.ok) {
-        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
-        socket.emit('error_msg', { code: res.code, message: res.message });
-        return;
-      }
-      socket.emit('hilo_blitz_cancelled', res);
-      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo_blitz' });
-      broadcastPlayersUpdate();
-    });
-
-    socket.on('hilo_blitz_action', (payload = {}) => {
-      const player = requireHiloPlayer('hilo_rejected', 'een Blitz keuze te maken');
-      if (!player) return;
-      const res = hiloEngine.blitzAction(player.id, payload && payload.action);
-      if (!res.ok) {
-        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
-        socket.emit('error_msg', { code: res.code, message: res.message });
-        return;
-      }
-      socket.emit('hilo_blitz_action_ack', res);
-    });
-
     // 8g. Royal Mines Vault Protocol (Solo + Multiplayer Shared Vault)
     function requireMinesPlayer(rejectEvent, actionDesc) {
       const player = playerManager.getPlayerBySocket(socket.id);
@@ -3335,21 +3224,20 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('mines_shared_cashout_ack', res);
     });
 
-    socket.on('mines_cheer', (payload = {}) => {
-      const player = requireMinesPlayer('mines_cheer_rejected', 'iemand aan te moedigen');
-      if (!player) return;
-      const res = minesEngine.cheerPlayer(player.id, payload && payload.targetPlayerId);
-      if (!res.ok) {
-        socket.emit('mines_cheer_rejected', { code: res.code, reason: res.message });
-      }
-    });
-
     // -----------------------------------------------------------------------
-    // 8e. Casino Staatsloterij (30-minute cycle, 0% rake)
+    // 8e. Casino Staatsloterij (10-minute cycle, 0% rake)
     // -----------------------------------------------------------------------
     socket.on('lottery_get_state', () => {
       const player = playerManager.getPlayerBySocket(socket.id);
       socket.emit('lottery_state', lotteryEngine.getPublicState(player ? player.id : null));
+    });
+
+    socket.on('lottery_ack_offline_win', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      if (typeof lotteryEngine.acknowledgeOfflineWin === 'function') {
+        lotteryEngine.acknowledgeOfflineWin(player.id, player.name, payload && payload.roundId);
+      }
     });
 
     socket.on('lottery_buy_tickets', (payload = {}) => {

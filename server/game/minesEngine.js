@@ -3,12 +3,12 @@
  *
  * Features:
  * - Solo Vault: selectable 4x4 / 5x5 / 6x6 / 7x7 grids, selectable mine counts (1..N-1),
- *   strict 96% RTP (4% house edge, zero +EV states), automatic Grand Clear on last gem,
+ *   strict 98% RTP (2% house edge, zero +EV states), automatic Grand Clear on last gem,
  *   atomic bank loan repayment & personal history.
  * - Shared Vault (Live Multiplayer): Smart Timer (8s countdown starting on first bet),
  *   player board & bomb voting, turn-based clicking on ONE shared board with 10s turn clock,
  *   auto-random tile click on timeout (zero passive hiding), mandatory >= 1 own click before
- *   Cash Out, shared bomb detonation while already-cashed winners keep payouts, and salon cheers.
+ *   Cash Out, and shared bomb detonation while already-cashed winners keep payouts.
  */
 
 const EventEmitter = require('events');
@@ -20,7 +20,6 @@ const {
   MIN_BET,
   MAX_BET,
   MAX_PAYOUT,
-  CHEER_COOLDOWN_MS,
   HISTORY_LIMIT,
   RECENT_WINS_LIMIT,
   BIG_WIN_MIN_NET_PROFIT,
@@ -68,8 +67,6 @@ class MinesEngine extends EventEmitter {
     this.soloGames = new Map();
     /** @type {Map<string, Object>} Players actively present in Mines Salon */
     this.salonPlayers = new Map();
-    /** @type {Map<string, number>} `${fromId}:${toId}` -> last cheer ts */
-    this.cheerCooldowns = new Map();
     /** @type {Map<string, Array>} Personal run history by playerId */
     this.personalHistory = new Map();
     /** @type {Array<Object>} Recent big cashouts across Solo & Shared */
@@ -210,7 +207,6 @@ class MinesEngine extends EventEmitter {
       name: player.name,
       initials: player.initials || player.name.slice(0, 2).toUpperCase(),
       avatarColor: player.avatarColor || '#d4af37',
-      cheers: prev ? prev.cheers : 0,
       joinedAt: prev ? prev.joinedAt : Date.now(),
     });
     this.emit('salon_update', { trigger: 'join', playerId });
@@ -1239,51 +1235,8 @@ class MinesEngine extends EventEmitter {
   }
 
   // =========================================================================
-  // CHEERING & PUBLIC STATE
+  // PUBLIC STATE
   // =========================================================================
-
-  /**
-   * Cosmetic salon cheer with 1500ms per-pair cooldown.
-   * @param {string} fromPlayerId
-   * @param {string} targetPlayerId
-   */
-  cheerPlayer(fromPlayerId, targetPlayerId) {
-    const sender = this._ensurePlayer(fromPlayerId);
-    if (!sender) {
-      return { ok: false, code: 'PLAYER_NOT_FOUND', message: 'Log eerst in om te juichen.' };
-    }
-    const target = this._ensurePlayer(targetPlayerId);
-    if (!target || !this.salonPlayers.has(targetPlayerId)) {
-      return { ok: false, code: 'TARGET_NOT_FOUND', message: 'Speler is niet aanwezig in de Mines Zaal.' };
-    }
-    if (fromPlayerId === targetPlayerId) {
-      return { ok: false, code: 'CANNOT_CHEER_SELF', message: 'Je kunt jezelf niet aanmoedigen.' };
-    }
-
-    const key = `${fromPlayerId}:${targetPlayerId}`;
-    const now = Date.now();
-    const lastTs = this.cheerCooldowns.get(key) || 0;
-    if (now - lastTs < CHEER_COOLDOWN_MS) {
-      return { ok: false, code: 'CHEER_COOLDOWN', message: 'Even wachten voor je opnieuw juicht.' };
-    }
-    this.cheerCooldowns.set(key, now);
-
-    const salonEntry = this.salonPlayers.get(targetPlayerId);
-    salonEntry.cheers = (salonEntry.cheers || 0) + 1;
-
-    const payload = {
-      fromPlayerId: sender.id,
-      fromPlayerName: sender.name,
-      targetPlayerId: target.id,
-      targetPlayerName: target.name,
-      cheers: salonEntry.cheers,
-      timestamp: now,
-    };
-    this.emit('player_cheered', payload);
-    this.emit('salon_update', { trigger: 'cheer', targetId: target.id });
-
-    return { ok: true, ...payload };
-  }
 
   /** @private */
   _serializeSharedState() {
@@ -1360,7 +1313,6 @@ class MinesEngine extends EventEmitter {
         name: sp.name,
         initials: sp.initials,
         avatarColor: sp.avatarColor,
-        cheers: sp.cheers || 0,
         activeMode: sharedP ? 'SHARED' : (solo ? 'SOLO' : 'SPECTATING'),
         isTurn,
         soloActive: solo

@@ -228,10 +228,10 @@ describe('E2E Tier 3: Cross-Feature Combinations', () => {
     const rGreen = resGreen.results.find((r) => r.playerId === pGreen.playerId);
     const rEven = resEven.results.find((r) => r.playerId === pEven.playerId);
 
-    assert.equal(rRed.totalWon, 0, 'Red loses on 0');
-    assert.equal(rBlack.totalWon, 0, 'Black loses on 0');
-    assert.equal(rEven.totalWon, 0, 'Even loses on 0');
-    assert.equal(rGreen.totalWon, 500 * 36, 'Green Straight 0 wins 18,000 chips');
+    assert.equal(rRed.totalWon, 260, 'Red gets 26% Zero Shield on 0');
+    assert.equal(rBlack.totalWon, 260, 'Black gets 26% Zero Shield on 0');
+    assert.equal(rEven.totalWon, 260, 'Even gets 26% Zero Shield on 0');
+    assert.equal(rGreen.totalWon, 500 * 36 + 130, 'Green Straight 0 wins 18,130 chips (36x + 26%)');
 
     await Promise.all([
       pRed.disconnect(),

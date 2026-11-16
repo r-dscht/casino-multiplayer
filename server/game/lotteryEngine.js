@@ -3,10 +3,10 @@
  * Server-authoritative multiplayer Casino Staatsloterij engine.
  *
  * Features:
- *  - Fixed 30-minute rounds (ROUND_DURATION_MS) with persistent JSON state (lottery.json).
+ *  - Fixed 10-minute rounds (ROUND_DURATION_MS) with persistent JSON state (lottery.json).
  *  - Unlimited tickets per player at 2.500 fiches/ticket; 0% house edge (100% pot payout).
  *  - Contiguous ticket-range storage with binary search for O(log R) weighted selection.
- *  - Offline winner support (accounts + BankManager inbox notification) and loan repayment on net profit.
+ *  - Offline winner support (accounts + BankManager inbox notification + pending win celebration on reconnect) and loan repayment on net profit.
  *  - Strictly zero audio and zero Unicode emojis.
  */
 
@@ -78,6 +78,9 @@ class LotteryEngine extends EventEmitter {
 
     /** @type {Array<Object>} */
     this.history = [];
+
+    /** @type {Map<string, Object>} Unseen offline wins keyed by lowercase winnerKey */
+    this.unseenOfflineWins = new Map();
 
     this._timer = null;
     this._saveTimer = null;
@@ -167,6 +170,16 @@ class LotteryEngine extends EventEmitter {
       if (data.lastDraw && typeof data.lastDraw === 'object') {
         this.lastDraw = data.lastDraw;
       }
+      if (!this.unseenOfflineWins) {
+        this.unseenOfflineWins = new Map();
+      }
+      if (Array.isArray(data.unseenOfflineWins)) {
+        for (const entry of data.unseenOfflineWins) {
+          if (Array.isArray(entry) && entry[0] && entry[1] && typeof entry[1] === 'object') {
+            this.unseenOfflineWins.set(String(entry[0]), entry[1]);
+          }
+        }
+      }
 
       this._rebuildAggregatesFromRanges();
 
@@ -227,6 +240,7 @@ class LotteryEngine extends EventEmitter {
         ranges: this.ranges,
         lastDraw: this.lastDraw,
         history: this.history.slice(0, HISTORY_LIMIT),
+        unseenOfflineWins: this.unseenOfflineWins ? Array.from(this.unseenOfflineWins.entries()).slice(0, 50) : [],
         savedAt: Date.now()
       };
       const tmp = `${this.storagePath}.tmp.${process.pid}.${Date.now()}`;
@@ -357,7 +371,10 @@ class LotteryEngine extends EventEmitter {
     this.totalTickets += count;
     this.pot = Math.round(this.totalTickets * TICKET_PRICE * (1 - HOUSE_FEE_RATE));
     this._recordParticipantRange(range);
-    this._scheduleSave();
+    this.saveStateSync();
+    if (this.playerManager && typeof this.playerManager.flushToDiskSync === 'function') {
+      this.playerManager.flushToDiskSync();
+    }
 
     const state = this.getPublicState(player.id);
     this.emit('state', state);
@@ -411,14 +428,15 @@ class LotteryEngine extends EventEmitter {
       payout,
       this.roundId
     );
+    const resolvedWinnerId = creditRes.resolvedPlayerId || winningRange.playerId;
 
-    if (this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
-      this.playerManager.updatePlayerStats(winningRange.playerId, { wonAmount: payout });
+    if (!creditRes.wasOfflineAccountStatsUpdated && this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
+      this.playerManager.updatePlayerStats(resolvedWinnerId, { wonAmount: payout });
     }
 
     let repayments = [];
     if (netProfit > 0 && this.bankManager && typeof this.bankManager.processWinRepayment === 'function') {
-      const repRes = this.bankManager.processWinRepayment(winningRange.playerId, netProfit);
+      const repRes = this.bankManager.processWinRepayment(resolvedWinnerId, netProfit);
       if (Array.isArray(repRes)) {
         repayments = repRes;
       }
@@ -430,8 +448,8 @@ class LotteryEngine extends EventEmitter {
       winningTicketIdx,
       this.totalTickets,
       this.rng,
-      48,
-      36
+      64,
+      52
     );
 
     const drawResult = {
@@ -453,9 +471,32 @@ class LotteryEngine extends EventEmitter {
       winnerNewChips: creditRes.newChips,
       winnerWasOffline: creditRes.wasOffline,
       reelEntries,
-      winnerSlot: 36,
+      winnerSlot: 52,
       drawnAt: now
     };
+
+    if (creditRes.wasOffline) {
+      if (!this.unseenOfflineWins) this.unseenOfflineWins = new Map();
+      const winKey = String(winnerParticipant.playerName || winningRange.playerId || '').trim().toLowerCase();
+      if (winKey) {
+        this.unseenOfflineWins.set(winKey, {
+          roundId: this.roundId,
+          winnerId: winningRange.playerId,
+          winnerName: winnerParticipant.playerName,
+          potWon: payout,
+          netProfit,
+          winningTicketDisplay: winningTicketIdx + 1,
+          winnerOddsPct: sharePct,
+          newChips: creditRes.newChips,
+          repayments,
+          drawnAt: now
+        });
+      }
+    }
+
+    if (this.playerManager && typeof this.playerManager.flushToDiskSync === 'function') {
+      this.playerManager.flushToDiskSync();
+    }
 
     this.phase = PHASES.DRAWING;
     this.drawEndsAt = now + this.drawRevealMs;
@@ -505,7 +546,9 @@ class LotteryEngine extends EventEmitter {
       }
       return {
         newChips: addRes && typeof addRes.chips === 'number' ? addRes.chips : livePlayer.chips,
-        wasOffline: isOffline
+        wasOffline: isOffline,
+        resolvedPlayerId: livePlayer.id,
+        wasOfflineAccountStatsUpdated: false
       };
     }
 
@@ -525,6 +568,12 @@ class LotteryEngine extends EventEmitter {
 
     if (matchedAcc) {
       matchedAcc.chips = (matchedAcc.chips || 0) + payout;
+      if (!matchedAcc.stats || typeof matchedAcc.stats !== 'object') {
+        matchedAcc.stats = { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };
+      }
+      matchedAcc.stats.roundsPlayed = (matchedAcc.stats.roundsPlayed || 0) + 1;
+      matchedAcc.stats.totalWon = (matchedAcc.stats.totalWon || 0) + payout;
+      matchedAcc.stats.biggestWin = Math.max(matchedAcc.stats.biggestWin || 0, payout);
       if (typeof this.playerManager.scheduleSave === 'function') {
         this.playerManager.scheduleSave();
       }
@@ -532,10 +581,50 @@ class LotteryEngine extends EventEmitter {
         this.playerManager.saveAccounts();
       }
       this._queueOfflineWinNotice(matchedAcc, payout, roundId);
-      return { newChips: matchedAcc.chips, wasOffline: true };
+      return {
+        newChips: matchedAcc.chips,
+        wasOffline: true,
+        resolvedPlayerId: matchedAcc.id,
+        wasOfflineAccountStatsUpdated: true
+      };
     }
 
-    return { newChips: null, wasOffline: true };
+    return { newChips: null, wasOffline: true, resolvedPlayerId: winnerId, wasOfflineAccountStatsUpdated: false };
+  }
+
+  /** @private */
+  _resolveOfflineWinKey(playerId, playerName) {
+    if (!this.unseenOfflineWins || this.unseenOfflineWins.size === 0) return null;
+    const normName = String(playerName || '').trim().toLowerCase();
+    if (normName && this.unseenOfflineWins.has(normName)) {
+      return normName;
+    }
+    for (const [k, rec] of this.unseenOfflineWins.entries()) {
+      if (!rec) continue;
+      if ((playerId && rec.winnerId === playerId) || (normName && String(rec.winnerName || '').trim().toLowerCase() === normName)) {
+        return k;
+      }
+    }
+    return null;
+  }
+
+  hasPendingOfflineWin(playerId, playerName = null) {
+    return Boolean(this._resolveOfflineWinKey(playerId, playerName));
+  }
+
+  getPendingOfflineWin(playerId, playerName = null) {
+    const k = this._resolveOfflineWinKey(playerId, playerName);
+    return k ? { ...this.unseenOfflineWins.get(k) } : null;
+  }
+
+  acknowledgeOfflineWin(playerId, playerName = null, roundId = null) {
+    const k = this._resolveOfflineWinKey(playerId, playerName);
+    if (!k) return false;
+    const rec = this.unseenOfflineWins.get(k);
+    if (roundId != null && rec && Number(roundId) !== Number(rec.roundId)) return false;
+    this.unseenOfflineWins.delete(k);
+    this._scheduleSave();
+    return true;
   }
 
   /** @private */
@@ -556,7 +645,7 @@ class LotteryEngine extends EventEmitter {
   }
 
   /**
-   * Starts a fresh 30-minute lottery round with zero carried-over tickets.
+   * Starts a fresh 10-minute lottery round with zero carried-over tickets.
    * @param {number} [now=Date.now()]
    */
   _startNextRound(now = Date.now()) {
@@ -613,6 +702,12 @@ class LotteryEngine extends EventEmitter {
     }
 
     const tick = this.getTickPayload(now);
+    const liveViewer = (viewerPlayerId && this.playerManager && typeof this.playerManager.getPlayerById === 'function')
+      ? this.playerManager.getPlayerById(viewerPlayerId)
+      : null;
+    const myPendingOfflineWin = viewerPlayerId
+      ? this.getPendingOfflineWin(viewerPlayerId, liveViewer ? liveViewer.name : null)
+      : null;
 
     return {
       roundId: this.roundId,
@@ -628,6 +723,7 @@ class LotteryEngine extends EventEmitter {
       uniqueParticipants: this.participants.size,
       participants: participantsList,
       mySummary,
+      myPendingOfflineWin,
       lastDraw: this.lastDraw,
       history: this.history
     };

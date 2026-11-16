@@ -236,12 +236,12 @@ describe('E2E Tier 4: Real-World Application Scenarios', () => {
     const r1 = await r1Promise;
 
     const pRes = r1.results.find((r) => r.playerId === client.playerId);
-    assert.equal(pRes.totalWon, 0, 'Zero sweeps all outside bets');
-    assert.equal(pRes.chips, 2000);
+    assert.equal(pRes.totalWon, 2080, 'Outside bets receive 26% Zero Shield (8000 * 0.26 = 2080)');
+    assert.equal(pRes.chips, 4080);
 
-    // 3. Player requests replenishment via admin command /chips 8000
+    // 3. Player requests replenishment via admin command /chips 5920
     const updatePromise = client.waitForNext('chips_update');
-    client.sendChat('/chips 8000');
+    client.sendChat('/chips 5920');
     const update = await updatePromise;
     assert.equal(update.chips, 10000);
 
@@ -264,14 +264,14 @@ describe('E2E Tier 4: Real-World Application Scenarios', () => {
     const r2 = await r2Promise;
 
     const pRes2 = r2.results.find((r) => r.playerId === client.playerId);
-    // Straight 0: 1,000 * 36 = 36,000
-    // Split [0, 1]: 500 * 18 = 9,000
-    // Street [0, 1, 2]: 500 * 12 = 6,000
-    // Corner [0, 1, 2, 3]: 500 * 9 = 4,500
-    // Total gross = 55,500
+    // Straight 0: 1,000 * 36 + 260 = 36,260
+    // Split [0, 1]: 500 * 18 + 130 = 9,130
+    // Street [0, 1, 2]: 500 * 12 + 130 = 6,130
+    // Corner [0, 1, 2, 3]: 500 * 9 + 130 = 4,630
+    // Total gross = 55,500 + 650 (26% Zero Bonus on 2,500) = 56,150
     assert.equal(pRes2.winningBets.length, 4);
-    assert.equal(pRes2.totalWon, 55500);
-    assert.equal(pRes2.chips, 7500 + 55500);
+    assert.equal(pRes2.totalWon, 56150);
+    assert.equal(pRes2.chips, 7500 + 56150);
 
     await client.disconnect();
     env.engine.transitionToBetting();

@@ -14,7 +14,6 @@ const {
   MIN_BET,
   MAX_BET,
   MAX_SKIPS_PER_LADDER,
-  BLITZ_PHASES,
   getStreakTier
 } = require('../../server/game/hiloConstants');
 const {
@@ -25,7 +24,7 @@ const {
   normalizePrediction
 } = require('../../server/game/hiloDeck');
 
-describe('Hi-Lo Privé Engine, 94% RTP & Game Logic Unit Suite', () => {
+describe('Hi-Lo Privé Engine, 98% RTP & Game Logic Unit Suite', () => {
   it('constructs a valid 52-card unique deck and strict EV <= MAX_EV_CAP across every rank', () => {
     const deck = createDeck();
     assert.equal(deck.length, 52);
@@ -264,62 +263,15 @@ describe('Hi-Lo Privé Engine, 94% RTP & Game Logic Unit Suite', () => {
     assert.ok(lender.chips > lenderBefore);
   });
 
-  it('runs Multiplayer Blitz smart clock, early-lock speedup & cancel refund cleanly', async () => {
+  it('removes multiplayer Blitz & cheers while preserving Solo Ladder & 98% RTP mechanics', () => {
     const pm = new PlayerManager({ storagePath: false });
     const p1 = pm.registerPlayer('a1', { name: 'Alice' });
-    const p2 = pm.registerPlayer('b2', { name: 'Bob' });
-    const engine = new HiloEngine(pm, {
-      entrySec: 5,
-      decisionSec: 5,
-      earlyLockSec: 1,
-      revealMs: 50,
-      settleMs: 50
-    });
+    const engine = new HiloEngine(pm);
 
-    assert.equal(engine.blitz.phase, BLITZ_PHASES.WAITING_FOR_PLAYERS);
-
-    const j1 = engine.blitzJoin(p1.id, 250);
-    assert.equal(j1.ok, true);
-    assert.equal(engine.blitz.phase, BLITZ_PHASES.BETTING);
-    assert.equal(engine.hasActiveBets(p1.id), true);
-
-    // Cancelling returns player & resets empty room back to WAITING_FOR_PLAYERS
-    const c1 = engine.blitzCancel(p1.id);
-    assert.equal(c1.ok, true);
-    assert.equal(c1.refunded, 250);
-    assert.equal(engine.blitz.phase, BLITZ_PHASES.WAITING_FOR_PLAYERS);
-    assert.equal(engine.hasActiveBets(p1.id), false);
-
-    // Join both players & test DECISION early-lock speedup directly
-    engine.blitzJoin(p1.id, 100);
-    engine.blitzJoin(p2.id, 100);
-    engine._clearBlitzTimers();
-    engine._beginBlitzFirstCard();
-
-    assert.equal(engine.blitz.phase, BLITZ_PHASES.DECISION);
-    const d = engine.blitz.odds.higher.available ? 'HIGHER' : 'LOWER';
-    engine.blitzAction(p1.id, d);
-    // Still 5s because p2 hasn't picked
-    assert.equal(engine.blitz.timerSeconds, 5);
-
-    // P2 picks -> triggers Smart Clock early lock to 1s!
-    let earlyTick = false;
-    engine.once('blitz_tick', (t) => {
-      if (t.earlyLocked) earlyTick = true;
-    });
-    engine.blitzAction(p2.id, d);
-    assert.equal(earlyTick, true);
-    assert.equal(engine.blitz.timerSeconds, 1);
-
-    // Resolve flip cleanly and settle p1 via Blitz CASHOUT on surviving win (if won) or verify clean phase
-    engine._resolveBlitzFlip();
-    assert.ok(['REVEALING', 'SETTLED'].includes(engine.blitz.phase));
-
-    // Cheer cooldown validation
-    assert.equal(engine.cheerPlayer(p1.id, p1.id).code, 'CANNOT_CHEER_SELF');
-    assert.equal(engine.cheerPlayer(p1.id, p2.id).ok, true);
-    assert.equal(engine.cheerPlayer(p1.id, p2.id).code, 'CHEER_COOLDOWN');
-
+    assert.equal(typeof engine.blitzJoin, 'undefined');
+    assert.equal(typeof engine.cheerPlayer, 'undefined');
+    assert.equal(engine.getPublicSalonState(p1.id).targetRtp, 0.98);
+    assert.equal(engine.getPublicSalonState(p1.id).blitz, undefined);
     engine.stop();
   });
 
@@ -344,7 +296,7 @@ describe('Hi-Lo Privé Engine, 94% RTP & Game Logic Unit Suite', () => {
     assert.equal(startA.ok, true);
     assert.equal(startA.ladder.currentCard.value, 2);
     assert.equal(startA.ladder.odds.higher.available, true);
-    assert.equal(startA.ladder.odds.higher.multiplier, 1.01);
+    assert.ok(startA.ladder.odds.higher.multiplier >= 1.01 && startA.ladder.odds.higher.multiplier <= 1.02);
     assert.ok(startA.ladder.odds.higher.probability * startA.ladder.odds.higher.multiplier < 1.0);
     engine.cashout(player.id);
 
@@ -363,7 +315,8 @@ describe('Hi-Lo Privé Engine, 94% RTP & Game Logic Unit Suite', () => {
     assert.equal(startB.ladder.currentCard.value, 2);
     assert.equal(startB.reshuffled, true);
     assert.equal(startB.ladder.odds.higher.available, true);
-    assert.equal(startB.ladder.odds.higher.multiplier, 1.01);
+    assert.equal(startB.ladder.odds.higher.multiplier, 1.04);
+    assert.ok(startB.ladder.odds.higher.probability * startB.ladder.odds.higher.multiplier <= 0.99);
     assert.equal(startB.ladder.odds.lower.available, false);
     assert.equal(startB.ladder.odds.equal.available, true);
 

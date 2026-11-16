@@ -39,11 +39,11 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
     }
   });
 
-  it('L1: enforces 2500 ticket price, 0% house edge, and exact 30-minute default round', () => {
+  it('L1: enforces 2500 ticket price, 0% house edge, and exact 10-minute default round', () => {
     assert.equal(TICKET_PRICE, 2500);
     assert.equal(HOUSE_FEE_RATE, 0);
-    assert.equal(ROUND_DURATION_MS, 30 * 60 * 1000);
-    assert.equal(DRAW_REVEAL_MS, 8000);
+    assert.equal(ROUND_DURATION_MS, 10 * 60 * 1000);
+    assert.equal(DRAW_REVEAL_MS, 12000);
     assert.deepEqual(computePlayerOdds(250, 1000), { share: 0.25, sharePct: 25 });
   });
 
@@ -98,7 +98,8 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
     assert.equal(draws[0].winningTicketDisplay, 1981); // floor(0.99 * 2000) + 1
     assert.equal(draws[0].winnerId, bob.id);
     assert.equal(draws[0].potWon, 5000000);
-    assert.equal(draws[0].reelEntries.length, 48);
+    assert.equal(draws[0].reelEntries.length, 64);
+    assert.equal(draws[0].winnerSlot, 52);
     assert.equal(draws[0].reelEntries[draws[0].winnerSlot].isWinner, true);
     assert.equal(draws[0].reelEntries[draws[0].winnerSlot].playerId, bob.id);
 
@@ -201,8 +202,18 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
     assert.equal(draws[0].potWon, 10000);
     assert.equal(draws[0].netProfit, 7500);
     assert.equal(draws[0].winnerWasOffline, true);
-    assert.equal(savedAcc.chips, aliceSnapshotChips + 10000);
+    // 20% of 7500 netProfit = 1500 auto-repaid directly to lender even while offline
+    assert.equal(draws[0].repayments.length, 1);
+    assert.equal(draws[0].repayments[0].amount, 1500);
+    assert.equal(savedAcc.chips, aliceSnapshotChips + 10000 - 1500);
+    assert.ok(savedAcc.stats && savedAcc.stats.totalWon >= 10000, 'Offline winner stats updated');
     assert.ok(bm.getPlayerNotifications(savedAcc).length >= 1, 'Offline winner receives inbox notification');
+
+    // Verify unseenOfflineWins exposes myPendingOfflineWin on reconnect until acknowledged
+    const pending = activeEngine.getPublicState(alice.id).myPendingOfflineWin;
+    assert.ok(pending && pending.roundId === draws[0].roundId && pending.potWon === 10000);
+    assert.equal(activeEngine.acknowledgeOfflineWin(alice.id, alice.name, draws[0].roundId), true);
+    assert.equal(activeEngine.getPublicState(alice.id).myPendingOfflineWin, null);
   });
 
   it('L5: rejects invalid quantities, insufficient funds, and buys during DRAWING reveal', () => {
@@ -289,5 +300,6 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
       assert.equal(emojiRe.test(code), false, `${path.basename(f)} must contain zero Unicode emojis`);
       assert.equal(/AudioContext|<audio|new Audio\s*\(/i.test(code), false, `${path.basename(f)} must contain zero audio APIs`);
     }
+    if (ctrl._localTickTimer) clearInterval(ctrl._localTickTimer);
   });
 });

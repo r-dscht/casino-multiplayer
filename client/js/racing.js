@@ -4,7 +4,7 @@
  * Monaco Turf Club & Port Hercule Derby (Paardracen).
  *
  * Kenmerken:
- *  - Simpel & eerlijk: maximaal 1 WIN-ticket per speler, vaste 5.50x uitbetaling, 6 gelijke 1/6 paarden.
+ *  - Simpel & eerlijk: maximaal 1 WIN-ticket per speler, 3.38x basis + 50% Winnaarspot, 6 gelijke 1/6 paarden.
  *  - Rijk geanimeerde 60fps Canvas: openende starthekken, startlichten, parallax grasstroken,
  *    twee-delige galopperende benen, unieke jockey-patroonhemden, Sprintpoort-vlammen,
  *    cosmetisch supporter-vuurwerk en Photo-Finish cameraflits.
@@ -19,9 +19,9 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   const MIN_BET = 10;
   const MAX_BET = 50000;
-  const BASE_WIN_ODDS = 3.0;
+  const BASE_WIN_ODDS = 3.38;
   const WINNER_POT_LOSER_SHARE = 0.50;
-  const WINNER_POT_ROLLOVER_CAP_MULT = 2.5;
+  const WINNER_POT_ROLLOVER_CAP_MULT = 5.0;
   const FIXED_WIN_ODDS = BASE_WIN_ODDS;
   const MAX_TICKETS_PER_PLAYER = 1;
 
@@ -119,7 +119,7 @@
         surgingIds: [],
         progressPct: 0,
         photoFinishActive: false,
-        commentary: 'Kies 1 winnaar (3.0x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!',
+        commentary: 'Kies 1 winnaar (3.38x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!',
         result: null,
         history: [],
       };
@@ -303,7 +303,7 @@
           }
         }
         if (data.phase === 'STARTING') {
-          this._showEventBanner('POORTEN DICHT!', 'Alle 6 paarden staan startklaar (3.0x basis + 50% Verliezers Winnaarspot)', 'banner-start');
+          this._showEventBanner('POORTEN DICHT!', 'Alle 6 paarden staan startklaar (3.38x basis + 50% Verliezers Winnaarspot)', 'banner-start');
         } else if (data.phase === 'RACING') {
           this._showEventBanner('DAAR GAAN ZE!', 'De hekken klappen open op Port Hercule!', 'banner-go');
         }
@@ -525,7 +525,7 @@
         const currentOpts = Array.from(this.els.horseSelect.options);
         if (currentOpts.length !== this.state.horses.length || currentOpts[0].text.indexOf(this.state.horses[0].name) === -1 || currentOpts[0].text.indexOf('+ Pot') === -1) {
           this.els.horseSelect.innerHTML = this.state.horses
-            .map((h) => `<option value="${h.horseId}">#${h.horseId} ${escapeHtml(h.name)} (${BASE_WIN_ODDS.toFixed(1)}x + Pot)</option>`)
+            .map((h) => `<option value="${h.horseId}">#${h.horseId} ${escapeHtml(h.name)} (${BASE_WIN_ODDS.toFixed(2)}x + Pot)</option>`)
             .join('');
         }
         this.els.horseSelect.value = String(this.selectedHorseId);
