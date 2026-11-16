@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentActiveBets = [];
   let tableLiveBets = [];
   let currentActiveGame = 'Roulette';
+  let confirmedServerGame = 'Roulette';
   let currentBjTableId = 'table_1';
   let currentBjTableState = null;
   let myBjSeatIndex = -1;
@@ -31,22 +32,38 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastRoulettePhase = 'BETTING';
   let lastRouletteDuration = 20;
   let lastRouletteTimeLeft = 20;
+  let racing = null;
+  let hilo = null;
+  let mines = null;
 
   function hasUnsettledBets() {
     if (currentActiveBets.length > 0) return true;
     if (myBjSeatIndex !== -1 && currentBjTableState) {
       const mySeat = currentBjTableState.seats && currentBjTableState.seats[myBjSeatIndex];
-      if (mySeat && mySeat.bet > 0 && ['DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentBjTableState.phase)) {
+      if (mySeat && mySeat.bet > 0 && ['BETTING', 'DEALING', 'PLAYER_TURNS', 'DEALER_TURN'].includes(currentBjTableState.phase)) {
         return true;
       }
     }
     if (poker && poker.mySeatIndex !== -1 && poker.currentTableState) {
       const mySeat = poker.currentTableState.seats && poker.currentTableState.seats[poker.mySeatIndex];
-      if (mySeat && !mySeat.folded && !['WAITING_FOR_PLAYERS', 'HAND_END'].includes(poker.currentTableState.currentPhase)) {
+      const inPokerHand = mySeat && (
+        (!mySeat.folded && (mySeat.hasCards || (Array.isArray(mySeat.cards) && mySeat.cards.length > 0))) ||
+        (mySeat.totalCommittedThisHand || 0) > 0
+      );
+      if (inPokerHand && !['WAITING_FOR_PLAYERS', 'HAND_END'].includes(poker.currentTableState.currentPhase)) {
         return true;
       }
     }
     if (crash && typeof crash.hasActiveBet === 'function' && crash.hasActiveBet()) {
+      return true;
+    }
+    if (racing && typeof racing.hasActiveBets === 'function' && racing.hasActiveBets()) {
+      return true;
+    }
+    if (hilo && typeof hilo.hasActiveBets === 'function' && hilo.hasActiveBets()) {
+      return true;
+    }
+    if (mines && typeof mines.hasActiveBets === 'function' && mines.hasActiveBets()) {
       return true;
     }
     return false;
@@ -104,11 +121,24 @@ document.addEventListener('DOMContentLoaded', () => {
         roomTable = (poker && poker.currentTableId) || 'poker_1';
       } else if (currentActiveGame === 'Crash') {
         roomTable = 'crash';
+      } else if (currentActiveGame === 'Plinko' || currentActiveGame === 'PLINKO') {
+        roomTable = 'plinko';
+      } else if (currentActiveGame === 'Slots' || currentActiveGame === 'SLOTS') {
+        roomTable = 'slots';
+      } else if (currentActiveGame === 'Racing' || currentActiveGame === 'RACING') {
+        roomTable = 'racing';
+      } else if (currentActiveGame === 'HiLo' || currentActiveGame === 'HILO') {
+        roomTable = 'hilo';
+      } else if (currentActiveGame === 'Mines' || currentActiveGame === 'MINES') {
+        roomTable = 'mines';
       }
       network.sendChat(text, scope, roomTable);
     },
     onInspectPlayer: (playerId) => {
       network.getProfile(playerId);
+    },
+    onRequestGlobalLeaderboard: () => {
+      network.getGlobalLeaderboard();
     },
     onUpdateCustomization: (customization) => {
       network.updateProfile(customization);
@@ -133,7 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5b. Initialize Texas Hold'em Poker Controller
   let poker = null;
   if (typeof CasinoPoker !== 'undefined') {
-    poker = new CasinoPoker({ network, ui });
+    poker = new CasinoPoker({
+      network,
+      ui,
+      onBetStateChange: () => ui.setNavigationLocked(hasUnsettledBets())
+    });
     poker.init();
   }
 
@@ -142,6 +176,62 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof CasinoCrash !== 'undefined') {
     crash = new CasinoCrash({ network, ui });
     crash.init();
+  }
+
+  // 5d. Initialize Multiplayer Royal Plinko Controller
+  let plinko = null;
+  if (typeof CasinoPlinko !== 'undefined') {
+    plinko = new CasinoPlinko({ network, ui });
+    plinko.init();
+    if (typeof window !== 'undefined') {
+      window.plinkoInstance = plinko;
+    }
+  }
+
+  // 5e. Initialize Multiplayer Grand Sovereign Slots Controller
+  let slots = null;
+  if (typeof CasinoSlots !== 'undefined') {
+    slots = new CasinoSlots({ network, ui });
+    slots.init();
+    if (typeof window !== 'undefined') {
+      window.slotsInstance = slots;
+    }
+  }
+
+  // 5f. Initialize Multiplayer Monaco Turf Club (Horse Racing) Controller
+  if (typeof CasinoRacing !== 'undefined') {
+    racing = new CasinoRacing({ network, ui });
+    racing.init();
+    if (typeof window !== 'undefined') {
+      window.racingInstance = racing;
+    }
+  }
+
+  // 5g. Initialize Monte Carlo Hi-Lo Prive Controller
+  if (typeof CasinoHilo !== 'undefined') {
+    hilo = new CasinoHilo({ network, ui });
+    hilo.init();
+    if (typeof window !== 'undefined') {
+      window.hiloInstance = hilo;
+    }
+  }
+
+  // 5h. Initialize Royal Mines Vault Controller
+  if (typeof CasinoMines !== 'undefined') {
+    mines = new CasinoMines({ network, ui });
+    mines.init();
+    if (typeof window !== 'undefined') {
+      window.minesInstance = mines;
+    }
+  }
+
+  // 5i. Initialize Casino Staatsloterij Controller
+  let lottery = null;
+  if (typeof CasinoLottery !== 'undefined') {
+    lottery = new CasinoLottery({ network, ui });
+    if (typeof window !== 'undefined') {
+      window.lotteryInstance = lottery;
+    }
   }
 
   // 6. Connect Socket Network
@@ -162,7 +252,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('auth_error', (data) => {
+    ui.myPlayer.id = null;
     ui.showLoginError(data ? data.message : 'Authenticatie mislukt');
+  });
+
+  network.on('error_msg', (data) => {
+    if (!data || !data.message) return;
+    if (data.code === 'PLAYER_NOT_FOUND' && typeof network.hasStoredCredentials === 'function' && network.hasStoredCredentials()) {
+      ui.showToast('Sessie wordt hersteld, probeer zo opnieuw...', 'info');
+      return;
+    }
+    ui.showToast(data.message, 'error');
+  });
+
+  network.on('session_recovered', () => {
+    ui.showToast('Sessie hersteld!', 'info');
+  });
+
+  network.on('session_lost', () => {
+    ui.myPlayer.id = null;
+    ui.showLoginModal();
+    ui.showLoginError('Sessie verlopen. Log opnieuw in om verder te spelen.');
   });
 
   network.on('auth_success', (data) => {
@@ -175,6 +285,17 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.myPlayer.avatar = data.player.avatar || 'avatar_1';
       ui.updatePlayerHUD();
       ui.renderMyProfile(data.player);
+      if (lottery) lottery.renderBuyPreview();
+    }
+    // Re-sync current game presence & state after reconnect or silent session recovery
+    const activeLower = String(currentActiveGame || 'Roulette').toLowerCase();
+    if (activeLower && activeLower !== 'roulette' && network.myPlayerId) {
+      network.setGamePresence(activeLower.toUpperCase());
+      if (activeLower === 'plinko') network.plinkoJoin();
+      else if (activeLower === 'slots') network.slotsJoin(slots ? slots.selectedMachineId : null);
+      else if (activeLower === 'racing') network.racingJoin();
+      else if (activeLower === 'hilo') network.hiloJoin();
+      else if (activeLower === 'mines') network.minesJoin();
     }
     // Reconcile and request bank state with cached backup
     if (bank) {
@@ -210,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (me.createdAt) ui.myPlayer.createdAt = me.createdAt;
         ui.updatePlayerHUD();
         ui.renderMyProfile(me);
+        if (lottery) lottery.renderBuyPreview();
       }
     }
 
@@ -270,6 +392,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (Array.isArray(state.players)) {
       ui.updateLeaderboard(state.players);
       if (bank) bank.updateConnectedPlayers(state.players);
+    }
+    if (Array.isArray(state.globalLeaderboard)) {
+      ui.updateGlobalLeaderboard(state.globalLeaderboard);
     }
 
     // Set initial resting pocket on 3D wheel if not spinning
@@ -401,6 +526,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  network.on('global_leaderboard_update', (players) => {
+    if (Array.isArray(players)) {
+      ui.updateGlobalLeaderboard(players);
+    }
+  });
+
   network.on('players_update', (players) => {
     if (Array.isArray(players)) {
       ui.updateLeaderboard(players);
@@ -488,64 +619,227 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  const GAME_VIEW_NAMES = new Set([
+    'roulette', 'blackjack', 'poker', 'crash', 'plinko', 'slots', 'racing', 'hilo', 'mines'
+  ]);
+
+  function deactivateInactiveViews(targetKey) {
+    if (targetKey !== 'poker' && poker && typeof poker.onViewDeactivated === 'function') {
+      poker.onViewDeactivated();
+    }
+    if (targetKey !== 'slots' && slots && typeof slots.onViewDeactivated === 'function') {
+      slots.onViewDeactivated();
+    }
+    if (targetKey !== 'racing' && racing && typeof racing.onViewDeactivated === 'function') {
+      racing.onViewDeactivated();
+    }
+    if (targetKey !== 'hilo' && hilo && typeof hilo.onViewDeactivated === 'function') {
+      hilo.onViewDeactivated();
+    }
+    if (targetKey !== 'mines' && mines && typeof mines.onViewDeactivated === 'function') {
+      mines.onViewDeactivated();
+    }
+  }
+
+  function activateGameView(rawGame, { syncPresence = false, joinPrimaryTables = false, joinAuxiliary = false, announce = false } = {}) {
+    const key = String(rawGame || 'Roulette').trim().toLowerCase();
+    deactivateInactiveViews(key);
+
+    if (key === 'roulette') {
+      currentActiveGame = 'Roulette';
+      ui.switchGameView('roulette');
+      if (syncPresence) network.setGamePresence('Roulette');
+      ui.switchChatScope('table');
+      ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
+      if (announce) ui.showToast('Je speelt nu Roulette', 'info');
+    } else if (key === 'blackjack') {
+      currentActiveGame = 'Blackjack';
+      ui.switchGameView('blackjack', currentBjTableId);
+      if (syncPresence) network.setGamePresence('Blackjack');
+      if (joinPrimaryTables) network.bjJoinTable(currentBjTableId);
+      ui.switchChatScope('table');
+      if (currentBjTableState) {
+        ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
+        ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
+        ui.renderBlackjackSeats(currentBjTableState.seats || [], currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
+      } else {
+        ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+      }
+      if (announce) ui.showToast('Je speelt nu Blackjack', 'info');
+    } else if (key === 'poker') {
+      currentActiveGame = 'Poker';
+      const targetPokerTable = (poker && poker.currentTableId) || 'poker_1';
+      ui.switchGameView('poker', targetPokerTable);
+      if (syncPresence) network.setGamePresence('POKER');
+      if (joinPrimaryTables) network.pokerJoinTable(targetPokerTable);
+      ui.switchChatScope('table');
+      if (poker && typeof poker.onViewActivated === 'function') {
+        poker.onViewActivated();
+      } else {
+        ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
+      }
+      if (poker && poker.currentTableState) {
+        poker.renderTable(poker.currentTableState);
+      }
+      if (announce) ui.showToast('Je speelt nu Texas Hold\'em Poker', 'info');
+    } else if (key === 'crash') {
+      currentActiveGame = 'Crash';
+      ui.switchGameView('crash');
+      if (syncPresence) network.setGamePresence('CRASH');
+      if (joinPrimaryTables) network.crashJoinTable();
+      ui.switchChatScope('table');
+      if (crash) {
+        ui.updatePhase(crash.phase === 'RUNNING' ? 'CRASH_FLYING' : (crash.phase === 'CRASHED' ? 'PAYOUT' : 'BETTING'), crash.duration || 8, crash.phase === 'RUNNING' ? 'LIVE' : (crash.timeLeft || 0));
+      }
+      if (announce) ui.showToast('Je speelt nu Velocity Crash', 'info');
+    } else if (key === 'plinko') {
+      currentActiveGame = 'Plinko';
+      ui.switchGameView('plinko');
+      if (syncPresence) network.setGamePresence('PLINKO');
+      if (joinPrimaryTables) network.plinkoJoin();
+      ui.switchChatScope('table');
+      ui.updatePhase('PLINKO_READY', 0, 'LIVE');
+      if (plinko) plinko.onViewActivated();
+      if (announce) ui.showToast('Je speelt nu Royal Plinko', 'info');
+    } else if (key === 'slots') {
+      currentActiveGame = 'Slots';
+      ui.switchGameView('slots');
+      if (syncPresence) network.setGamePresence('SLOTS');
+      if (joinPrimaryTables) network.slotsJoin(slots ? slots.selectedMachineId : null);
+      ui.switchChatScope('table');
+      if (slots) {
+        slots.onViewActivated();
+      } else {
+        ui.updatePhase('SLOTS_READY', 0, 'LIVE');
+      }
+      if (announce) ui.showToast('Je speelt nu Grand Sovereign Slots', 'info');
+    } else if (key === 'racing') {
+      currentActiveGame = 'Racing';
+      ui.switchGameView('racing');
+      if (syncPresence) network.setGamePresence('RACING');
+      if (joinPrimaryTables || joinAuxiliary) network.racingJoin();
+      ui.switchChatScope('table');
+      if (racing) {
+        racing.onViewActivated();
+      } else {
+        ui.updatePhase('WAITING_FOR_BETS', 18, 18);
+      }
+      if (announce) ui.showToast('Je bezoekt nu Monaco Turf Club Derby', 'info');
+    } else if (key === 'hilo') {
+      currentActiveGame = 'HiLo';
+      ui.switchGameView('hilo');
+      if (syncPresence) network.setGamePresence('HILO');
+      if (joinPrimaryTables || joinAuxiliary) network.hiloJoin();
+      ui.switchChatScope('table');
+      if (hilo) {
+        hilo.onViewActivated();
+      } else {
+        ui.updatePhase('HILO_READY', 0, 'SOLO');
+      }
+      if (announce) ui.showToast('Je speelt nu Monte Carlo Hi-Lo Privé', 'info');
+    } else if (key === 'mines') {
+      currentActiveGame = 'Mines';
+      ui.switchGameView('mines');
+      if (syncPresence) network.setGamePresence('MINES');
+      if (joinPrimaryTables || joinAuxiliary) network.minesJoin();
+      ui.switchChatScope('table');
+      if (mines) {
+        mines.onViewActivated();
+      } else {
+        ui.updatePhase('MINES_READY', 0, 'SOLO');
+      }
+      if (announce) ui.showToast('Je speelt nu Royal Mines Vault', 'info');
+    }
+  }
+
   // Game Presence & Table View switcher pills
   document.querySelectorAll('.game-pill').forEach(btn => {
     btn.addEventListener('click', () => {
       const game = btn.dataset.game;
       if (hasUnsettledBets()) {
+        ui.setNavigationLocked(true);
         ui.showToast('Inzet actief — Navigatie vergrendeld tot einde van de ronde', 'error');
         return;
       }
-      if (game === 'roulette') {
-        currentActiveGame = 'Roulette';
-        ui.switchGameView('roulette');
-        network.setGamePresence('Roulette');
-        ui.switchChatScope('table');
-        ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
-        ui.showToast('Je speelt nu Roulette', 'info');
-      } else if (game === 'blackjack') {
-        currentActiveGame = 'Blackjack';
-        ui.switchGameView('blackjack', currentBjTableId);
-        network.setGamePresence('Blackjack');
-        network.bjJoinTable(currentBjTableId);
-        ui.switchChatScope('table');
-        if (currentBjTableState) {
-          ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
-          ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
-          ui.renderBlackjackSeats(currentBjTableState.seats || [], currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
-        } else {
-          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
-        }
-        ui.showToast('Je speelt nu Blackjack', 'info');
-      } else if (game === 'poker') {
-        currentActiveGame = 'Poker';
-        const targetPokerTable = (poker && poker.currentTableId) || 'poker_1';
-        ui.switchGameView('poker', targetPokerTable);
-        network.setGamePresence('POKER');
-        network.pokerJoinTable(targetPokerTable);
-        ui.switchChatScope('table');
-        if (poker && poker.currentTableState) {
-          ui.updatePhase(poker.currentTableState.currentPhase || 'WAITING_FOR_PLAYERS', 15, poker.currentTableState.turnTimeLeft || 0);
-          poker.renderTable(poker.currentTableState);
-        } else {
-          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
-        }
-        ui.showToast('Je speelt nu Texas Hold\'em Poker', 'info');
-      } else if (game === 'crash') {
-        currentActiveGame = 'Crash';
-        ui.switchGameView('crash');
-        network.setGamePresence('CRASH');
-        network.crashJoinTable();
-        ui.switchChatScope('table');
-        if (crash) {
-          ui.updatePhase(crash.phase === 'RUNNING' ? 'SPINNING' : (crash.phase === 'CRASHED' ? 'PAYOUT' : 'BETTING'), crash.duration || 8, crash.timeLeft || 0);
-        }
-        ui.showToast('Je speelt nu Velocity Crash', 'info');
-      } else {
+      if (!GAME_VIEW_NAMES.has(String(game || '').toLowerCase())) {
         ui.showToast(`${btn.textContent.trim()} is binnenkort beschikbaar!`, 'info');
+        return;
       }
+      activateGameView(game, { syncPresence: true, joinPrimaryTables: true, announce: true });
     });
   });
+
+  // Left Command Dock button delegation
+  document.querySelectorAll('.dock-left-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.game;
+      const targetPill = document.querySelector(`.game-pill[data-game="${g}"]`);
+      if (targetPill) targetPill.click();
+    });
+  });
+
+  // Backlog Feature Modals & Navigation Wiring (WIP features remain guarded when hidden)
+  const marketModal = document.getElementById('market-modal');
+  const btnOpenMarket = document.getElementById('btn-open-market');
+  const btnCloseMarket = document.getElementById('btn-close-market-modal');
+  if (btnOpenMarket && marketModal) {
+    btnOpenMarket.addEventListener('click', () => {
+      if (btnOpenMarket.classList.contains('feature-wip-hidden') || marketModal.classList.contains('feature-wip-hidden')) return;
+      marketModal.classList.remove('hidden');
+    });
+  }
+  if (btnCloseMarket && marketModal) {
+    btnCloseMarket.addEventListener('click', () => marketModal.classList.add('hidden'));
+  }
+
+  const exchangeModal = document.getElementById('exchange-modal');
+  const btnOpenExchange = document.getElementById('btn-open-exchange');
+  const btnCloseExchange = document.getElementById('btn-close-exchange-modal');
+  if (btnOpenExchange && exchangeModal) {
+    btnOpenExchange.addEventListener('click', () => {
+      if (btnOpenExchange.classList.contains('feature-wip-hidden') || exchangeModal.classList.contains('feature-wip-hidden')) return;
+      exchangeModal.classList.remove('hidden');
+    });
+  }
+  if (btnCloseExchange && exchangeModal) {
+    btnCloseExchange.addEventListener('click', () => exchangeModal.classList.add('hidden'));
+  }
+
+  if (!lottery) {
+    const lotteryModal = document.getElementById('lottery-modal');
+    const btnOpenLottery = document.getElementById('btn-open-lottery');
+    const btnCloseLottery = document.getElementById('btn-close-lottery-modal');
+    if (btnOpenLottery && lotteryModal) {
+      btnOpenLottery.addEventListener('click', () => lotteryModal.classList.remove('hidden'));
+    }
+    if (btnCloseLottery && lotteryModal) {
+      btnCloseLottery.addEventListener('click', () => lotteryModal.classList.add('hidden'));
+    }
+  }
+
+  const racingModal = document.getElementById('racing-modal');
+  const btnCloseRacing = document.getElementById('btn-close-racing-modal');
+  const btnViewRacingLive = document.getElementById('btn-view-racing-live');
+  if (btnCloseRacing && racingModal) {
+    btnCloseRacing.addEventListener('click', () => racingModal.classList.add('hidden'));
+  }
+  if (btnViewRacingLive && racingModal) {
+    btnViewRacingLive.addEventListener('click', () => {
+      racingModal.classList.add('hidden');
+      const racingPill = document.getElementById('pill-racing');
+      if (racingPill) racingPill.click();
+    });
+  }
+
+  // Gadgets & Perks Dock Toggle
+  const gadgetsDock = document.getElementById('gadgets-perks-dock');
+  const btnToggleGadgets = document.getElementById('btn-toggle-gadgets');
+  if (btnToggleGadgets && gadgetsDock) {
+    btnToggleGadgets.addEventListener('click', () => {
+      if (gadgetsDock.classList.contains('feature-wip-hidden')) return;
+      gadgetsDock.classList.toggle('expanded');
+    });
+  }
 
   // Table Switcher (Table 1 vs Table 2)
   const handleBjTableSwitch = (targetTableId) => {
@@ -977,6 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
+    ui.setNavigationLocked(hasUnsettledBets());
     updateBjActionButtons();
   });
 
@@ -1053,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       ui.renderBlackjackSeats(currentBjTableState.seats, currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
     }
+    ui.setNavigationLocked(hasUnsettledBets());
     updateBjActionButtons();
   });
 
@@ -1213,6 +1509,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   network.on('navigation_blocked', (data) => {
+    const fallbackGame = (data && (data.currentGame || data.game)) || confirmedServerGame;
+    if (fallbackGame && String(fallbackGame).toLowerCase() !== String(currentActiveGame || '').toLowerCase()) {
+      activateGameView(fallbackGame, { syncPresence: false, joinPrimaryTables: false, announce: false });
+    }
     ui.setNavigationLocked(true);
     const msg = (data && data.message) || 'Inzet actief — Navigatie vergrendeld tot einde van de ronde';
     ui.showToast(msg, 'error');
@@ -1220,41 +1520,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   network.on('game_switched', (data) => {
     if (data && data.game) {
-      if (data.game === 'Blackjack') {
-        currentActiveGame = 'Blackjack';
-        ui.switchGameView('blackjack', currentBjTableId);
-        ui.switchChatScope('table');
-        if (currentBjTableState) {
-          ui.updatePhase(currentBjTableState.phase, 15, currentBjTableState.timeLeft || 0);
-          ui.renderBlackjackDealer(currentBjTableState.dealerHand || [], currentBjTableState.dealerScore || 0, currentBjTableState.phase);
-          ui.renderBlackjackSeats(currentBjTableState.seats || [], currentBjTableState.activeSeatIndex, myBjSeatIndex, currentBjTableState.phase);
-        } else {
-          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
-        }
-      } else if (data.game === 'Roulette') {
-        currentActiveGame = 'Roulette';
-        ui.switchGameView('roulette');
-        ui.switchChatScope('table');
-        ui.updatePhase(lastRoulettePhase, lastRouletteDuration, lastRouletteTimeLeft);
-      } else if (data.game === 'Poker') {
-        currentActiveGame = 'Poker';
-        const targetPokerTable = (poker && poker.currentTableId) || 'poker_1';
-        ui.switchGameView('poker', targetPokerTable);
-        ui.switchChatScope('table');
-        if (poker && poker.currentTableState) {
-          ui.updatePhase(poker.currentTableState.currentPhase || 'WAITING_FOR_PLAYERS', 15, poker.currentTableState.turnTimeLeft || 0);
-          poker.renderTable(poker.currentTableState);
-        } else {
-          ui.updatePhase('WAITING_FOR_PLAYERS', 15, 0);
-        }
-      } else if (data.game === 'Crash') {
-        currentActiveGame = 'Crash';
-        ui.switchGameView('crash');
-        ui.switchChatScope('table');
-        if (crash) {
-          ui.updatePhase(crash.phase === 'RUNNING' ? 'SPINNING' : (crash.phase === 'CRASHED' ? 'PAYOUT' : 'BETTING'), crash.duration || 8, crash.timeLeft || 0);
-        }
+      if (String(data.game).toLowerCase() === 'lobby') {
+        deactivateInactiveViews('lobby');
+        return;
       }
+      confirmedServerGame = data.game;
+      activateGameView(data.game, { syncPresence: false, joinPrimaryTables: false, joinAuxiliary: true, announce: false });
     }
   });
 
@@ -1266,6 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.myPlayer.chips = data.chips;
       ui.updatePlayerHUD();
       if (bank) bank.updateBankData(bank.currentBankData);
+      if (lottery) lottery.renderBuyPreview();
     }
   });
 

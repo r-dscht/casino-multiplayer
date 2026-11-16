@@ -38,8 +38,64 @@
     { name: 'Riviera Turquoise', color: '#0f766e' },
     { name: 'Champagne Rose', color: '#831843' },
     { name: 'Cognac Amber', color: '#92400e' },
-    { name: 'Brushed Titanium', color: '#334155' }
+    { name: 'Brushed Titanium', color: '#334155' },
+    { name: 'Neon Crimson', color: '#e11d48' },
+    { name: 'Sunset Coral', color: '#f97316' },
+    { name: 'Sovereign Gold', color: '#eab308' },
+    { name: 'Vivid Emerald', color: '#10b981' },
+    { name: 'Azure Cyan', color: '#06b6d4' },
+    { name: 'Electric Cobalt', color: '#3b82f6' },
+    { name: 'Royal Violet', color: '#8b5cf6' },
+    { name: 'Velvet Magenta', color: '#ec4899' }
   ];
+
+  function normalizeHexColor(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    let s = raw.trim();
+    if (!s.startsWith('#')) s = '#' + s;
+    if (/^#[0-9a-fA-F]{3}$/.test(s)) {
+      s = '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+    }
+    return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : null;
+  }
+
+  function hslToHex(h, s, l) {
+    const hn = ((Number(h) % 360) + 360) % 360;
+    const sn = Math.max(0, Math.min(100, Number(s))) / 100;
+    const ln = Math.max(0, Math.min(100, Number(l))) / 100;
+    const c = (1 - Math.abs(2 * ln - 1)) * sn;
+    const x = c * (1 - Math.abs(((hn / 60) % 2) - 1));
+    const m = ln - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (hn < 60) { r = c; g = x; }
+    else if (hn < 120) { r = x; g = c; }
+    else if (hn < 180) { g = c; b = x; }
+    else if (hn < 240) { g = x; b = c; }
+    else if (hn < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function hexToHsl(hex) {
+    const clean = normalizeHexColor(hex) || '#d4af37';
+    const r = parseInt(clean.slice(1, 3), 16) / 255;
+    const g = parseInt(clean.slice(3, 5), 16) / 255;
+    const b = parseInt(clean.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+        case g: h = ((b - r) / d + 2) * 60; break;
+        case b: h = ((r - g) / d + 4) * 60; break;
+      }
+    }
+    return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
 
   function getMonogram(name) {
     if (!name || typeof name !== 'string') return '?';
@@ -63,6 +119,33 @@
       return chars[0].toUpperCase();
     }
     return (chars[0] + chars[1]).toUpperCase();
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatLastSeen(timestamp) {
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts) || ts <= 0) return 'eerder';
+    const diffMs = Math.max(0, Date.now() - ts);
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'zojuist';
+    if (mins < 60) return `${mins}m geleden`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}u geleden`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d geleden`;
+    try {
+      return new Date(ts).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' });
+    } catch (e) {
+      return 'eerder';
+    }
   }
 
   class CasinoUI {
@@ -99,6 +182,13 @@
       // Navigation Bet Lock State (R2)
       this.isNavigationLocked = false;
 
+      // Leaderboard state (Online & Global All-Time)
+      this.activeLeaderboardTab = 'online';
+      this.leaderboardSortBy = 'chips';
+      this.leaderboardOfflineOnly = false;
+      this.onlinePlayers = [];
+      this.globalLeaderboardPlayers = [];
+
       // Payout Counter Ticker Previous Balance (R6)
       this._prevChips = 10000;
 
@@ -116,6 +206,7 @@
       this.setupChipDock();
       this.setupChat();
       this.setupSidebarTabs();
+      this.setupLeaderboardTabs();
       this.setupProfileTab();
       this.setupInspectorModal();
     }
@@ -180,7 +271,16 @@
         // Sidebar Tabs, Leaderboard & Bets
         sidebarTabs: document.querySelectorAll('.sidebar-tab'),
         tabPanes: document.querySelectorAll('.sidebar-tab-pane'),
+        tabLbOnline: document.getElementById('tab-lb-online'),
+        tabLbGlobal: document.getElementById('tab-lb-global'),
+        badgeLbOnline: document.getElementById('badge-lb-online'),
+        badgeLbGlobal: document.getElementById('badge-lb-global'),
+        leaderboardPaneTitle: document.getElementById('leaderboard-pane-title'),
+        leaderboardGlobalToolbar: document.getElementById('leaderboard-global-toolbar'),
+        btnLbOfflineOnly: document.getElementById('btn-lb-offline-only'),
+        lbSortBtns: document.querySelectorAll('.lb-sort-btn'),
         leaderboardList: document.getElementById('leaderboard-list'),
+        globalLeaderboardList: document.getElementById('global-leaderboard-list'),
         activeBetsList: document.getElementById('active-bets-list'),
         betsCountBadge: document.getElementById('bets-count-badge'),
         tableTotalChips: document.getElementById('table-total-chips'),
@@ -258,37 +358,253 @@
       }
     }
 
+    setupLeaderboardTabs() {
+      if (this.elements.tabLbOnline) {
+        this.elements.tabLbOnline.addEventListener('click', () => {
+          this.switchLeaderboardTab('online');
+        });
+      }
+      if (this.elements.tabLbGlobal) {
+        this.elements.tabLbGlobal.addEventListener('click', () => {
+          this.switchLeaderboardTab('global');
+        });
+      }
+      if (this.elements.lbSortBtns) {
+        this.elements.lbSortBtns.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const sortKey = btn.dataset.lbSort;
+            if (!sortKey) return;
+            this.leaderboardSortBy = sortKey;
+            this.elements.lbSortBtns.forEach((b) => {
+              b.classList.toggle('active', b.dataset.lbSort === sortKey);
+            });
+            this.renderGlobalLeaderboard();
+          });
+        });
+      }
+      if (this.elements.btnLbOfflineOnly) {
+        this.elements.btnLbOfflineOnly.addEventListener('click', () => {
+          this.leaderboardOfflineOnly = !this.leaderboardOfflineOnly;
+          this.elements.btnLbOfflineOnly.classList.toggle('active', this.leaderboardOfflineOnly);
+          this.renderGlobalLeaderboard();
+        });
+      }
+    }
+
+    switchLeaderboardTab(scope = 'online') {
+      this.activeLeaderboardTab = scope === 'global' ? 'global' : 'online';
+      const isGlobal = this.activeLeaderboardTab === 'global';
+
+      if (this.elements.tabLbOnline) {
+        this.elements.tabLbOnline.classList.toggle('active', !isGlobal);
+      }
+      if (this.elements.tabLbGlobal) {
+        this.elements.tabLbGlobal.classList.toggle('active', isGlobal);
+      }
+      if (this.elements.leaderboardGlobalToolbar) {
+        this.elements.leaderboardGlobalToolbar.classList.toggle('hidden', !isGlobal);
+      }
+      if (this.elements.leaderboardList) {
+        this.elements.leaderboardList.classList.toggle('hidden', isGlobal);
+        this.elements.leaderboardList.classList.toggle('active', !isGlobal);
+      }
+      if (this.elements.globalLeaderboardList) {
+        this.elements.globalLeaderboardList.classList.toggle('hidden', !isGlobal);
+        this.elements.globalLeaderboardList.classList.toggle('active', isGlobal);
+      }
+      if (this.elements.leaderboardPaneTitle) {
+        this.elements.leaderboardPaneTitle.textContent = isGlobal
+          ? 'Global All-Time (Gespeeld)'
+          : 'Live Casino Spelers';
+      }
+
+      if (isGlobal) {
+        this.renderGlobalLeaderboard();
+        if (typeof this.options.onRequestGlobalLeaderboard === 'function') {
+          this.options.onRequestGlobalLeaderboard();
+        }
+      } else {
+        this.updateLeaderboard(this.onlinePlayers);
+      }
+    }
+
     /* =========================================================================
      * Onboarding & Player Registration
      * ========================================================================= */
 
     setupColorSwatches() {
       if (!this.elements.palette) return;
-      this.elements.palette.innerHTML = '';
+      const savedColor = localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color') || '#c5a059';
+      this.myPlayer.color = normalizeHexColor(savedColor) || '#c5a059';
+      this.buildColorStudio(this.elements.palette, { emitNetwork: false });
+    }
 
-      const savedColor = localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color') || '#D4AF37';
+    /**
+     * Builds a complete Color Studio (20 preset swatches + custom spectrum sliders,
+     * color wheel picker, and hex code input) inside the given container.
+     */
+    buildColorStudio(container, { emitNetwork = false } = {}) {
+      if (!container) return;
+      container.innerHTML = '';
 
-      LUXURY_SWATCHES.forEach((swatch, idx) => {
+      const currentColor = normalizeHexColor(this.myPlayer.color) || '#c5a059';
+      const hsl = hexToHsl(currentColor);
+
+      // 1. Preset Swatches Grid
+      const grid = document.createElement('div');
+      grid.className = 'color-swatches-grid';
+
+      LUXURY_SWATCHES.forEach(swatch => {
         const div = document.createElement('div');
-        div.className = 'color-swatch' + ((swatch.color.toLowerCase() === savedColor.toLowerCase()) ? ' active' : '');
+        div.className = 'color-swatch' + (swatch.color.toLowerCase() === currentColor ? ' active' : '');
         div.dataset.color = swatch.color;
         div.title = swatch.name;
         div.style.backgroundColor = swatch.color;
 
         div.addEventListener('click', () => {
-          document.querySelectorAll('#color-palette .color-swatch').forEach(s => s.classList.remove('active'));
-          div.classList.add('active');
-          this.myPlayer.color = swatch.color;
-          try {
-            if (typeof localStorage !== 'undefined') {
-              localStorage.setItem('casino_player_color', swatch.color);
-              localStorage.setItem('roulette_player_color', swatch.color);
-            }
-          } catch (e) {}
+          this.applyPlayerColor(swatch.color, { emitNetwork, immediate: true });
         });
 
-        this.elements.palette.appendChild(div);
+        grid.appendChild(div);
       });
+      container.appendChild(grid);
+
+      // 2. Custom Color Maker Studio (Sliders + Color Wheel + Hex Input)
+      const studio = document.createElement('div');
+      studio.className = 'custom-color-studio';
+      studio.innerHTML = `
+        <div class="custom-color-top-row">
+          <label class="color-wheel-btn" title="Open volledig kleurenpalet">
+            <input type="color" class="custom-color-native" value="${currentColor}" aria-label="Kies eigen kleur">
+            <span class="color-wheel-preview" style="background-color: ${currentColor};"></span>
+            <span class="color-wheel-label">Kleurenwiel</span>
+          </label>
+          <div class="custom-hex-box">
+            <span class="custom-hex-prefix">#</span>
+            <input type="text" class="custom-color-hex" value="${currentColor.slice(1).toUpperCase()}" maxlength="6" spellcheck="false" aria-label="Hex kleurcode">
+          </div>
+        </div>
+        <div class="custom-color-sliders">
+          <div class="color-slider-row">
+            <span class="color-slider-label">Tint</span>
+            <input type="range" class="color-slider color-slider-hue" min="0" max="360" step="1" value="${hsl.h}" aria-label="Kleur tint">
+          </div>
+          <div class="color-slider-row">
+            <span class="color-slider-label">Helder</span>
+            <input type="range" class="color-slider color-slider-light" min="18" max="75" step="1" value="${Math.max(18, Math.min(75, hsl.l || 48))}" aria-label="Kleur helderheid">
+          </div>
+        </div>
+      `;
+      container.appendChild(studio);
+
+      const nativeInput = studio.querySelector('.custom-color-native');
+      const hexInput = studio.querySelector('.custom-color-hex');
+      const hueSlider = studio.querySelector('.color-slider-hue');
+      const lightSlider = studio.querySelector('.color-slider-light');
+
+      const updateLightTrack = (hueVal) => {
+        if (lightSlider) {
+          lightSlider.style.background = `linear-gradient(90deg, hsl(${hueVal}, 85%, 18%) 0%, hsl(${hueVal}, 85%, 50%) 55%, hsl(${hueVal}, 85%, 78%) 100%)`;
+        }
+      };
+      updateLightTrack(hsl.h);
+
+      if (nativeInput) {
+        nativeInput.addEventListener('input', () => {
+          const picked = normalizeHexColor(nativeInput.value);
+          if (picked) this.applyPlayerColor(picked, { emitNetwork, immediate: false });
+        });
+        nativeInput.addEventListener('change', () => {
+          const picked = normalizeHexColor(nativeInput.value);
+          if (picked) this.applyPlayerColor(picked, { emitNetwork, immediate: true });
+        });
+      }
+
+      const onSliderInput = (immediate) => {
+        const h = Number(hueSlider ? hueSlider.value : 0);
+        const l = Number(lightSlider ? lightSlider.value : 50);
+        updateLightTrack(h);
+        const hex = hslToHex(h, 82, l);
+        this.applyPlayerColor(hex, { emitNetwork, immediate });
+      };
+
+      if (hueSlider) {
+        hueSlider.addEventListener('input', () => onSliderInput(false));
+        hueSlider.addEventListener('change', () => onSliderInput(true));
+      }
+      if (lightSlider) {
+        lightSlider.addEventListener('input', () => onSliderInput(false));
+        lightSlider.addEventListener('change', () => onSliderInput(true));
+      }
+
+      if (hexInput) {
+        hexInput.addEventListener('input', () => {
+          const raw = hexInput.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+          if (hexInput.value !== raw) hexInput.value = raw.toUpperCase();
+          if (raw.length === 6) {
+            this.applyPlayerColor('#' + raw, { emitNetwork, immediate: true, skipHexInput: hexInput });
+          }
+        });
+        hexInput.addEventListener('blur', () => {
+          const norm = normalizeHexColor(this.myPlayer.color) || '#c5a059';
+          hexInput.value = norm.slice(1).toUpperCase();
+        });
+      }
+    }
+
+    syncColorStudioUI(container, hexColor, skipHexInput = null) {
+      if (!container) return;
+      const target = (normalizeHexColor(hexColor) || '#c5a059').toLowerCase();
+      container.querySelectorAll('.color-swatch').forEach(sw => {
+        sw.classList.toggle('active', (sw.dataset.color || '').toLowerCase() === target);
+      });
+      const preview = container.querySelector('.color-wheel-preview');
+      if (preview) preview.style.backgroundColor = target;
+      const nativeInput = container.querySelector('.custom-color-native');
+      if (nativeInput && nativeInput.value.toLowerCase() !== target) nativeInput.value = target;
+      const hexInput = container.querySelector('.custom-color-hex');
+      if (hexInput && hexInput !== skipHexInput) hexInput.value = target.slice(1).toUpperCase();
+      const hsl = hexToHsl(target);
+      const hueSlider = container.querySelector('.color-slider-hue');
+      const lightSlider = container.querySelector('.color-slider-light');
+      if (hueSlider && document.activeElement !== hueSlider) hueSlider.value = String(hsl.h);
+      if (lightSlider && document.activeElement !== lightSlider) {
+        lightSlider.value = String(Math.max(18, Math.min(75, hsl.l)));
+        lightSlider.style.background = `linear-gradient(90deg, hsl(${hsl.h}, 85%, 18%) 0%, hsl(${hsl.h}, 85%, 50%) 55%, hsl(${hsl.h}, 85%, 78%) 100%)`;
+      }
+    }
+
+    applyPlayerColor(rawColor, { emitNetwork = false, immediate = true, skipHexInput = null } = {}) {
+      const hex = normalizeHexColor(rawColor);
+      if (!hex) return;
+      this.myPlayer.color = hex;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('casino_player_color', hex);
+          localStorage.setItem('roulette_player_color', hex);
+        }
+      } catch (e) {}
+
+      if (this.elements.profileAvatarDisc) {
+        this.elements.profileAvatarDisc.style.backgroundColor = hex;
+      }
+      if (this.elements.avatarDisc) {
+        this.elements.avatarDisc.style.backgroundColor = hex;
+      }
+
+      this.syncColorStudioUI(this.elements.palette, hex, skipHexInput);
+      this.syncColorStudioUI(this.elements.profileColorPalette, hex, skipHexInput);
+
+      if (emitNetwork && typeof this.options.onUpdateCustomization === 'function') {
+        if (this._colorEmitTimer) clearTimeout(this._colorEmitTimer);
+        if (immediate) {
+          this.options.onUpdateCustomization({ color: hex });
+        } else {
+          this._colorEmitTimer = setTimeout(() => {
+            this.options.onUpdateCustomization({ color: hex });
+          }, 100);
+        }
+      }
     }
 
     setupOnboarding() {
@@ -398,7 +714,7 @@
 
     /**
      * Updates player HUD with avatar, monogram, name, and balance.
-     * Supports smooth rolling ticker animation for dopamine feedback.
+     * Supports smooth rolling ticker animation for win feedback.
      * @param {boolean} [animated=true]
      */
     updatePlayerHUD(animated = true) {
@@ -413,7 +729,14 @@
         this.elements.playerName.textContent = this.myPlayer.name;
       }
       if (this.elements.playerChips) {
-        const targetChips = typeof this.myPlayer.chips === 'number' ? this.myPlayer.chips : 0;
+        const rawChips = typeof this.myPlayer.chips === 'number' ? this.myPlayer.chips : 0;
+        const plinkoHold = (typeof window !== 'undefined' && window.plinkoInstance && typeof window.plinkoInstance.pendingPayoutHold === 'number')
+          ? window.plinkoInstance.pendingPayoutHold
+          : 0;
+        const slotsHold = (typeof window !== 'undefined' && window.slotsInstance && typeof window.slotsInstance.pendingPayoutHold === 'number')
+          ? window.slotsInstance.pendingPayoutHold
+          : 0;
+        const targetChips = Math.max(0, rawChips - plinkoHold - slotsHold);
         const startFrom = (this._displayedChips !== undefined)
           ? this._displayedChips
           : (this._prevChips !== undefined ? this._prevChips : targetChips);
@@ -480,38 +803,7 @@
 
     setupProfileTab() {
       if (!this.elements.profileColorPalette) return;
-      this.elements.profileColorPalette.innerHTML = '';
-
-      const currentColor = (this.myPlayer.color || '#D4AF37').toLowerCase();
-
-      LUXURY_SWATCHES.forEach(swatch => {
-        const div = document.createElement('div');
-        div.className = 'color-swatch' + (swatch.color.toLowerCase() === currentColor ? ' active' : '');
-        div.dataset.color = swatch.color;
-        div.title = swatch.name;
-        div.style.backgroundColor = swatch.color;
-
-        div.addEventListener('click', () => {
-          document.querySelectorAll('#profile-color-palette .color-swatch').forEach(s => s.classList.remove('active'));
-          div.classList.add('active');
-          this.myPlayer.color = swatch.color;
-          try {
-            if (typeof localStorage !== 'undefined') {
-              localStorage.setItem('casino_player_color', swatch.color);
-              localStorage.setItem('roulette_player_color', swatch.color);
-            }
-          } catch (e) {}
-          if (this.elements.profileAvatarDisc) {
-            this.elements.profileAvatarDisc.style.backgroundColor = swatch.color;
-          }
-          this.updatePlayerHUD();
-          if (typeof this.options.onUpdateCustomization === 'function') {
-            this.options.onUpdateCustomization({ color: swatch.color });
-          }
-        });
-
-        this.elements.profileColorPalette.appendChild(div);
-      });
+      this.buildColorStudio(this.elements.profileColorPalette, { emitNetwork: true });
     }
 
     renderMyProfile(profileData = {}) {
@@ -559,16 +851,9 @@
         this.elements.profileMemberDate.textContent = d.toLocaleDateString('nl-NL');
       }
 
-      // Synchronize active swatch in profile palette
+      // Synchronize active swatch and custom color studio in profile palette
       if (this.elements.profileColorPalette) {
-        const targetColor = color.toLowerCase();
-        this.elements.profileColorPalette.querySelectorAll('.color-swatch').forEach(sw => {
-          if ((sw.dataset.color || '').toLowerCase() === targetColor) {
-            sw.classList.add('active');
-          } else {
-            sw.classList.remove('active');
-          }
-        });
+        this.syncColorStudioUI(this.elements.profileColorPalette, color);
       }
     }
 
@@ -593,7 +878,9 @@
       const chips = typeof p.chips === 'number' ? p.chips : 0;
       const color = p.color || '#D4AF37';
       const name = p.name || 'Speler';
-      const game = p.currentGame || 'Roulette';
+      const isOnline = p.connected !== false;
+      const game = isOnline ? (p.currentGame || 'Roulette') : 'Offline';
+      const gameSlug = isOnline ? game.toLowerCase().replace(/[^a-z0-9-]/g, '') : 'offline';
 
       if (this.elements.inspectorAvatarDisc) {
         this.elements.inspectorAvatarDisc.style.backgroundColor = color;
@@ -603,6 +890,9 @@
       }
       if (this.elements.inspectorUserName) {
         this.elements.inspectorUserName.textContent = name;
+      }
+      if (this.elements.inspectorPresenceBadge) {
+        this.elements.inspectorPresenceBadge.className = `presence-badge badge-${gameSlug}`;
       }
       if (this.elements.inspectorPresenceText) {
         this.elements.inspectorPresenceText.textContent = game;
@@ -625,9 +915,11 @@
       }
 
       if (this.elements.btnInspectorTransfer) {
+        const canTransfer = isOnline && p.id !== this.myPlayer.id;
+        this.elements.btnInspectorTransfer.classList.toggle('hidden', !canTransfer);
         this.elements.btnInspectorTransfer.onclick = () => {
           this.elements.inspectorModal.classList.add('hidden');
-          if (typeof this.options.onOpenTransferToPlayer === 'function') {
+          if (canTransfer && typeof this.options.onOpenTransferToPlayer === 'function') {
             this.options.onOpenTransferToPlayer(p.id);
           }
         };
@@ -1015,43 +1307,78 @@
       this.currentPhase = phase;
 
       if (this.elements.phaseTitle) {
-        if (phase === 'BETTING') {
-          this.elements.phaseTitle.textContent = 'INZETTEN';
-          this.elements.phaseTitle.className = 'phase-title phase-betting';
-        } else if (phase === 'SPINNING') {
-          this.elements.phaseTitle.textContent = 'WIEL DRAAIT';
-          this.elements.phaseTitle.className = 'phase-title phase-spinning';
-        } else if (phase === 'WAITING_FOR_PLAYERS') {
-          this.elements.phaseTitle.textContent = 'WACHTEN OP SPELERS';
-          this.elements.phaseTitle.className = 'phase-title phase-waiting';
-        } else if (phase === 'DEALING') {
-          this.elements.phaseTitle.textContent = 'KAARTEN DELEN';
-          this.elements.phaseTitle.className = 'phase-title phase-dealing';
-        } else if (phase === 'PLAYER_TURNS') {
-          this.elements.phaseTitle.textContent = 'SPELER BEURT';
-          this.elements.phaseTitle.className = 'phase-title phase-player-turns';
-        } else if (phase === 'DEALER_TURN') {
-          this.elements.phaseTitle.textContent = 'DEALER SPEELT';
-          this.elements.phaseTitle.className = 'phase-title phase-dealer-turn';
-        } else if (phase === 'PAYOUT' || phase === 'ROUND_OVER') {
-          this.elements.phaseTitle.textContent = 'UITBETALING';
-          this.elements.phaseTitle.className = 'phase-title phase-payout';
+        const phaseMap = {
+          BETTING: ['INZETTEN', 'phase-betting'],
+          WAITING_FOR_BETS: ['KLAAR VOOR RACE', 'phase-betting'],
+          STARTING: ['POORTEN DICHT', 'phase-spinning'],
+          RACING: ['RACE BEZIG', 'phase-spinning'],
+          FINISHED: ['UITSLAG', 'phase-payout'],
+          SPINNING: ['WIEL DRAAIT', 'phase-spinning'],
+          CRASH_FLYING: ['RAKET VLIEGT', 'phase-spinning'],
+          WAITING_FOR_PLAYERS: ['WACHTEN OP SPELERS', 'phase-waiting'],
+          DEALING: ['KAARTEN DELEN', 'phase-dealing'],
+          PLAYER_TURNS: ['SPELER BEURT', 'phase-player-turns'],
+          DEALER_TURN: ['DEALER SPEELT', 'phase-dealer-turn'],
+          PAYOUT: ['UITBETALING', 'phase-payout'],
+          ROUND_OVER: ['UITBETALING', 'phase-payout'],
+          PRE_FLOP: ['PRE-FLOP', 'phase-betting'],
+          FLOP_DEAL: ['FLOP DELEN', 'phase-dealing'],
+          FLOP: ['FLOP', 'phase-player-turns'],
+          TURN_DEAL: ['TURN DELEN', 'phase-dealing'],
+          TURN: ['TURN', 'phase-player-turns'],
+          RIVER_DEAL: ['RIVER DELEN', 'phase-dealing'],
+          RIVER: ['RIVER', 'phase-player-turns'],
+          SHOWDOWN: ['SHOWDOWN', 'phase-payout'],
+          SETTLEMENT: ['UITBETALING', 'phase-payout'],
+          HAND_END: ['EINDE HAND', 'phase-waiting'],
+          GOLDEN_FEVER: ['GOLDEN FEVER', 'phase-betting'],
+          FREE_SPINS: ['GRATIS SPINS', 'phase-betting'],
+          SLOTS_SPINNING: ['ROLLEN DRAAIEN', 'phase-spinning'],
+          SLOTS_READY: ['SLOTS ACTIEF', 'phase-betting'],
+          PLINKO_READY: ['PLINKO KLAAR', 'phase-betting'],
+          HILO_READY: ['HI-LO KLAAR', 'phase-betting'],
+          HILO_ACTIVE: ['REEKS ACTIEF', 'phase-spinning'],
+          MINES_READY: ['MINES KLAAR', 'phase-betting'],
+          MINES_SOLO: ['KLUIS OPEN', 'phase-spinning'],
+          MINES_WAIT: ['SHARED WACHT', 'phase-waiting'],
+          MINES_BET: ['SHARED INZET', 'phase-betting'],
+          MINES_PLAY: ['KLUIS LIVE', 'phase-player-turns'],
+          MINES_REVEAL: ['KLUIS ONTHULD', 'phase-payout'],
+          BLITZ_WAIT: ['BLITZ WACHT', 'phase-waiting'],
+          BLITZ_BET: ['BLITZ INZETTEN', 'phase-betting'],
+          BLITZ_DECISION: ['BLITZ KEUZE', 'phase-player-turns'],
+          BLITZ_REVEAL: ['KAART DRAAIT', 'phase-spinning'],
+          BLITZ_SETTLED: ['BLITZ UITSLAG', 'phase-payout'],
+          READY: ['ACTIEF', 'phase-betting']
+        };
+        const mapped = phaseMap[phase];
+        if (mapped) {
+          this.elements.phaseTitle.textContent = mapped[0];
+          this.elements.phaseTitle.className = `phase-title ${mapped[1]}`;
         } else {
-          this.elements.phaseTitle.textContent = phase;
+          this.elements.phaseTitle.textContent = phase || 'ACTIEF';
           this.elements.phaseTitle.className = 'phase-title';
         }
       }
 
       this.updateTimer(timeLeft);
 
-      if (phase === 'BETTING') {
+      if (phase === 'BETTING' || phase === 'WAITING_FOR_BETS') {
         this.hideResultBanner();
       }
     }
 
     updateTimer(timeLeft) {
-      if (this.elements.phaseTimer) {
-        this.elements.phaseTimer.textContent = `${Math.max(0, timeLeft)}s`;
+      if (!this.elements.phaseTimer) return;
+      if (typeof timeLeft === 'string') {
+        this.elements.phaseTimer.textContent = timeLeft;
+        return;
+      }
+      const numeric = Number(timeLeft);
+      if (Number.isFinite(numeric)) {
+        this.elements.phaseTimer.textContent = `${Math.max(0, Math.ceil(numeric))}s`;
+      } else {
+        this.elements.phaseTimer.textContent = 'LIVE';
       }
     }
 
@@ -1245,6 +1572,16 @@
         this.elements.labelChatTable.textContent = 'Roulette Chat';
       } else if (curTable === 'crash') {
         this.elements.labelChatTable.textContent = 'Crash Chat';
+      } else if (curTable === 'plinko') {
+        this.elements.labelChatTable.textContent = 'Plinko Chat';
+      } else if (curTable === 'slots') {
+        this.elements.labelChatTable.textContent = 'Slots Zaal';
+      } else if (curTable === 'racing') {
+        this.elements.labelChatTable.textContent = 'Turf Club Chat';
+      } else if (curTable === 'hilo') {
+        this.elements.labelChatTable.textContent = 'Hi-Lo Salon';
+      } else if (curTable === 'mines') {
+        this.elements.labelChatTable.textContent = 'Mines Zaal';
       } else if (curTable === 'poker_2') {
         this.elements.labelChatTable.textContent = 'Poker Tafel 2';
       } else if (curTable.startsWith('poker')) {
@@ -1269,6 +1606,16 @@
           this.elements.chatInput.placeholder = 'Typ een bericht in Roulette Chat...';
         } else if (curTable === 'crash') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Crash Chat...';
+        } else if (curTable === 'plinko') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Plinko Chat...';
+        } else if (curTable === 'slots') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Slots Zaal...';
+        } else if (curTable === 'racing') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Turf Club Chat...';
+        } else if (curTable === 'hilo') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Hi-Lo Salon...';
+        } else if (curTable === 'mines') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Mines Zaal...';
         } else if (curTable === 'poker_2') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Poker Tafel 2...';
         } else if (curTable.startsWith('poker')) {
@@ -1300,6 +1647,11 @@
             (curTable.startsWith('table_') && itemTable === 'blackjack') ||
             (curTable.startsWith('poker') && (itemTable === 'poker' || itemTable === curTable)) ||
             (curTable === 'crash' && itemTable === 'crash') ||
+            (curTable === 'plinko' && itemTable === 'plinko') ||
+            (curTable === 'slots' && itemTable === 'slots') ||
+            (curTable === 'racing' && itemTable === 'racing') ||
+            (curTable === 'hilo' && itemTable === 'hilo') ||
+            (curTable === 'mines' && itemTable === 'mines') ||
             (curTable === 'roulette' && itemTable === 'roulette')
           );
           item.style.display = matches ? '' : 'none';
@@ -1541,54 +1893,145 @@
       }
     }
 
-    updateLeaderboard(players = []) {
-      if (!this.elements.leaderboardList) return;
-      const sorted = [...players].sort((a, b) => (b.chips || 0) - (a.chips || 0));
+    _createLeaderboardItem(p, idx, { isGlobal = false } = {}) {
+      const item = document.createElement('div');
+      const isMe = p.id === this.myPlayer.id;
+      const rank = idx + 1;
+      const rankClass = rank <= 3 ? ` rank-${rank}` : '';
+      const isOnline = isGlobal ? !!p.connected : true;
 
-      if (this.elements.playersOnlineCount) {
+      item.className = `leaderboard-item${isMe ? ' is-me' : ''}${rankClass}${!isOnline ? ' is-offline' : ''}`;
+      item.title = isMe ? 'Jouw profiel' : `${p.name} inspecteren`;
+      item.style.cursor = 'pointer';
+
+      const safeName = escapeHtml(p.name || 'Speler');
+      const safeColor = (typeof p.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(p.color.trim()))
+        ? p.color.trim()
+        : '#D4AF37';
+      const nameSuffix = isMe ? ' (Jij)' : '';
+      const game = isOnline ? (p.currentGame || 'Roulette') : 'Offline';
+      const gameSlug = isOnline ? game.toLowerCase().replace(/[^a-z0-9-]/g, '') : 'offline';
+      const badgeLabel = isOnline
+        ? escapeHtml(game)
+        : `Offline • ${escapeHtml(formatLastSeen(p.lastSeen))}`;
+
+      const stats = p.stats || {};
+      const rounds = Number(stats.roundsPlayed) || 0;
+      const totalWon = Number(stats.totalWon) || 0;
+      const biggestWin = Number(stats.biggestWin) || 0;
+      const metaRowHtml = isGlobal
+        ? `<div class="leaderboard-meta-stats">${rounds.toLocaleString()} ronden • ${totalWon.toLocaleString()} gewonnen • max ${biggestWin.toLocaleString()}</div>`
+        : '';
+
+      item.innerHTML = `
+        <div class="leaderboard-rank">${rank}</div>
+        <div class="leaderboard-avatar-wrap">
+          <div class="leaderboard-avatar avatar-monogram" style="background-color: ${safeColor};">
+            <span class="monogram-letter-sm">${escapeHtml(getMonogram(p.name))}</span>
+          </div>
+          <span class="lb-status-dot ${isOnline ? 'online' : 'offline'}" aria-hidden="true"></span>
+        </div>
+        <div class="leaderboard-details">
+          <div class="leaderboard-name-row">
+            <span class="leaderboard-name">${safeName}${nameSuffix}</span>
+            <span class="presence-badge badge-${gameSlug}"><span class="presence-dot"></span>${badgeLabel}</span>
+          </div>
+          <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} fiches</span>
+          ${metaRowHtml}
+        </div>
+      `;
+
+      item.addEventListener('click', () => {
+        if (typeof this.options.onInspectPlayer === 'function') {
+          this.options.onInspectPlayer(p.id);
+        }
+      });
+
+      return item;
+    }
+
+    updateLeaderboard(players = []) {
+      this.onlinePlayers = Array.isArray(players) ? players : [];
+      const sorted = [...this.onlinePlayers].sort((a, b) => (b.chips || 0) - (a.chips || 0));
+
+      if (this.elements.badgeLbOnline) {
+        this.elements.badgeLbOnline.textContent = String(sorted.length);
+      }
+      if (this.elements.playersOnlineCount && this.activeLeaderboardTab !== 'global') {
         this.elements.playersOnlineCount.textContent = `${sorted.length} online`;
       }
 
+      if (!this.elements.leaderboardList) return;
       this.elements.leaderboardList.innerHTML = '';
 
       if (sorted.length === 0) {
-        this.elements.leaderboardList.innerHTML = '<div class="empty-state-notice">Geen spelers gevonden</div>';
+        this.elements.leaderboardList.innerHTML = '<div class="empty-state-notice">Geen online spelers gevonden</div>';
         return;
       }
 
       sorted.forEach((p, idx) => {
-        const item = document.createElement('div');
-        const isMe = p.id === this.myPlayer.id;
-        item.className = 'leaderboard-item' + (isMe ? ' is-me' : '');
-        item.title = isMe ? 'Jouw profiel' : `${p.name} inspecteren`;
-        item.style.cursor = 'pointer';
+        this.elements.leaderboardList.appendChild(this._createLeaderboardItem(p, idx, { isGlobal: false }));
+      });
+    }
 
-        const rankIcon = (idx + 1).toString();
-        const nameSuffix = isMe ? ' (Jij)' : '';
-        const game = p.currentGame || 'Roulette';
-        const gameSlug = game.toLowerCase();
+    updateGlobalLeaderboard(players = []) {
+      this.globalLeaderboardPlayers = Array.isArray(players) ? players : [];
+      if (this.elements.badgeLbGlobal) {
+        this.elements.badgeLbGlobal.textContent = String(this.globalLeaderboardPlayers.length);
+      }
+      if (this.activeLeaderboardTab === 'global') {
+        this.renderGlobalLeaderboard();
+      }
+    }
 
-        item.innerHTML = `
-          <div class="leaderboard-rank">${rankIcon}</div>
-          <div class="leaderboard-avatar avatar-monogram" style="background-color: ${p.color || '#D4AF37'};">
-            <span class="monogram-letter-sm">${getMonogram(p.name)}</span>
-          </div>
-          <div class="leaderboard-details">
-            <div class="leaderboard-name-row">
-              <span class="leaderboard-name">${p.name}${nameSuffix}</span>
-              <span class="presence-badge badge-${gameSlug}"><span class="presence-dot"></span>${game}</span>
-            </div>
-            <span class="leaderboard-chips">${(p.chips || 0).toLocaleString()} fiches</span>
-          </div>
-        `;
+    renderGlobalLeaderboard() {
+      const listEl = this.elements.globalLeaderboardList;
+      const source = Array.isArray(this.globalLeaderboardPlayers) ? this.globalLeaderboardPlayers : [];
+      const filtered = this.leaderboardOfflineOnly
+        ? source.filter((p) => !p.connected)
+        : [...source];
 
-        item.addEventListener('click', () => {
-          if (typeof this.options.onInspectPlayer === 'function') {
-            this.options.onInspectPlayer(p.id);
-          }
-        });
+      const getSortVal = (p) => {
+        const s = p.stats || {};
+        switch (this.leaderboardSortBy) {
+          case 'totalWon':
+            return Number(s.totalWon) || 0;
+          case 'roundsPlayed':
+            return Number(s.roundsPlayed) || 0;
+          case 'chips':
+          default:
+            return Number(p.chips) || 0;
+        }
+      };
 
-        this.elements.leaderboardList.appendChild(item);
+      filtered.sort((a, b) => {
+        const diff = getSortVal(b) - getSortVal(a);
+        if (diff !== 0) return diff;
+        if ((b.chips || 0) !== (a.chips || 0)) return (b.chips || 0) - (a.chips || 0);
+        return ((b.stats && b.stats.totalWon) || 0) - ((a.stats && a.stats.totalWon) || 0);
+      });
+
+      if (this.elements.playersOnlineCount && this.activeLeaderboardTab === 'global') {
+        const offlineCount = source.filter((p) => !p.connected).length;
+        this.elements.playersOnlineCount.textContent = this.leaderboardOfflineOnly
+          ? `${filtered.length} offline`
+          : `${filtered.length} spelers (${offlineCount} offline)`;
+      }
+
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="empty-state-notice">${
+          this.leaderboardOfflineOnly
+            ? 'Geen offline spelers met gespeelde ronden'
+            : 'Nog geen spelers die een ronde hebben gespeeld'
+        }</div>`;
+        return;
+      }
+
+      filtered.forEach((p, idx) => {
+        listEl.appendChild(this._createLeaderboardItem(p, idx, { isGlobal: true }));
       });
     }
 
@@ -1635,18 +2078,39 @@
     showToast(message, type = 'info') {
       if (!this.elements.toastContainer) return;
 
+      const now = Date.now();
+      if (
+        type === 'error' &&
+        this._lastErrorToastMessage === message &&
+        (now - (this._lastErrorToastAt || 0)) < 350
+      ) {
+        return;
+      }
+      if (type === 'error') {
+        this._lastErrorToastMessage = message;
+        this._lastErrorToastAt = now;
+      }
+
+      // Replace existing info toasts so rapid game/theme switches never stack
+      if (type === 'info') {
+        this.elements.toastContainer.querySelectorAll('.toast-info').forEach(el => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        });
+      }
+
       const toast = document.createElement('div');
       toast.className = `toast-msg toast-${type}`;
       toast.textContent = message;
 
       this.elements.toastContainer.appendChild(toast);
 
+      const ttl = type === 'info' ? 1800 : 3200;
       setTimeout(() => {
         toast.classList.add('toast-fade');
         setTimeout(() => {
           if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 300);
-      }, 3500);
+        }, 250);
+      }, ttl);
     }
 
     /* =========================================================================
@@ -2068,6 +2532,28 @@
     }
 
     /**
+     * Extracts monogram initials cleanly via the shared getMonogram helper.
+     * @param {string} name
+     * @returns {string}
+     */
+    getMonogram(name) {
+      return getMonogram(name);
+    }
+
+    /**
+     * Hides the Blackjack result banner and clears any pending auto-hide timer.
+     */
+    hideBlackjackBanner() {
+      if (this._bjBannerTimer) {
+        clearTimeout(this._bjBannerTimer);
+        this._bjBannerTimer = null;
+      }
+      if (this.elements.bjResultBanner) {
+        this.elements.bjResultBanner.classList.add('hidden');
+      }
+    }
+
+    /**
      * Displays grand luxury result announcement banner for Blackjack. Zero emojis.
      * @param {string} title 
      * @param {string} [payoutText=''] 
@@ -2173,8 +2659,8 @@
     }
 
     /**
-     * Switches between Roulette, Blackjack and Poker table viewports.
-     * @param {'roulette'|'blackjack'|'poker'} [gameName='roulette']
+     * Switches between Roulette, Blackjack, Poker, Crash and Backlog table viewports.
+     * @param {'roulette'|'blackjack'|'poker'|'crash'|'slots'|'plinko'|'hilo'|'racing'} [gameName='roulette']
      * @param {string} [subTableId=null]
      */
     switchGameView(gameName = 'roulette', subTableId = null) {
@@ -2183,6 +2669,12 @@
       const isBlackjack = g === 'blackjack';
       const isPoker = g === 'poker';
       const isCrash = g === 'crash';
+      const isSlots = g === 'slots';
+      const isPlinko = g === 'plinko';
+      const isHilo = g === 'hilo';
+      const isRacing = g === 'racing';
+      const isMines = g === 'mines';
+      const isBacklog = false;
 
       if (isRoulette) {
         this.currentTableId = 'roulette';
@@ -2190,10 +2682,13 @@
         this.currentTableId = 'crash';
       } else if (isPoker) {
         this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('poker_') ? this.currentTableId : 'poker_1');
-      } else {
+      } else if (isBlackjack) {
         this.currentTableId = subTableId || (this.currentTableId && this.currentTableId.startsWith('table_') ? this.currentTableId : 'table_1');
+      } else {
+        this.currentTableId = g;
       }
 
+      // Primary game views
       if (this.elements.viewRoulette) {
         this.elements.viewRoulette.classList.toggle('active', isRoulette);
         this.elements.viewRoulette.classList.toggle('hidden', !isRoulette);
@@ -2211,6 +2706,23 @@
         this.elements.viewCrash.classList.toggle('hidden', !isCrash);
       }
 
+      // Backlog game views: hide when navigating to table games, show only target backlog game
+      const backlogViews = {
+        'slots-view': isSlots,
+        'plinko-view': isPlinko,
+        'hilo-view': isHilo,
+        'racing-view': isRacing,
+        'mines-view': isMines
+      };
+      Object.entries(backlogViews).forEach(([id, active]) => {
+        const v = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+        if (v) {
+          v.classList.toggle('active', !!active);
+          v.classList.toggle('hidden', !active);
+        }
+      });
+
+      // Primary game pills
       if (this.elements.pillRoulette) {
         this.elements.pillRoulette.classList.toggle('active', isRoulette);
       }
@@ -2224,12 +2736,34 @@
         this.elements.pillCrash.classList.toggle('active', isCrash);
       }
 
+      // Backlog game pills: clear active state when on table games, toggle only target backlog pill
+      const backlogPills = {
+        'pill-slots': isSlots,
+        'pill-plinko': isPlinko,
+        'pill-hilo': isHilo,
+        'pill-racing': isRacing,
+        'pill-mines': isMines
+      };
+      Object.entries(backlogPills).forEach(([id, active]) => {
+        const p = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+        if (p) {
+          p.classList.toggle('active', !!active);
+        }
+      });
+
+      // Left Command Dock buttons synchronization
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('.dock-left-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.game === g);
+        });
+      }
+
       if (this.elements.historyStrip) {
         this.elements.historyStrip.style.display = isRoulette ? '' : 'none';
       }
 
       this.updateChatTableFilter(this.currentTableId);
-      this.switchChatScope('table');
+      this.switchChatScope(isBacklog ? 'global' : 'table');
     }
   }
 

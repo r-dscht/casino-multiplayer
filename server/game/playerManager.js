@@ -53,6 +53,8 @@ class PlayerManager {
     this.players = new Map();
     /** @type {Map<string, string>} socketId -> playerId */
     this.socketToPlayer = new Map();
+    /** @type {Map<string, Set<string>>} playerId -> active socketIds (multi-tab safe) */
+    this.playerSockets = new Map();
     /** @type {Map<string, string>} sessionToken -> playerId */
     this.tokenToPlayerId = new Map();
     /** @type {Map<string, Object>} normUsername -> saved account data */
@@ -390,16 +392,11 @@ class PlayerManager {
           this.accounts.has(explicitNormKey);
 
         if (!shouldSwitchAccount) {
-          // Unmap previous socket if assigned
-          if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
-            this.socketToPlayer.delete(player.socketId);
-          }
-
           if (socketId) {
-            player.socketId = socketId;
-            this.socketToPlayer.set(socketId, player.id);
+            this._bindSocket(socketId, player);
+          } else {
+            player.connected = true;
           }
-          player.connected = true;
           player.lastSeen = Date.now();
           player.lastWheelSpin = Math.max(player.lastWheelSpin || 0, backupWheelSpin);
           // Retain server-saved color: only use opts.color if player currently has no color
@@ -502,14 +499,11 @@ class PlayerManager {
         this.tokenToPlayerId.set(player.sessionToken, player.id);
         this.accounts.set(normKey, player);
       } else {
-        if (player.socketId && this.socketToPlayer.get(player.socketId) === player.id) {
-          this.socketToPlayer.delete(player.socketId);
-        }
         if (socketId) {
-          player.socketId = socketId;
-          this.socketToPlayer.set(socketId, player.id);
+          this._bindSocket(socketId, player);
+        } else {
+          player.connected = true;
         }
-        player.connected = true;
         player.lastSeen = Date.now();
         player.lastWheelSpin = Math.max(player.lastWheelSpin || 0, existingAccount.lastWheelSpin || 0, backupWheelSpin);
         // Preserve player's existing server color
@@ -528,9 +522,6 @@ class PlayerManager {
         }
       }
 
-      if (socketId) {
-        this.socketToPlayer.set(socketId, player.id);
-      }
       this.scheduleSave();
       return {
         player,
@@ -601,7 +592,7 @@ class PlayerManager {
     this.tokenToPlayerId.set(sessionToken, id);
     this.accounts.set(finalNormKey, newPlayer);
     if (socketId) {
-      this.socketToPlayer.set(socketId, id);
+      this._bindSocket(socketId, newPlayer);
     }
 
     this.scheduleSave();
@@ -637,11 +628,11 @@ class PlayerManager {
     // 2. Reconnection by existing player ID
     if (opts.id && this.players.has(opts.id)) {
       const existingPlayer = this.players.get(opts.id);
-      if (existingPlayer.socketId && this.socketToPlayer.get(existingPlayer.socketId) === existingPlayer.id) {
-        this.socketToPlayer.delete(existingPlayer.socketId);
+      if (socketId) {
+        this._bindSocket(socketId, existingPlayer);
+      } else {
+        existingPlayer.connected = true;
       }
-      existingPlayer.socketId = socketId;
-      existingPlayer.connected = true;
       existingPlayer.lastSeen = Date.now();
       existingPlayer.lastWheelSpin = Math.max(existingPlayer.lastWheelSpin || 0, backupWheelSpin);
       if (opts.name) {
@@ -666,7 +657,6 @@ class PlayerManager {
         acc.lastSeen = Date.now();
       }
 
-      this.socketToPlayer.set(socketId, existingPlayer.id);
       this.scheduleSave();
       return existingPlayer;
     }
@@ -793,11 +783,11 @@ class PlayerManager {
     }
 
     if (existingPlayer) {
-      if (existingPlayer.socketId && this.socketToPlayer.get(existingPlayer.socketId) === existingPlayer.id) {
-        this.socketToPlayer.delete(existingPlayer.socketId);
+      if (socketId) {
+        this._bindSocket(socketId, existingPlayer);
+      } else {
+        existingPlayer.connected = true;
       }
-      existingPlayer.socketId = socketId;
-      existingPlayer.connected = true;
       existingPlayer.name = savedAccount.name || cleanName;
       existingPlayer.passwordHash = savedAccount.passwordHash || '';
       existingPlayer.chips = savedAccount.chips;
@@ -817,7 +807,6 @@ class PlayerManager {
         acc.lastSeen = Date.now();
       }
 
-      this.socketToPlayer.set(socketId, existingPlayer.id);
       this.scheduleSave();
       return existingPlayer;
     }
@@ -838,7 +827,7 @@ class PlayerManager {
       currentGame: savedAccount.currentGame || 'Roulette',
       location: savedAccount.location || 'ROULETTE',
       seatIndex: savedAccount.seatIndex !== undefined ? savedAccount.seatIndex : null,
-      activeDebts: Array.isArray(savedAccount.activeDebts) ? [...savedAccount.activeDebts] : [],
+      activeDebts: (backup && Array.isArray(backup.activeDebts)) ? [...backup.activeDebts] : (Array.isArray(savedAccount.activeDebts) ? [...savedAccount.activeDebts] : []),
       activeLoansGiven: Array.isArray(savedAccount.activeLoansGiven) ? [...savedAccount.activeLoansGiven] : [],
       repaidLoanIds: Array.isArray(savedAccount.repaidLoanIds) ? [...savedAccount.repaidLoanIds] : [],
       lastWheelSpin: Math.max(savedAccount.lastWheelSpin || 0, backupWheelSpin),
@@ -851,7 +840,9 @@ class PlayerManager {
     this.players.set(id, newPlayer);
     this.tokenToPlayerId.set(savedAccount.sessionToken, id);
     this.accounts.set(normKey, newPlayer);
-    this.socketToPlayer.set(socketId, id);
+    if (socketId) {
+      this._bindSocket(socketId, newPlayer);
+    }
     this.scheduleSave();
     return newPlayer;
   }
@@ -913,21 +904,97 @@ class PlayerManager {
   }
 
   /**
-   * Handles player disconnection while preserving chips, bets and session.
+   * Binds a socketId to a player while preserving other active sockets (multi-tab safe).
+   * Cleanly detaches socketId from any previous player if switching accounts on the same socket.
+   * @private
+   * @param {string} socketId
+   * @param {Object} player
+   */
+  _bindSocket(socketId, player) {
+    if (!socketId || !player || !player.id) return;
+
+    const prevPlayerId = this.socketToPlayer.get(socketId);
+    if (prevPlayerId && prevPlayerId !== player.id) {
+      const prevSet = this.playerSockets.get(prevPlayerId);
+      if (prevSet) {
+        prevSet.delete(socketId);
+        if (prevSet.size === 0) {
+          this.playerSockets.delete(prevPlayerId);
+          const prevPlayer = this.players.get(prevPlayerId);
+          if (prevPlayer) {
+            prevPlayer.connected = false;
+            prevPlayer.socketId = null;
+          }
+        } else {
+          const prevPlayer = this.players.get(prevPlayerId);
+          if (prevPlayer && prevPlayer.socketId === socketId) {
+            prevPlayer.socketId = Array.from(prevSet)[prevSet.size - 1];
+          }
+        }
+      }
+    }
+
+    let set = this.playerSockets.get(player.id);
+    if (!set) {
+      set = new Set();
+      this.playerSockets.set(player.id, set);
+    }
+    set.add(socketId);
+    this.socketToPlayer.set(socketId, player.id);
+    player.socketId = socketId;
+    player.connected = true;
+  }
+
+  /**
+   * Returns all active socketIds mapped to a player.
+   * @param {string} playerId
+   * @returns {string[]}
+   */
+  getSocketsForPlayer(playerId) {
+    if (!playerId) return [];
+    const set = this.playerSockets.get(playerId);
+    if (set && set.size > 0) {
+      return Array.from(set);
+    }
+    const p = this.players.get(playerId);
+    return (p && p.socketId) ? [p.socketId] : [];
+  }
+
+  /**
+   * Handles player disconnection while preserving chips, bets and other open tabs.
    * @param {string} socketId 
-   * @returns {Object|null} The disconnected player
+   * @returns {Object|null} The disconnected player if no sockets remain active, otherwise null
    */
   disconnectPlayer(socketId) {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return null;
 
+    this.socketToPlayer.delete(socketId);
+    const set = this.playerSockets.get(playerId);
+    if (set) {
+      set.delete(socketId);
+    }
+
     const player = this.players.get(playerId);
+    if (set && set.size > 0) {
+      const fallbackSid = Array.from(set)[set.size - 1];
+      if (player) {
+        player.connected = true;
+        player.socketId = fallbackSid;
+        player.lastSeen = Date.now();
+      }
+      this.scheduleSave();
+      return null;
+    }
+
+    if (set) {
+      this.playerSockets.delete(playerId);
+    }
     if (player) {
       player.connected = false;
       player.socketId = null;
       player.lastSeen = Date.now();
     }
-    this.socketToPlayer.delete(socketId);
     this.scheduleSave();
     return player || null;
   }
@@ -1040,7 +1107,7 @@ class PlayerManager {
     let cleanLoc = 'ROULETTE';
     if (typeof location === 'string') {
       const upper = location.trim().toUpperCase();
-      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH'].includes(upper)) {
+      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES'].includes(upper)) {
         cleanLoc = upper;
       }
     }
@@ -1079,7 +1146,7 @@ class PlayerManager {
     player.currentGame = cleanGame;
 
     const upper = cleanGame.toUpperCase();
-    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH'].includes(upper) ? upper : 'ROULETTE';
+    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES'].includes(upper) ? upper : 'ROULETTE';
 
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
       const acc = this.accounts.get(player.usernameKey);
@@ -1099,8 +1166,8 @@ class PlayerManager {
   updatePlayerCustomization(playerId, { color, avatar } = {}) {
     const player = this.players.get(playerId);
     if (!player) return null;
-    if (typeof color === 'string' && color.startsWith('#')) {
-      player.color = color;
+    if (typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color.trim())) {
+      player.color = color.trim();
     }
     if (typeof avatar === 'string' && avatar.trim()) {
       player.avatar = avatar.trim().slice(0, 24);
@@ -1165,7 +1232,7 @@ class PlayerManager {
     const player = this.players.get(playerId);
     if (!player) {
       for (const acc of this.accounts.values()) {
-        if (acc.name.toLowerCase() === String(playerId).toLowerCase()) {
+        if (acc.id === playerId || (acc.name && acc.name.toLowerCase() === String(playerId).toLowerCase())) {
           return {
             id: acc.id || playerId,
             name: acc.name,
@@ -1178,7 +1245,8 @@ class PlayerManager {
             seatIndex: acc.seatIndex !== undefined ? acc.seatIndex : null,
             connected: false,
             stats: acc.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
-            createdAt: acc.createdAt || Date.now()
+            createdAt: acc.createdAt || Date.now(),
+            lastSeen: acc.lastSeen || acc.createdAt || Date.now()
           };
         }
       }
@@ -1198,7 +1266,8 @@ class PlayerManager {
       seatIndex: player.seatIndex !== undefined ? player.seatIndex : null,
       connected: !!player.connected,
       stats: player.stats || { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
-      createdAt: (savedAccount && savedAccount.createdAt) ? savedAccount.createdAt : player.createdAt
+      createdAt: (savedAccount && savedAccount.createdAt) ? savedAccount.createdAt : player.createdAt,
+      lastSeen: player.lastSeen || (savedAccount && savedAccount.lastSeen) || player.createdAt || Date.now()
     };
   }
 
@@ -1226,6 +1295,113 @@ class PlayerManager {
       }
     }
     return list;
+  }
+
+  /**
+   * Returns the global all-time leaderboard across persisted & connected players
+   * who have actively played rounds at the casino.
+   * Sensitive fields (passwordHash, sessionToken, debts) are strictly omitted.
+   * @param {Object} [options]
+   * @param {boolean} [options.playedOnly=true] - Only include accounts that have played >= 1 round / recorded a win
+   * @param {'all'|'online'|'offline'} [options.status='all'] - Optional connection status filter
+   * @param {'chips'|'totalWon'|'roundsPlayed'|'biggestWin'} [options.sortBy='chips'] - Primary sort metric
+   * @param {number} [options.limit=100] - Maximum entries returned
+   * @returns {Array<Object>}
+   */
+  getGlobalLeaderboard(options = {}) {
+    const opts = (options && typeof options === 'object') ? options : {};
+    const playedOnly = opts.playedOnly !== false;
+    const status = (opts.status === 'online' || opts.status === 'offline') ? opts.status : 'all';
+    const validSorts = ['chips', 'totalWon', 'roundsPlayed', 'biggestWin'];
+    const sortBy = validSorts.includes(opts.sortBy) ? opts.sortBy : 'chips';
+    const rawLimit = Number(opts.limit);
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(500, rawLimit) : 100;
+
+    // Merge this.players and this.accounts cleanly without duplicating the same account
+    const uniqueByKey = new Map();
+    const ingest = (rec) => {
+      if (!rec || typeof rec !== 'object' || !rec.name) return;
+      const normKey = (rec.usernameKey || rec.name || rec.id || '').trim().toLowerCase();
+      if (!normKey) return;
+      const prev = uniqueByKey.get(normKey);
+      if (!prev) {
+        uniqueByKey.set(normKey, rec);
+        return;
+      }
+      const prevRounds = (prev.stats && prev.stats.roundsPlayed) || 0;
+      const recRounds = (rec.stats && rec.stats.roundsPlayed) || 0;
+      const shouldReplace =
+        (!prev.connected && !!rec.connected) ||
+        (!!prev.connected === !!rec.connected &&
+          (recRounds > prevRounds || (recRounds === prevRounds && (rec.lastSeen || 0) > (prev.lastSeen || 0))));
+      if (shouldReplace) {
+        uniqueByKey.set(normKey, rec);
+      }
+    };
+
+    for (const acc of this.accounts.values()) ingest(acc);
+    for (const player of this.players.values()) ingest(player);
+
+    const list = [];
+    for (const rec of uniqueByKey.values()) {
+      const stats = rec.stats || {};
+      const roundsPlayed = Number(stats.roundsPlayed) || 0;
+      const totalWon = Number(stats.totalWon) || 0;
+      const biggestWin = Number(stats.biggestWin) || 0;
+      const hasPlayed = roundsPlayed > 0 || totalWon > 0 || biggestWin > 0;
+
+      if (playedOnly && !hasPlayed) continue;
+
+      const isConnected = !!rec.connected;
+      if (status === 'online' && !isConnected) continue;
+      if (status === 'offline' && isConnected) continue;
+
+      const lastGame = rec.currentGame || 'Roulette';
+      list.push({
+        id: rec.id,
+        name: rec.name,
+        monogram: getMonogram(rec.name),
+        avatar: rec.avatar || 'avatar_1',
+        color: rec.color || DEFAULT_COLORS[0],
+        chips: typeof rec.chips === 'number' ? rec.chips : 0,
+        connected: isConnected,
+        currentGame: isConnected ? lastGame : 'Offline',
+        lastGame,
+        location: isConnected ? (rec.location || lastGame.toUpperCase()) : 'OFFLINE',
+        stats: {
+          roundsPlayed,
+          totalWon,
+          biggestWin
+        },
+        createdAt: rec.createdAt || Date.now(),
+        lastSeen: rec.lastSeen || rec.createdAt || Date.now()
+      });
+    }
+
+    const metric = (entry) => {
+      switch (sortBy) {
+        case 'totalWon':
+          return entry.stats.totalWon;
+        case 'roundsPlayed':
+          return entry.stats.roundsPlayed;
+        case 'biggestWin':
+          return entry.stats.biggestWin;
+        case 'chips':
+        default:
+          return entry.chips;
+      }
+    };
+
+    list.sort((a, b) => {
+      const diff = metric(b) - metric(a);
+      if (diff !== 0) return diff;
+      if (b.chips !== a.chips) return b.chips - a.chips;
+      if (b.stats.totalWon !== a.stats.totalWon) return b.stats.totalWon - a.stats.totalWon;
+      if (b.stats.roundsPlayed !== a.stats.roundsPlayed) return b.stats.roundsPlayed - a.stats.roundsPlayed;
+      return (b.lastSeen || 0) - (a.lastSeen || 0);
+    });
+
+    return list.slice(0, limit);
   }
 
   /**

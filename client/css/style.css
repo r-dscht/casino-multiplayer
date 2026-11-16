@@ -433,7 +433,7 @@ h1, h2, h3, h4, .brand-title, .phase-title {
   }
 }
 
-/* Chip Balance Dopamine Glow Pulse in HUD */
+/* Chip Balance Glow Pulse in HUD */
 .chips-won-pulse {
   animation: chipBalanceGlow 1.5s ease-out;
   color: #ffd700 !important;

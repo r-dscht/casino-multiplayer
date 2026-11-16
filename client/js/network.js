@@ -18,8 +18,12 @@
     constructor() {
       this.socket = null;
       this.isConnected = false;
+      this.isAuthenticated = false;
       this.myPlayerId = null;
       this.sessionToken = this.getStoredToken();
+      this._lastAuthPayload = null;
+      this._reauthInFlight = false;
+      this._lastReauthAt = 0;
       this.handlers = new Map();
     }
 
@@ -173,19 +177,21 @@
 
       this.socket.on('connect', () => {
         this.isConnected = true;
+        this.isAuthenticated = false;
+        this._reauthInFlight = false;
         this.emitInternal('connection_change', { connected: true, id: this.socket.id });
 
-        // Auto authenticate session on socket connect if stored bearer token or account name exists
-        const token = this.getStoredToken();
-        const storedName = (typeof localStorage !== 'undefined')
+        // Auto authenticate session on socket connect if stored bearer token, account name, or in-memory backup exists
+        const token = this.getStoredToken() || (this._lastAuthPayload && this._lastAuthPayload.sessionToken) || null;
+        const storedName = (typeof localStorage !== 'undefined'
           ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
-          : null;
-        const storedColor = (typeof localStorage !== 'undefined')
+          : null) || (this._lastAuthPayload && this._lastAuthPayload.name) || null;
+        const storedColor = (typeof localStorage !== 'undefined'
           ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
-          : null;
-        const storedPassword = (typeof localStorage !== 'undefined')
+          : null) || (this._lastAuthPayload && this._lastAuthPayload.color) || null;
+        const storedPassword = (typeof localStorage !== 'undefined'
           ? (localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password'))
-          : null;
+          : null) || (this._lastAuthPayload && this._lastAuthPayload.password) || null;
 
         if (token || storedName) {
           this.authSession({ sessionToken: token, name: storedName, color: storedColor, password: storedPassword });
@@ -194,7 +200,80 @@
 
       this.socket.on('disconnect', (reason) => {
         this.isConnected = false;
+        this.isAuthenticated = false;
+        this._reauthInFlight = false;
         this.emitInternal('connection_change', { connected: false, reason });
+      });
+
+      this.socket.on('auth_success', (data) => {
+        const wasRecovery = Boolean(this._pendingRecoveryNotice);
+        this.isAuthenticated = true;
+        this._reauthInFlight = false;
+        this._pendingRecoveryNotice = false;
+        if (data && data.player) {
+          this._lastAuthPayload = {
+            ...(this._lastAuthPayload || {}),
+            sessionToken: data.sessionToken || this.sessionToken || this.getStoredToken(),
+            name: data.player.name,
+            color: data.player.color
+          };
+          if (wasRecovery) {
+            this.emitInternal('session_recovered', data);
+          }
+        }
+      });
+
+      this.socket.on('auth_error', () => {
+        this.isAuthenticated = false;
+        this._reauthInFlight = false;
+        this._pendingRecoveryNotice = false;
+      });
+
+      this.socket.on('login_error', () => {
+        this.isAuthenticated = false;
+        this._reauthInFlight = false;
+        this._pendingRecoveryNotice = false;
+      });
+
+      this.socket.on('error_msg', (data) => {
+        this.emitInternal('error_msg', data);
+        if (this._isSessionMissingError(data)) {
+          this.tryAutoReauth(data);
+        }
+      });
+
+      this.socket.on('session_required', (data) => {
+        this.isAuthenticated = false;
+        this.emitInternal('session_required', data);
+        this.tryAutoReauth(data);
+      });
+
+      const sessionRejectEvents = [
+        'bet_rejected',
+        'crash_bet_rejected',
+        'crash_cashout_rejected',
+        'plinko_drop_rejected',
+        'slots_spin_rejected',
+        'slots_cheer_rejected',
+        'racing_bet_rejected',
+        'racing_cheer_rejected',
+        'hilo_rejected',
+        'hilo_cheer_rejected',
+        'mines_rejected',
+        'mines_cheer_rejected',
+        'lottery_rejected',
+        'bj_seat_error',
+        'bj_bet_rejected',
+        'bj_action_rejected',
+        'poker_seat_error',
+        'poker_action_rejected'
+      ];
+      sessionRejectEvents.forEach((evtName) => {
+        this.socket.on(evtName, (data) => {
+          if (this._isSessionMissingError(data)) {
+            this.tryAutoReauth(data);
+          }
+        });
       });
 
       this.socket.on('connect_error', (error) => {
@@ -280,6 +359,10 @@
 
       this.socket.on('players_update', (data) => {
         this.emitInternal('players_update', data);
+      });
+
+      this.socket.on('global_leaderboard_update', (data) => {
+        this.emitInternal('global_leaderboard_update', data);
       });
 
       this.socket.on('login_error', (data) => {
@@ -678,6 +761,250 @@
       this.socket.on('crash_round_crashed', (data) => {
         this.emitInternal('crash_round_crashed', data);
       });
+
+      // Multiplayer Royal Plinko Protocol Events
+      this.socket.on('plinko_state', (data) => {
+        this.emitInternal('plinko_state', data);
+      });
+
+      this.socket.on('plinko_drop_accepted', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+        }
+        this.emitInternal('plinko_drop_accepted', data);
+      });
+
+      this.socket.on('plinko_ball_dropped', (data) => {
+        this.emitInternal('plinko_ball_dropped', data);
+      });
+
+      this.socket.on('plinko_drop_rejected', (data) => {
+        this.emitInternal('plinko_drop_rejected', data);
+      });
+
+      // Multiplayer Grand Sovereign Slots Protocol Events
+      this.socket.on('slots_state', (data) => {
+        this.emitInternal('slots_state', data);
+      });
+
+      this.socket.on('slots_spin_result', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+        }
+        this.emitInternal('slots_spin_result', data);
+      });
+
+      this.socket.on('slots_spin_rejected', (data) => {
+        this.emitInternal('slots_spin_rejected', data);
+      });
+
+      this.socket.on('slots_floor_update', (data) => {
+        this.emitInternal('slots_floor_update', data);
+      });
+
+      this.socket.on('slots_big_win', (data) => {
+        this.emitInternal('slots_big_win', data);
+      });
+
+      this.socket.on('slots_golden_fever', (data) => {
+        this.emitInternal('slots_golden_fever', data);
+      });
+
+      this.socket.on('slots_cheer_event', (data) => {
+        this.emitInternal('slots_cheer_event', data);
+      });
+
+      this.socket.on('slots_cheer_rejected', (data) => {
+        this.emitInternal('slots_cheer_rejected', data);
+      });
+
+      // Multiplayer Horse Racing (Monaco Turf Club Derby) Events
+      this.socket.on('racing_state', (data) => {
+        this.emitInternal('racing_state', data);
+      });
+
+      this.socket.on('racing_phase_tick', (data) => {
+        this.emitInternal('racing_phase_tick', data);
+      });
+
+      this.socket.on('racing_phase_change', (data) => {
+        this.emitInternal('racing_phase_change', data);
+      });
+
+      this.socket.on('racing_tick', (data) => {
+        this.emitInternal('racing_tick', data);
+      });
+
+      this.socket.on('racing_bet_accepted', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips });
+        }
+        this.emitInternal('racing_bet_accepted', data);
+      });
+
+      this.socket.on('racing_bet_rejected', (data) => {
+        this.emitInternal('racing_bet_rejected', data);
+      });
+
+      this.socket.on('racing_bet_placed', (data) => {
+        this.emitInternal('racing_bet_placed', data);
+      });
+
+      this.socket.on('racing_bet_cancelled', (data) => {
+        this.emitInternal('racing_bet_cancelled', data);
+      });
+
+      this.socket.on('racing_bet_cancelled_self', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips });
+        }
+        this.emitInternal('racing_bet_cancelled_self', data);
+      });
+
+      this.socket.on('racing_golden_horse', (data) => {
+        this.emitInternal('racing_golden_horse', data);
+      });
+
+      this.socket.on('racing_cheered', (data) => {
+        this.emitInternal('racing_cheered', data);
+      });
+
+      this.socket.on('racing_cheer_rejected', (data) => {
+        this.emitInternal('racing_cheer_rejected', data);
+      });
+
+      this.socket.on('racing_finished', (data) => {
+        this.emitInternal('racing_finished', data);
+      });
+
+      this.socket.on('racing_settlement', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+        }
+        this.emitInternal('racing_settlement', data);
+      });
+
+      // Monte Carlo Hi-Lo Prive Events
+      const hiloEvents = [
+        'hilo_state',
+        'hilo_salon_update',
+        'hilo_cheered',
+        'hilo_cheer_rejected',
+        'hilo_rejected',
+        'hilo_started',
+        'hilo_guess_result',
+        'hilo_skipped',
+        'hilo_half_cashout_result',
+        'hilo_cashout_result',
+        'hilo_blitz_tick',
+        'hilo_blitz_state',
+        'hilo_blitz_joined',
+        'hilo_blitz_cancelled',
+        'hilo_blitz_action_ack',
+        'hilo_blitz_reveal',
+        'hilo_blitz_settlement',
+        'hilo_blitz_finished'
+      ];
+      hiloEvents.forEach((evt) => {
+        this.socket.on(evt, (data) => {
+          if (data && typeof data.newChips === 'number') {
+            this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+          }
+          this.emitInternal(evt, data);
+        });
+      });
+
+      // Royal Mines Vault Events
+      const minesEvents = [
+        'mines_state',
+        'mines_salon_update',
+        'mines_cheered',
+        'mines_cheer_rejected',
+        'mines_rejected',
+        'mines_solo_started',
+        'mines_solo_result',
+        'mines_shared_tick',
+        'mines_shared_state',
+        'mines_shared_vote_ack',
+        'mines_shared_joined',
+        'mines_shared_cancelled',
+        'mines_shared_tile',
+        'mines_shared_click_ack',
+        'mines_shared_cashout_ack',
+        'mines_shared_settlement',
+        'mines_shared_finished'
+      ];
+      minesEvents.forEach((evt) => {
+        this.socket.on(evt, (data) => {
+          if (data && typeof data.newChips === 'number') {
+            this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+          }
+          this.emitInternal(evt, data);
+        });
+      });
+
+      // Casino Staatsloterij Events
+      const lotteryEvents = [
+        'lottery_state',
+        'lottery_tick',
+        'lottery_buy_ack',
+        'lottery_rejected',
+        'lottery_draw_result'
+      ];
+      lotteryEvents.forEach((evt) => {
+        this.socket.on(evt, (data) => {
+          if (data && typeof data.remainingChips === 'number') {
+            this.saveClientBackup({ chips: data.remainingChips });
+          }
+          this.emitInternal(evt, data);
+        });
+      });
+    }
+
+    _isSessionMissingError(data) {
+      if (!data || typeof data !== 'object') return false;
+      if (data.code === 'PLAYER_NOT_FOUND') return true;
+      const msg = String(data.reason || data.message || '').toLowerCase();
+      return msg.includes('log eerst in') || msg.includes('player profile not found') || msg.includes('must be authenticated') || msg.includes('sessie verlopen');
+    }
+
+    hasStoredCredentials() {
+      const token = this.getStoredToken() || (this._lastAuthPayload && this._lastAuthPayload.sessionToken);
+      const name = (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
+        : null) || (this._lastAuthPayload && this._lastAuthPayload.name);
+      return Boolean(token || name);
+    }
+
+    tryAutoReauth(triggerPayload = null) {
+      if (!this.socket || !this.isConnected) return false;
+      const now = Date.now();
+      if (this._reauthInFlight || (now - this._lastReauthAt) < 1200) {
+        return false;
+      }
+
+      const token = this.getStoredToken() || (this._lastAuthPayload && this._lastAuthPayload.sessionToken) || null;
+      const name = (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
+        : null) || (this._lastAuthPayload && this._lastAuthPayload.name) || null;
+      const color = (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('casino_player_color') || localStorage.getItem('roulette_player_color'))
+        : null) || (this._lastAuthPayload && this._lastAuthPayload.color) || null;
+      const password = (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('casino_player_password') || localStorage.getItem('roulette_player_password'))
+        : null) || (this._lastAuthPayload && this._lastAuthPayload.password) || null;
+
+      if (!token && !name) {
+        this.isAuthenticated = false;
+        this.emitInternal('session_lost', triggerPayload || { code: 'PLAYER_NOT_FOUND' });
+        return false;
+      }
+
+      this._reauthInFlight = true;
+      this._pendingRecoveryNotice = true;
+      this._lastReauthAt = now;
+      this.authSession({ sessionToken: token, name, color, password });
+      return true;
     }
 
     /**
@@ -686,12 +1013,18 @@
      */
     authSession(payload = {}) {
       if (!this.socket) return;
-      const token = payload.sessionToken || this.getStoredToken();
+      const token = payload.sessionToken || this.getStoredToken() || (this._lastAuthPayload && this._lastAuthPayload.sessionToken) || null;
+      const name = payload.name || (this._lastAuthPayload && this._lastAuthPayload.name) || null;
+      const color = payload.color || (this._lastAuthPayload && this._lastAuthPayload.color) || null;
+      const password = (payload.password !== undefined && payload.password !== null && payload.password !== '')
+        ? payload.password
+        : ((this._lastAuthPayload && this._lastAuthPayload.password) || null);
+      this._lastAuthPayload = { sessionToken: token, name, color, password };
       this.socket.emit('auth_session', {
         sessionToken: token,
-        name: payload.name,
-        color: payload.color,
-        password: payload.password,
+        name,
+        color,
+        password,
         clientBackup: this.getClientBackup(),
         bankBackup: this.getBankBackup()
       });
@@ -704,6 +1037,15 @@
     joinTable(playerProfile = {}) {
       if (!this.socket) return;
       const token = playerProfile.sessionToken || this.getStoredToken();
+      this._lastAuthPayload = {
+        ...(this._lastAuthPayload || {}),
+        sessionToken: token,
+        name: playerProfile.name || (this._lastAuthPayload && this._lastAuthPayload.name) || null,
+        color: playerProfile.color || (this._lastAuthPayload && this._lastAuthPayload.color) || null,
+        password: (playerProfile.password !== undefined && playerProfile.password !== null && playerProfile.password !== '')
+          ? playerProfile.password
+          : ((this._lastAuthPayload && this._lastAuthPayload.password) || null)
+      };
       const backup = this.getClientBackup();
       // Only attach clientBackup if it belongs to the same username (or no username is in backup)
       const sameUser = !backup || !backup.name || !playerProfile.name ||
@@ -1170,6 +1512,213 @@
     crashCashOut(payload = {}) {
       if (!this.socket) return;
       this.socket.emit('crash_cash_out', payload);
+    }
+
+    /**
+     * Requests latest Plinko state & recent drops history.
+     */
+    plinkoJoin() {
+      if (!this.socket) return;
+      this.socket.emit('plinko_join', {});
+    }
+
+    /**
+     * Submits a Plinko ball drop (1 to 10 balls) to the server.
+     * @param {{ amount: number, rows: number, risk: string, count?: number }} payload
+     */
+    plinkoDrop(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('plinko_drop', payload);
+    }
+
+    /**
+     * Joins the Slots floor (auto-assigning an open cabinet or preferred machineId).
+     * @param {number|null} [machineId]
+     */
+    slotsJoin(machineId = null) {
+      if (!this.socket) return;
+      this.socket.emit('slots_join', { machineId });
+    }
+
+    /**
+     * Switches to a specific Slots floor cabinet (1..8).
+     * @param {number} machineId
+     */
+    slotsSelectMachine(machineId) {
+      if (!this.socket) return;
+      this.socket.emit('slots_select_machine', { machineId });
+    }
+
+    /**
+     * Sends an authoritative spin request (paid, free spin, or Bonus Buy).
+     * @param {{ bet?: number, isBonusBuy?: boolean, machineId?: number }} [payload]
+     */
+    slotsSpin(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('slots_spin', payload);
+    }
+
+    /**
+     * Sends a Hype / Juich boost (+2.5% Golden Fever) to a floor cabinet.
+     * @param {number} machineId
+     */
+    slotsCheer(machineId) {
+      if (!this.socket) return;
+      this.socket.emit('slots_cheer', { machineId });
+    }
+
+    /**
+     * Requests the current Monaco Turf Club Derby race state.
+     */
+    racingJoin() {
+      if (!this.socket) return;
+      this.socket.emit('racing_join', {});
+    }
+
+    /**
+     * Submits a WIN or PLACE horse racing ticket.
+     * @param {{ horseId: number, betType: 'WIN'|'PLACE', amount: number }} payload
+     */
+    racingPlaceBet(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('racing_place_bet', payload);
+    }
+
+    /**
+     * Cancels an unsettled ticket before gates lock.
+     * @param {string} ticketId
+     */
+    racingCancelBet(ticketId) {
+      if (!this.socket) return;
+      this.socket.emit('racing_cancel_bet', { ticketId });
+    }
+
+    /**
+     * Sends a purely cosmetic cheer hype pulse for a horse.
+     * @param {number} horseId
+     */
+    racingCheer(horseId) {
+      if (!this.socket) return;
+      this.socket.emit('racing_cheer', { horseId });
+    }
+
+    hiloJoin() {
+      if (!this.socket) return;
+      this.socket.emit('hilo_join', {});
+    }
+
+    hiloStart(betAmount) {
+      if (!this.socket) return;
+      this.socket.emit('hilo_start', { betAmount });
+    }
+
+    hiloGuess(prediction) {
+      if (!this.socket) return;
+      this.socket.emit('hilo_guess', { prediction });
+    }
+
+    hiloSkip() {
+      if (!this.socket) return;
+      this.socket.emit('hilo_skip', {});
+    }
+
+    hiloHalfCashout() {
+      if (!this.socket) return;
+      this.socket.emit('hilo_half_cashout', {});
+    }
+
+    hiloCashout() {
+      if (!this.socket) return;
+      this.socket.emit('hilo_cashout', {});
+    }
+
+    hiloCheer(targetPlayerId) {
+      if (!this.socket) return;
+      this.socket.emit('hilo_cheer', { targetPlayerId });
+    }
+
+    hiloBlitzJoin(betAmount) {
+      if (!this.socket) return;
+      this.socket.emit('hilo_blitz_join', { betAmount });
+    }
+
+    hiloBlitzCancel() {
+      if (!this.socket) return;
+      this.socket.emit('hilo_blitz_cancel', {});
+    }
+
+    hiloBlitzAction(action) {
+      if (!this.socket) return;
+      this.socket.emit('hilo_blitz_action', { action });
+    }
+
+    minesJoin() {
+      if (!this.socket) return;
+      this.socket.emit('mines_join', {});
+    }
+
+    minesSoloStart(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('mines_solo_start', payload);
+    }
+
+    minesSoloClick(tileIndex) {
+      if (!this.socket) return;
+      this.socket.emit('mines_solo_click', { tileIndex });
+    }
+
+    minesSoloCashout() {
+      if (!this.socket) return;
+      this.socket.emit('mines_solo_cashout', {});
+    }
+
+    minesSharedVote(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('mines_shared_vote', payload);
+    }
+
+    minesSharedJoin(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('mines_shared_join', payload);
+    }
+
+    minesSharedCancel() {
+      if (!this.socket) return;
+      this.socket.emit('mines_shared_cancel', {});
+    }
+
+    minesSharedClick(tileIndex) {
+      if (!this.socket) return;
+      this.socket.emit('mines_shared_click', { tileIndex });
+    }
+
+    minesSharedCashout() {
+      if (!this.socket) return;
+      this.socket.emit('mines_shared_cashout', {});
+    }
+
+    minesCheer(targetPlayerId) {
+      if (!this.socket) return;
+      this.socket.emit('mines_cheer', { targetPlayerId });
+    }
+
+    requestLotteryState() {
+      if (!this.socket) return;
+      this.socket.emit('lottery_get_state', {});
+    }
+
+    buyLotteryTickets(count) {
+      if (!this.socket) return;
+      this.socket.emit('lottery_buy_tickets', { count });
+    }
+
+    /**
+     * Requests the latest Global All-Time Leaderboard snapshot.
+     * @param {Object} [options]
+     */
+    getGlobalLeaderboard(options = {}) {
+      if (!this.socket) return;
+      this.socket.emit('leaderboard_get', options);
     }
   }
 

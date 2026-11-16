@@ -12,6 +12,12 @@ const BankManager = require('./game/bankManager');
 const BlackjackEngine = require('./game/blackjackEngine');
 const PokerEngine = require('./game/pokerEngine');
 const CrashEngine = require('./game/crashEngine');
+const PlinkoEngine = require('./game/plinkoEngine');
+const SlotsEngine = require('./game/slotsEngine');
+const RacingEngine = require('./game/racingEngine');
+const HiloEngine = require('./game/hiloEngine');
+const MinesEngine = require('./game/minesEngine');
+const LotteryEngine = require('./game/lotteryEngine');
 
 /**
  * Escapes HTML characters to prevent XSS.
@@ -36,9 +42,11 @@ function sanitizeHtml(str) {
  * @param {Object} [rouletteEngine] 
  * @param {Object} [blackjackEngine] 
  * @param {Object} [pokerEngine=null] 
+ * @param {Object} [crashEngine=null]
+ * @param {Object} [racingEngine=null]
  * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, reason?: string, message?: string }}
  */
-function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null) {
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null, racingEngine = null, hiloEngine = null, minesEngine = null) {
   if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
     return {
       allowed: false,
@@ -111,6 +119,36 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
       message: 'Active bet present on Crash.'
     };
   }
+  if (racingEngine && typeof racingEngine.hasActiveBets === 'function' && racingEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Racing',
+      amount: typeof racingEngine.getActiveBetTotal === 'function' ? racingEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je hebt een actief ticket in de Port Hercule Derby. Wacht tot de race is gefinisht.',
+      message: 'Active ticket present on Racing.'
+    };
+  }
+  if (hiloEngine && typeof hiloEngine.hasActiveBets === 'function' && hiloEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'HiLo',
+      amount: typeof hiloEngine.getActiveBetTotal === 'function' ? hiloEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je hebt een actieve Hi-Lo reeks of Blitz ronde openstaan. Cash uit of speel deze eerst af.',
+      message: 'Active bet present on Hi-Lo.'
+    };
+  }
+  if (minesEngine && typeof minesEngine.hasActiveBets === 'function' && minesEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Mines',
+      amount: typeof minesEngine.getActiveBetTotal === 'function' ? minesEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je hebt een actieve Mines Kluis ronde openstaan. Cash uit of rond de kluis eerst af.',
+      message: 'Active bet present on Mines.'
+    };
+  }
   return { allowed: true };
 }
 
@@ -132,6 +170,22 @@ function setupSocket(httpServer, options = {}) {
   const playerManager = new PlayerManager();
   const bankManager = new BankManager(playerManager);
   const engine = new RouletteEngine(playerManager, { bankManager });
+
+  /** Emit an event to every connected socket belonging to playerId (supports multiple open tabs). */
+  function emitToPlayer(playerId, event, data) {
+    if (!playerId) return;
+    const sockets = typeof playerManager.getSocketsForPlayer === 'function'
+      ? playerManager.getSocketsForPlayer(playerId)
+      : [];
+    if (sockets.length > 0) {
+      sockets.forEach((sid) => io.to(sid).emit(event, data));
+      return;
+    }
+    const target = playerManager.getPlayerById(playerId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit(event, data);
+    }
+  }
 
   /** @type {Map<string, BlackjackEngine>} Multi-table registry */
   const blackjackTables = new Map();
@@ -167,6 +221,7 @@ function setupSocket(httpServer, options = {}) {
   /** @type {Map<string, PokerEngine>} Multi-table registry for Texas Hold'em */
   const pokerTables = new Map();
   const defaultPokerEngine = new PokerEngine(playerManager, {
+    bankManager,
     tableId: 'poker_1',
     tableName: 'Monte Carlo Texas Hold\'em 1',
     smallBlind: 50,
@@ -179,6 +234,7 @@ function setupSocket(httpServer, options = {}) {
   pokerTables.set('poker_1', defaultPokerEngine);
 
   const highRollerPokerEngine = new PokerEngine(playerManager, {
+    bankManager,
     tableId: 'poker_2',
     tableName: 'Monte Carlo High-Roller Poker 2',
     smallBlind: 100,
@@ -199,6 +255,435 @@ function setupSocket(httpServer, options = {}) {
   const crashEngine = new CrashEngine(playerManager, { bankManager });
   if (options && options.autoStartCrash === true) {
     crashEngine.start();
+  }
+
+  const plinkoEngine = new PlinkoEngine({ playerManager, bankManager });
+  io.plinkoEngine = plinkoEngine;
+
+  const slotsEngine = new SlotsEngine({ playerManager, bankManager });
+  io.slotsEngine = slotsEngine;
+
+  function broadcastSlotsFloor() {
+    io.emit('slots_floor_update', {
+      jackpotPool: Math.floor(slotsEngine.jackpotPool),
+      goldenFever: slotsEngine.getGoldenFeverState(),
+      machines: slotsEngine.getPublicMachines(),
+      recentBigWins: slotsEngine.getRecentBigWins()
+    });
+  }
+
+  slotsEngine.on('golden_fever_started', (payload) => {
+    io.emit('slots_golden_fever', { active: true, ...payload });
+    broadcastSlotsFloor();
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#f59e0b',
+      text: '[GOLDEN FEVER] VLOER EVENT GEACTIVEERD! 30 seconden lang 2x winst en extra Golden Wilds op alle 8 kasten!',
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'slots'
+    });
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#f59e0b',
+      text: '[GOLDEN FEVER] Monte Carlo Slots staat in lichterlaaie — 30s 2x multiplier actief op alle kasten!',
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'global',
+      table: 'all'
+    });
+  });
+
+  slotsEngine.on('golden_fever_ended', (payload) => {
+    io.emit('slots_golden_fever', { active: false, ...payload });
+    broadcastSlotsFloor();
+  });
+
+  slotsEngine.on('machine_cheered', (payload) => {
+    io.emit('slots_cheer_event', payload);
+  });
+
+  const racingEngine = new RacingEngine({ playerManager, bankManager });
+  io.racingEngine = racingEngine;
+
+  racingEngine.on('phase_tick', (payload) => {
+    io.emit('racing_phase_tick', payload);
+  });
+
+  racingEngine.on('phase_change', (payload) => {
+    io.emit('racing_phase_change', payload);
+    if (payload && (payload.phase === 'FINISHED' || payload.phase === 'WAITING_FOR_BETS')) {
+      broadcastPlayersUpdate();
+    }
+  });
+
+  racingEngine.on('tick', (payload) => {
+    io.emit('racing_tick', payload);
+  });
+
+  racingEngine.on('bet_placed', (payload) => {
+    io.emit('racing_bet_placed', payload);
+    broadcastPlayersUpdate();
+  });
+
+  racingEngine.on('bet_cancelled', (payload) => {
+    io.emit('racing_bet_cancelled', payload);
+    broadcastPlayersUpdate();
+  });
+
+  racingEngine.on('horse_cheered', (payload) => {
+    io.emit('racing_cheered', payload);
+  });
+
+  racingEngine.on('race_finished', (result) => {
+    io.emit('racing_finished', result);
+    if (result && Array.isArray(result.settlements)) {
+      result.settlements.forEach((s) => {
+        emitToPlayer(s.playerId, 'racing_settlement', s);
+        if (typeof s.newChips === 'number') {
+          emitToPlayer(s.playerId, 'chips_update', { chips: s.newChips, source: 'racing' });
+        }
+
+        if (Array.isArray(s.repayments) && s.repayments.length > 0) {
+          s.repayments.forEach((rep) => {
+            broadcastChatMessage({
+              sender: 'BANK',
+              color: '#10b981',
+              text: `[BANK] ${s.playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via derby-winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+              timestamp: Date.now(),
+              isSystem: true,
+              scope: 'table',
+              table: 'racing'
+            });
+            const lender = playerManager.getPlayerById(rep.lenderId);
+            if (lender) {
+              emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+              emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+            }
+            const borrower = playerManager.getPlayerById(s.playerId);
+            if (borrower) {
+              emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+              emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
+            }
+          });
+        }
+
+        if (s.totalReturned > 0 && s.netProfit >= 1000) {
+          const isMega = s.netProfit >= 8000;
+          const potText = s.potBonusTotal > 0 ? ` (+${s.potBonusTotal.toLocaleString()} Winnaarspot)` : '';
+          broadcastChatMessage({
+            sender: 'CASINO',
+            color: '#d4af37',
+            text: `[TURF CLUB] ${s.playerName} won ${s.totalReturned.toLocaleString()} fiches (${s.bestMultiplier}x)${potText} op Race #${result.raceId}!`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: 'racing'
+          });
+          broadcastChatMessage({
+            sender: 'CASINO',
+            color: '#d4af37',
+            text: isMega
+              ? `[MEGA DERBY] ${s.playerName} pakte een topwinst van ${s.totalReturned.toLocaleString()} fiches in Monaco Turf Club!`
+              : `[TURF CLUB] ${s.playerName} cashte ${s.totalReturned.toLocaleString()} fiches op de Derby!`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'global',
+            table: 'all'
+          });
+        }
+      });
+    }
+    broadcastPlayersUpdate();
+  });
+
+  const hiloEngine = new HiloEngine({ playerManager, bankManager });
+  io.hiloEngine = hiloEngine;
+  hiloEngine.start();
+
+  function emitHiloRepayments(playerId, playerName, repayments, modeLabel = 'Hi-Lo Privé') {
+    if (!Array.isArray(repayments) || repayments.length === 0) return;
+    repayments.forEach((rep) => {
+      broadcastChatMessage({
+        sender: 'BANK',
+        color: '#10b981',
+        text: `[BANK] ${playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via ${modeLabel}.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'table',
+        table: 'hilo'
+      });
+      const lender = playerManager.getPlayerById(rep.lenderId);
+      if (lender) {
+        emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+        emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+      }
+      const borrower = playerManager.getPlayerById(playerId);
+      if (borrower) {
+        emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+        emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
+      }
+    });
+  }
+
+  hiloEngine.on('salon_update', () => {
+    const pub = hiloEngine.getPublicSalonState(null);
+    io.emit('hilo_salon_update', {
+      players: pub.players,
+      recentWins: pub.recentWins,
+      blitz: pub.blitz
+    });
+  });
+
+  hiloEngine.on('player_cheered', (payload) => {
+    io.emit('hilo_cheered', payload);
+  });
+
+  hiloEngine.on('big_moment', (payload) => {
+    if (!payload) return;
+    const msgText = payload.type === 'EQUAL_HIT'
+      ? `[HI-LO] ${payload.playerName} raakte GELIJK (${payload.multiplier}x) — pot nu ${payload.pot.toLocaleString()} fiches!`
+      : payload.type === 'STREAK_MILESTONE'
+      ? `[HI-LO] ${payload.playerName} staat op een ${payload.streak}-kaarten reeks (${payload.pot.toLocaleString()} fiches pot)!`
+      : `[HI-LO] ${payload.playerName} cashte ${payload.payout.toLocaleString()} fiches uit (+${payload.netProfit.toLocaleString()}) na ${payload.streak} kaarten!`;
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'hilo'
+    });
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'global',
+      table: 'all'
+    });
+  });
+
+  hiloEngine.on('blitz_tick', (payload) => {
+    io.emit('hilo_blitz_tick', payload);
+  });
+
+  hiloEngine.on('blitz_phase_change', (payload) => {
+    io.emit('hilo_blitz_state', payload);
+    if (payload && (payload.phase === 'WAITING_FOR_PLAYERS' || payload.phase === 'SETTLED')) {
+      broadcastPlayersUpdate();
+    }
+  });
+
+  hiloEngine.on('blitz_update', (payload) => {
+    io.emit('hilo_blitz_state', payload);
+  });
+
+  hiloEngine.on('blitz_reveal', (payload) => {
+    io.emit('hilo_blitz_reveal', payload);
+  });
+
+  hiloEngine.on('blitz_settlement', (s) => {
+    emitToPlayer(s.playerId, 'hilo_blitz_settlement', s);
+    if (typeof s.newChips === 'number') {
+      emitToPlayer(s.playerId, 'chips_update', { chips: s.newChips, source: 'hilo_blitz' });
+    }
+    emitHiloRepayments(s.playerId, s.playerName, s.repayments, 'Hi-Lo Blitz');
+  });
+
+  hiloEngine.on('blitz_finished', (payload) => {
+    io.emit('hilo_blitz_finished', payload);
+    broadcastPlayersUpdate();
+  });
+
+  // Royal Mines Vault (Solo + Multiplayer Shared Vault)
+  const minesEngine = new MinesEngine({ playerManager, bankManager });
+  io.minesEngine = minesEngine;
+  minesEngine.start();
+
+  function emitMinesRepayments(playerId, playerName, repayments, modeLabel = 'Mines Kluis') {
+    if (!Array.isArray(repayments) || repayments.length === 0) return;
+    const targetPlayer = playerManager.getPlayerById(playerId);
+    if (targetPlayer && typeof playerManager._persistPlayer === 'function') {
+      playerManager._persistPlayer(targetPlayer);
+    }
+    emitToPlayer(playerId, 'bank_update', bankManager.getPlayerBankData(playerId));
+    repayments.forEach((rep) => {
+      broadcastChatMessage({
+        sender: 'BANK',
+        color: '#34d399',
+        text: `${playerName} loste ${rep.amountPaid.toLocaleString()} fiches (${rep.interestEarned} rente) af uit ${modeLabel}!`,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'table',
+        table: 'mines'
+      });
+      if (rep.counterpartyId) {
+        emitToPlayer(rep.counterpartyId, 'bank_update', bankManager.getPlayerBankData(rep.counterpartyId));
+        const cp = playerManager.getPlayerById(rep.counterpartyId);
+        if (cp) {
+          emitToPlayer(rep.counterpartyId, 'chips_update', { chips: cp.chips, source: 'bank_repayment' });
+        }
+      }
+    });
+  }
+
+  minesEngine.on('salon_update', () => {
+    const pub = minesEngine.getPublicState(null);
+    io.emit('mines_salon_update', {
+      players: pub.players,
+      recentWins: pub.recentWins,
+      shared: pub.shared
+    });
+  });
+
+  minesEngine.on('player_cheered', (payload) => {
+    io.emit('mines_cheered', payload);
+  });
+
+  minesEngine.on('big_moment', (payload) => {
+    if (!payload) return;
+    const msgText = `[MINES] ${payload.playerName} cashte ${payload.payout.toLocaleString()} fiches (${Number(payload.multiplier).toFixed(2)}x) na ${payload.diamondsOpened} diamanten (${payload.gridLabel})!`;
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'mines'
+    });
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'global',
+      table: 'all'
+    });
+  });
+
+  minesEngine.on('shared_tick', (payload) => {
+    io.emit('mines_shared_tick', payload);
+  });
+
+  minesEngine.on('shared_phase_change', (payload) => {
+    io.emit('mines_shared_state', payload);
+    if (payload && (payload.phase === 'WAITING_FOR_PLAYERS' || payload.phase === 'REVEALED')) {
+      broadcastPlayersUpdate();
+    }
+  });
+
+  minesEngine.on('shared_update', (payload) => {
+    io.emit('mines_shared_state', payload);
+  });
+
+  minesEngine.on('shared_tile', (payload) => {
+    io.emit('mines_shared_tile', payload);
+  });
+
+  minesEngine.on('shared_settlement', (s) => {
+    emitToPlayer(s.playerId, 'mines_shared_settlement', s);
+    if (typeof s.newChips === 'number') {
+      emitToPlayer(s.playerId, 'chips_update', { chips: s.newChips, source: 'mines_shared' });
+    }
+    emitMinesRepayments(s.playerId, s.playerName, s.repayments, 'Shared Mines');
+  });
+
+  minesEngine.on('shared_finished', (payload) => {
+    io.emit('mines_shared_finished', payload);
+    broadcastPlayersUpdate();
+  });
+
+  // -------------------------------------------------------------------------
+  // Casino Staatsloterij (10-minute cycle, 100% pot payout, 0% house edge)
+  // -------------------------------------------------------------------------
+  const lotteryOptions = (options && options.lotteryOptions && typeof options.lotteryOptions === 'object')
+    ? options.lotteryOptions
+    : {};
+  const lotteryEngine = new LotteryEngine(playerManager, { bankManager, ...lotteryOptions });
+  io.lotteryEngine = lotteryEngine;
+  lotteryEngine.start();
+
+  function emitPersonalizedLotteryStates() {
+    const baseState = lotteryEngine.getPublicState(null);
+    io.emit('lottery_state', baseState);
+    for (const p of playerManager.players.values()) {
+      if (p && p.connected && lotteryEngine.participants.has(p.id)) {
+        emitToPlayer(p.id, 'lottery_state', lotteryEngine.getPublicState(p.id));
+      }
+    }
+  }
+
+  lotteryEngine.on('tick', (tickPayload) => {
+    io.emit('lottery_tick', tickPayload);
+  });
+
+  lotteryEngine.on('state', () => {
+    emitPersonalizedLotteryStates();
+  });
+
+  lotteryEngine.on('draw_result', (res) => {
+    io.emit('lottery_draw_result', res);
+
+    const winner = playerManager.getPlayerById(res.winnerId);
+    if (winner) {
+      emitToPlayer(winner.id, 'chips_update', { chips: winner.chips, source: 'lottery' });
+    }
+
+    if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+      res.repayments.forEach((rep) => {
+        broadcastChatMessage({
+          sender: 'BANK',
+          color: '#10b981',
+          text: `[BANK] ${res.winnerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via Staatsloterij-winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'global',
+          table: 'all'
+        });
+        const lender = playerManager.getPlayerById(rep.lenderId);
+        if (lender) {
+          emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+          emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+        }
+        if (winner) {
+          emitToPlayer(winner.id, 'chips_update', { chips: winner.chips, source: 'lottery' });
+          emitToPlayer(winner.id, 'bank_update', bankManager.getPlayerBankData(winner.id));
+        }
+      });
+    }
+
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: `[STAATSLOTERIJ] ${res.winnerName} wint de 100%-pot van ${res.potWon.toLocaleString()} fiches in Ronde #${res.roundId} (Lot #${res.winningTicketDisplay}/${res.totalTickets}, winkans ${res.winnerOddsPct}%)!`,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'global',
+      table: 'all'
+    });
+    broadcastPlayersUpdate();
+  });
+
+  // Lightweight sliding-window rate limiter per socket & event
+  const rateLimitBuckets = new Map();
+  function checkRateLimit(socketId, eventKey, maxCount, windowMs) {
+    const key = `${socketId}:${eventKey}`;
+    const now = Date.now();
+    const arr = rateLimitBuckets.get(key) || [];
+    const recent = arr.filter(ts => now - ts < windowMs);
+    if (recent.length >= maxCount) {
+      rateLimitBuckets.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    rateLimitBuckets.set(key, recent);
+    return true;
   }
 
   function getPokerTable(tableId) {
@@ -253,6 +738,36 @@ function setupSocket(httpServer, options = {}) {
         message: 'Active bet present on Crash.'
       };
     }
+    if (racingEngine && typeof racingEngine.hasActiveBets === 'function' && racingEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Racing',
+        amount: typeof racingEngine.getActiveBetTotal === 'function' ? racingEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actief ticket in de Port Hercule Derby. Wacht tot de race is gefinisht.',
+        message: 'Active ticket present on Racing.'
+      };
+    }
+    if (hiloEngine && typeof hiloEngine.hasActiveBets === 'function' && hiloEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'HiLo',
+        amount: typeof hiloEngine.getActiveBetTotal === 'function' ? hiloEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actieve Hi-Lo reeks of Blitz ronde openstaan. Cash uit of speel deze eerst af.',
+        message: 'Active bet present on Hi-Lo.'
+      };
+    }
+    if (minesEngine && typeof minesEngine.hasActiveBets === 'function' && minesEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Mines',
+        amount: typeof minesEngine.getActiveBetTotal === 'function' ? minesEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actieve Mines Kluis ronde openstaan. Cash uit of rond de kluis eerst af.',
+        message: 'Active bet present on Mines.'
+      };
+    }
     return { allowed: true };
   }
 
@@ -270,6 +785,7 @@ function setupSocket(httpServer, options = {}) {
   function broadcastPlayersUpdate() {
     const list = playerManager.getConnectedPlayers().sort((a, b) => b.chips - a.chips);
     io.emit('players_update', list);
+    io.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
   }
 
   // Hook blackjack tables events
@@ -444,14 +960,14 @@ function setupSocket(httpServer, options = {}) {
                 table: tbl.tableId
               });
               const lender = playerManager.getPlayerById(rep.lenderId);
-              if (lender && lender.socketId) {
-                io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
-                io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+              if (lender) {
+                emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+                emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
               }
               const borrower = playerManager.getPlayerById(r.playerId);
-              if (borrower && borrower.socketId) {
-                io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
-                io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+              if (borrower) {
+                emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+                emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
               }
             });
           }
@@ -538,6 +1054,32 @@ function setupSocket(httpServer, options = {}) {
       io.to('table:' + tbl.tableId).emit('poker_seat_left', data);
       io.emit('poker_seat_vacated', data);
       io.emit('poker_seat_left', data);
+
+      if (data && Array.isArray(data.repayments) && data.repayments.length > 0) {
+        const borrower = playerManager.getPlayerById(data.playerId);
+        const borrowerName = (borrower && borrower.name) || 'Speler';
+        data.repayments.forEach((rep) => {
+          broadcastChatMessage({
+            sender: 'BANK',
+            color: '#10b981',
+            text: `[BANK] ${borrowerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via Poker-winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: tbl.tableId
+          });
+          const lender = playerManager.getPlayerById(rep.lenderId);
+          if (lender) {
+            emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+            emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+          }
+          if (borrower) {
+            emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+            emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
+          }
+        });
+      }
+
       broadcastPlayersUpdate();
     });
 
@@ -621,8 +1163,8 @@ function setupSocket(httpServer, options = {}) {
     broadcastPlayersUpdate();
 
     const p = playerManager.getPlayerById(data.playerId);
-    if (p && p.socketId) {
-      io.to(p.socketId).emit('chips_update', { chips: p.chips });
+    if (p) {
+      emitToPlayer(p.id, 'chips_update', { chips: p.chips });
     }
 
     // Announce in Crash Table Chat
@@ -665,14 +1207,14 @@ function setupSocket(httpServer, options = {}) {
         });
 
         const lender = playerManager.getPlayerById(rep.lenderId);
-        if (lender && lender.socketId) {
-          io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
-          io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+        if (lender) {
+          emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+          emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
         }
         const borrower = playerManager.getPlayerById(data.playerId);
-        if (borrower && borrower.socketId) {
-          io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
-          io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+        if (borrower) {
+          emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+          emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
         }
       });
     }
@@ -757,17 +1299,17 @@ function setupSocket(httpServer, options = {}) {
 
             // Update lender socket
             const lender = playerManager.getPlayerById(rep.lenderId);
-            if (lender && lender.socketId) {
-              io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
-              io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
+            if (lender) {
+              emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+              emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
             }
           });
 
           // Update borrower socket
           const borrower = playerManager.getPlayerById(r.playerId);
-          if (borrower && borrower.socketId) {
-            io.to(borrower.socketId).emit('chips_update', { chips: borrower.chips });
-            io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
+          if (borrower) {
+            emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+            emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
           }
         }
       });
@@ -780,8 +1322,8 @@ function setupSocket(httpServer, options = {}) {
 
     function notifyLoanCounterparties(restoredPlayerId) {
       for (const connectedPlayer of playerManager.getConnectedPlayers()) {
-        if (!connectedPlayer || connectedPlayer.id === restoredPlayerId || !connectedPlayer.socketId) continue;
-        io.to(connectedPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(connectedPlayer.id));
+        if (!connectedPlayer || connectedPlayer.id === restoredPlayerId) continue;
+        emitToPlayer(connectedPlayer.id, 'bank_update', bankManager.getPlayerBankData(connectedPlayer.id));
       }
     }
 
@@ -853,6 +1395,13 @@ function setupSocket(httpServer, options = {}) {
         chatHistory: [...chatHistory]
       });
       socket.emit('crash_table_state', crashEngine.getTableState());
+      socket.emit('plinko_state', plinkoEngine.getState());
+      socket.emit('slots_state', slotsEngine.getFloorState(player.id));
+      socket.emit('racing_state', racingEngine.getPublicState(player.id));
+      socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
+      socket.emit('mines_state', minesEngine.getPublicState(player.id));
+      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id));
+      socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
@@ -972,6 +1521,13 @@ function setupSocket(httpServer, options = {}) {
         chatHistory: [...chatHistory]
       });
       socket.emit('crash_table_state', crashEngine.getTableState());
+      socket.emit('plinko_state', plinkoEngine.getState());
+      socket.emit('slots_state', slotsEngine.getFloorState(player.id));
+      socket.emit('racing_state', racingEngine.getPublicState(player.id));
+      socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
+      socket.emit('mines_state', minesEngine.getPublicState(player.id));
+      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id));
+      socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
 
       // Send initial banking & debt state to player
       socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
@@ -1075,7 +1631,13 @@ function setupSocket(httpServer, options = {}) {
     // 3. clear_bets
     socket.on('clear_bets', () => {
       const player = playerManager.getPlayerBySocket(socket.id);
-      if (!player) return;
+      if (!player) {
+        socket.emit('session_required', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Sessie verlopen — opnieuw authenticeren...'
+        });
+        return;
+      }
 
       const result = engine.clearBets(player.id);
       if (!result.success) {
@@ -1087,7 +1649,7 @@ function setupSocket(httpServer, options = {}) {
       }
 
       // Notify player of new balance
-      socket.emit('chips_update', {
+      emitToPlayer(player.id, 'chips_update', {
         chips: result.chips
       });
 
@@ -1237,14 +1799,14 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      socket.emit('chips_update', { chips: res.fromChips });
-      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      emitToPlayer(player.id, 'chips_update', { chips: res.fromChips });
+      emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
       socket.emit('bank_success', { message: `${res.transaction.amount.toLocaleString()} fiches overgemaakt naar ${res.toPlayer.name}.` });
 
-      if (res.toPlayer && res.toPlayer.socketId) {
-        io.to(res.toPlayer.socketId).emit('chips_update', { chips: res.toChips });
-        io.to(res.toPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(res.toPlayer.id));
-        io.to(res.toPlayer.socketId).emit('bank_notification', {
+      if (res.toPlayer) {
+        emitToPlayer(res.toPlayer.id, 'chips_update', { chips: res.toChips });
+        emitToPlayer(res.toPlayer.id, 'bank_update', bankManager.getPlayerBankData(res.toPlayer.id));
+        emitToPlayer(res.toPlayer.id, 'bank_notification', {
           title: 'Fiches Ontvangen',
           message: `${player.name} heeft ${res.transaction.amount.toLocaleString()} fiches naar je overgemaakt.`
         });
@@ -1285,14 +1847,14 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
       socket.emit('bank_success', { message: 'Leningvoorstel succesvol verzonden.' });
 
       const targetPlayer = playerManager.getPlayerById(toPlayerId);
-      if (targetPlayer && targetPlayer.socketId) {
-        io.to(targetPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(targetPlayer.id));
+      if (targetPlayer) {
+        emitToPlayer(targetPlayer.id, 'bank_update', bankManager.getPlayerBankData(targetPlayer.id));
         const actionText = res.proposal.type === 'borrow' ? 'wil fiches lenen' : 'biedt een lening aan';
-        io.to(targetPlayer.socketId).emit('bank_notification', {
+        emitToPlayer(targetPlayer.id, 'bank_notification', {
           title: 'Nieuw Leningvoorstel',
           message: `${player.name} ${actionText} (${res.proposal.amount.toLocaleString()} fiches). Bekijk de Bank inbox.`
         });
@@ -1312,14 +1874,14 @@ function setupSocket(httpServer, options = {}) {
         }
 
         // Update lender
-        if (res.lender.socketId) {
-          io.to(res.lender.socketId).emit('chips_update', { chips: res.lender.chips });
-          io.to(res.lender.socketId).emit('bank_update', bankManager.getPlayerBankData(res.lender.id));
+        if (res.lender) {
+          emitToPlayer(res.lender.id, 'chips_update', { chips: res.lender.chips });
+          emitToPlayer(res.lender.id, 'bank_update', bankManager.getPlayerBankData(res.lender.id));
         }
         // Update borrower
-        if (res.borrower.socketId) {
-          io.to(res.borrower.socketId).emit('chips_update', { chips: res.borrower.chips });
-          io.to(res.borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(res.borrower.id));
+        if (res.borrower) {
+          emitToPlayer(res.borrower.id, 'chips_update', { chips: res.borrower.chips });
+          emitToPlayer(res.borrower.id, 'bank_update', bankManager.getPlayerBankData(res.borrower.id));
         }
 
         broadcastPlayersUpdate();
@@ -1340,8 +1902,8 @@ function setupSocket(httpServer, options = {}) {
         if (res.proposal) {
           const otherId = res.proposal.fromId === player.id ? res.proposal.toId : res.proposal.fromId;
           const otherPlayer = playerManager.getPlayerById(otherId);
-          if (otherPlayer && otherPlayer.socketId) {
-            io.to(otherPlayer.socketId).emit('bank_update', bankManager.getPlayerBankData(otherPlayer.id));
+          if (otherPlayer) {
+            emitToPlayer(otherPlayer.id, 'bank_update', bankManager.getPlayerBankData(otherPlayer.id));
           }
         }
         socket.emit('bank_success', { message: 'Voorstel afgewezen.' });
@@ -1358,17 +1920,17 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      socket.emit('chips_update', { chips: player.chips });
-      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      emitToPlayer(player.id, 'chips_update', { chips: player.chips });
+      emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
       socket.emit('bank_success', {
         message: `${res.amountRepaid.toLocaleString()} fiches afgelost.${res.isFullyRepaid ? ' Lening is volledig afbetaald!' : ''}`
       });
 
       const lender = playerManager.getPlayerById(res.loan.lenderId);
-      if (lender && lender.socketId) {
-        io.to(lender.socketId).emit('chips_update', { chips: lender.chips });
-        io.to(lender.socketId).emit('bank_update', bankManager.getPlayerBankData(lender.id));
-        io.to(lender.socketId).emit('bank_notification', {
+      if (lender) {
+        emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+        emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+        emitToPlayer(lender.id, 'bank_notification', {
           title: 'Aflossing Ontvangen',
           message: `${player.name} heeft ${res.amountRepaid.toLocaleString()} fiches handmatig afgelost.`
         });
@@ -1386,13 +1948,13 @@ function setupSocket(httpServer, options = {}) {
         socket.emit('bank_error', { message: res.reason });
         return;
       }
-      socket.emit('bank_update', bankManager.getPlayerBankData(player.id));
+      emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
       socket.emit('bank_success', { message: 'Lening kwijtgescholden.' });
 
       const borrower = playerManager.getPlayerById(res.loan.borrowerId);
-      if (borrower && borrower.socketId) {
-        io.to(borrower.socketId).emit('bank_update', bankManager.getPlayerBankData(borrower.id));
-        io.to(borrower.socketId).emit('bank_notification', {
+      if (borrower) {
+        emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
+        emitToPlayer(borrower.id, 'bank_notification', {
           title: 'Schuld Kwijtgescholden',
           message: `${player.name} heeft je openstaande schuld kwijtgescholden.`
         });
@@ -1433,6 +1995,16 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
+    socket.on('leaderboard_get', (payload = {}) => {
+      const opts = (payload && typeof payload === 'object') ? payload : {};
+      socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard({
+        playedOnly: opts.playedOnly !== false,
+        status: opts.status,
+        sortBy: opts.sortBy,
+        limit: opts.limit
+      }));
+    });
+
     socket.on('profile_update', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
       if (!player) return;
@@ -1460,20 +2032,32 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('player_password_result', res);
     });
 
+    function emitNavigationBlocked(targetSocket, player, navCheck) {
+      targetSocket.emit('navigation_blocked', {
+        code: navCheck.code,
+        reason: navCheck.reason || navCheck.message,
+        message: navCheck.message,
+        game: navCheck.game,
+        currentGame: player.currentGame,
+        location: player.location,
+        amount: navCheck.amount,
+        activeBetsTotal: navCheck.amount
+      });
+    }
+
     socket.on('player_set_game', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
-      if (!player) return;
+      if (!player) {
+        socket.emit('session_required', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Sessie verlopen — opnieuw authenticeren...'
+        });
+        return;
+      }
 
       const navCheck = checkNavigation(player.id);
       if (!navCheck.allowed) {
-        socket.emit('navigation_blocked', {
-          code: navCheck.code,
-          reason: navCheck.reason || navCheck.message,
-          message: navCheck.message,
-          game: navCheck.game,
-          amount: navCheck.amount,
-          activeBetsTotal: navCheck.amount
-        });
+        emitNavigationBlocked(socket, player, navCheck);
         return;
       }
 
@@ -1497,6 +2081,30 @@ function setupSocket(httpServer, options = {}) {
             tbl.leaveSeat(seat.seatIndex, player.id, { updatePresence: false });
           }
         }
+      }
+
+      if (player.location !== 'SLOTS') {
+        if (slotsEngine.leaveMachine(player.id)) {
+          broadcastSlotsFloor();
+        }
+      } else {
+        slotsEngine.ensureMachine(player.id);
+        socket.emit('slots_state', slotsEngine.getFloorState(player.id));
+        broadcastSlotsFloor();
+      }
+
+      if (player.location !== 'HILO') {
+        hiloEngine.leaveSalon(player.id);
+      } else {
+        hiloEngine.joinSalon(player.id);
+        socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
+      }
+
+      if (player.location !== 'MINES') {
+        minesEngine.leaveSalon(player.id);
+      } else {
+        minesEngine.joinSalon(player.id);
+        socket.emit('mines_state', minesEngine.getPublicState(player.id));
       }
 
       socket.emit('game_switched', {
@@ -1524,18 +2132,17 @@ function setupSocket(httpServer, options = {}) {
 
     socket.on('player_set_location', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
-      if (!player) return;
+      if (!player) {
+        socket.emit('session_required', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Sessie verlopen — opnieuw authenticeren...'
+        });
+        return;
+      }
 
       const navCheck = checkNavigation(player.id);
       if (!navCheck.allowed) {
-        socket.emit('navigation_blocked', {
-          code: navCheck.code,
-          reason: navCheck.reason || navCheck.message,
-          message: navCheck.message,
-          game: navCheck.game,
-          amount: navCheck.amount,
-          activeBetsTotal: navCheck.amount
-        });
+        emitNavigationBlocked(socket, player, navCheck);
         return;
       }
 
@@ -1559,6 +2166,30 @@ function setupSocket(httpServer, options = {}) {
             tbl.leaveSeat(seat.seatIndex, player.id, { updatePresence: false });
           }
         }
+      }
+
+      if (player.location !== 'SLOTS') {
+        if (slotsEngine.leaveMachine(player.id)) {
+          broadcastSlotsFloor();
+        }
+      } else {
+        slotsEngine.ensureMachine(player.id);
+        socket.emit('slots_state', slotsEngine.getFloorState(player.id));
+        broadcastSlotsFloor();
+      }
+
+      if (player.location !== 'HILO') {
+        hiloEngine.leaveSalon(player.id);
+      } else {
+        hiloEngine.joinSalon(player.id);
+        socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
+      }
+
+      if (player.location !== 'MINES') {
+        minesEngine.leaveSalon(player.id);
+      } else {
+        minesEngine.joinSalon(player.id);
+        socket.emit('mines_state', minesEngine.getPublicState(player.id));
       }
 
       socket.emit('game_switched', {
@@ -1586,18 +2217,17 @@ function setupSocket(httpServer, options = {}) {
 
     socket.on('leave_table', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
-      if (!player) return;
+      if (!player) {
+        socket.emit('session_required', {
+          code: 'PLAYER_NOT_FOUND',
+          reason: 'Sessie verlopen — opnieuw authenticeren...'
+        });
+        return;
+      }
 
       const navCheck = checkNavigation(player.id);
       if (!navCheck.allowed) {
-        socket.emit('navigation_blocked', {
-          code: navCheck.code,
-          reason: navCheck.reason || navCheck.message,
-          message: navCheck.message,
-          game: navCheck.game,
-          amount: navCheck.amount,
-          activeBetsTotal: navCheck.amount
-        });
+        emitNavigationBlocked(socket, player, navCheck);
         return;
       }
 
@@ -1685,13 +2315,7 @@ function setupSocket(httpServer, options = {}) {
 
       const navCheck = checkNavigation(player.id);
       if (!navCheck.allowed) {
-        socket.emit('navigation_blocked', {
-          code: navCheck.code,
-          reason: navCheck.message,
-          game: navCheck.game,
-          amount: navCheck.amount,
-          activeBetsTotal: navCheck.amount
-        });
+        emitNavigationBlocked(socket, player, navCheck);
         socket.emit('bj_seat_error', { code: navCheck.code, reason: navCheck.message });
         return;
       }
@@ -2088,10 +2712,699 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('chips_update', { chips: res.remainingChips });
     });
 
+    // 8c. Multiplayer Royal Plinko Protocol
+    socket.on('plinko_join', () => {
+      socket.emit('plinko_state', plinkoEngine.getState());
+    });
+
+    socket.on('plinko_drop', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'plinko_drop', 35, 1000)) {
+        const msg = 'Te veel ballen tegelijk — wacht een momentje.';
+        socket.emit('plinko_drop_rejected', { code: 'RATE_LIMITED', reason: msg });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: msg });
+        return;
+      }
+
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = 'Log eerst in om Plinko te spelen.';
+        socket.emit('plinko_drop_rejected', { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return;
+      }
+
+      const res = plinkoEngine.dropBalls(player.id, payload);
+      if (!res.ok) {
+        socket.emit('plinko_drop_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('plinko_drop_accepted', {
+        drops: res.drops,
+        totalBet: res.totalBet,
+        totalPayout: res.totalPayout,
+        netProfit: res.netProfit,
+        newChips: res.newChips,
+        stats: res.stats
+      });
+
+      io.emit('plinko_ball_dropped', {
+        drops: res.drops,
+        recentDrops: res.recentDrops
+      });
+
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'plinko' });
+      broadcastPlayersUpdate();
+
+      if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+        res.repayments.forEach((rep) => {
+          broadcastChatMessage({
+            sender: 'BANK',
+            color: '#10b981',
+            text: `[BANK] ${player.name} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: 'plinko'
+          });
+
+          const lender = playerManager.getPlayerById(rep.lenderId);
+          if (lender) {
+            emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+            emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+          }
+          emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
+        });
+      }
+
+      // Announce notable multipliers (>= 10x) or large net profit (>= 2500)
+      if (Array.isArray(res.drops) && res.drops.length > 0) {
+        const bestDrop = res.drops.reduce((best, cur) => (cur.payout > best.payout ? cur : best), res.drops[0]);
+        if (bestDrop.multiplier >= 10 || bestDrop.profit >= 2500) {
+          const isGrand = bestDrop.multiplier >= 50 || bestDrop.profit >= 5000;
+          broadcastChatMessage({
+            sender: 'CASINO',
+            color: '#d4af37',
+            text: `[PLINKO] ${player.name} raakte ${bestDrop.multiplier}x en won ${bestDrop.payout.toLocaleString()} fiches!`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: 'plinko'
+          });
+          broadcastChatMessage({
+            sender: 'CASINO',
+            color: '#d4af37',
+            text: isGrand
+              ? `[GRAND WIN] ${player.name} raakte ${bestDrop.multiplier}x bij Royal Plinko (+${bestDrop.profit.toLocaleString()} fiches)!`
+              : `[PLINKO] ${player.name} raakte ${bestDrop.multiplier}x bij Royal Plinko (+${bestDrop.profit.toLocaleString()} fiches)!`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'global',
+            table: 'all'
+          });
+        }
+      }
+    });
+
+    // 8d. Multiplayer Grand Sovereign Slots Protocol
+    socket.on('slots_join', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      let changed = false;
+      if (player) {
+        const preferredId = payload && payload.machineId ? Number(payload.machineId) : null;
+        const seatRes = slotsEngine.ensureMachine(player.id, preferredId);
+        if (seatRes.ok) changed = true;
+      }
+      socket.emit('slots_state', slotsEngine.getFloorState(player ? player.id : null));
+      if (changed) {
+        broadcastSlotsFloor();
+      }
+    });
+
+    socket.on('slots_select_machine', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = 'Log eerst in om een gokkast te kiezen.';
+        socket.emit('slots_spin_rejected', { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return;
+      }
+
+      const res = slotsEngine.selectMachine(player.id, payload && payload.machineId);
+      if (!res.ok) {
+        socket.emit('slots_spin_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('slots_state', slotsEngine.getFloorState(player.id));
+      broadcastSlotsFloor();
+    });
+
+    socket.on('slots_spin', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'slots_spin', 15, 1000)) {
+        const msg = 'Te veel draaien tegelijk — wacht een momentje.';
+        socket.emit('slots_spin_rejected', { code: 'RATE_LIMITED', reason: msg });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: msg });
+        return;
+      }
+
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = 'Log eerst in om Slots te spelen.';
+        socket.emit('slots_spin_rejected', { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return;
+      }
+
+      const res = slotsEngine.spin(player.id, payload);
+      if (!res.ok) {
+        socket.emit('slots_spin_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('slots_spin_result', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'slots' });
+      broadcastPlayersUpdate();
+      broadcastSlotsFloor();
+
+      if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+        res.repayments.forEach((rep) => {
+          broadcastChatMessage({
+            sender: 'BANK',
+            color: '#10b981',
+            text: `[BANK] ${player.name} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: 'slots'
+          });
+
+          const lender = playerManager.getPlayerById(rep.lenderId);
+          if (lender) {
+            emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+            emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+          }
+          emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
+        });
+      }
+
+      if (res.jackpotWon > 0 || res.payoutMultiplier >= 10 || res.totalPayout >= 2500) {
+        const bigWinEvent = {
+          id: res.spinId,
+          playerId: player.id,
+          playerName: player.name,
+          playerColor: res.playerColor || '#D4AF37',
+          machineId: res.machineId,
+          bet: res.bet,
+          winAmount: res.totalPayout,
+          multiplier: res.payoutMultiplier,
+          winTier: res.winTier,
+          jackpotWon: res.jackpotWon,
+          timestamp: Date.now()
+        };
+        io.emit('slots_big_win', bigWinEvent);
+
+        const isJackpot = res.jackpotWon > 0;
+        const isMega = res.winTier === 'MEGA_WIN' || res.payoutMultiplier >= 50;
+        broadcastChatMessage({
+          sender: 'CASINO',
+          color: '#d4af37',
+          text: isJackpot
+            ? `[JACKPOT] ${player.name} won de GRAND JACKPOT van ${res.jackpotWon.toLocaleString()} fiches op Kast #${res.machineId}!`
+            : `[SLOTS] ${player.name} pakte ${res.payoutMultiplier}x (${res.totalPayout.toLocaleString()} fiches) op Kast #${res.machineId}!`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'table',
+          table: 'slots'
+        });
+        broadcastChatMessage({
+          sender: 'CASINO',
+          color: '#d4af37',
+          text: isJackpot
+            ? `[GRAND JACKPOT] ${player.name} sloeg toe bij Grand Sovereign Slots en won ${res.totalPayout.toLocaleString()} fiches!`
+            : (isMega
+              ? `[MEGA WIN] ${player.name} won ${res.payoutMultiplier}x (${res.totalPayout.toLocaleString()} fiches) bij Grand Sovereign Slots!`
+              : `[SLOTS] ${player.name} won ${res.totalPayout.toLocaleString()} fiches (${res.payoutMultiplier}x) bij Grand Sovereign Slots!`),
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'global',
+          table: 'all'
+        });
+      }
+    });
+
+    socket.on('slots_cheer', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('slots_cheer_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Log eerst in om iemand aan te moedigen.' });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: 'Log eerst in om iemand aan te moedigen.' });
+        return;
+      }
+
+      const res = slotsEngine.cheerMachine(player.id, payload && payload.machineId);
+      if (!res.ok) {
+        socket.emit('slots_cheer_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      broadcastSlotsFloor();
+    });
+
+    // 8e. Multiplayer Monaco Turf Club (Horse Racing) Protocol
+    socket.on('racing_join', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      socket.emit('racing_state', racingEngine.getPublicState(player ? player.id : null));
+    });
+
+    socket.on('racing_place_bet', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'racing_place_bet', 12, 2000)) {
+        const msg = 'Je plaatst te snel tickets achter elkaar. Wacht even.';
+        socket.emit('racing_bet_rejected', { code: 'RATE_LIMITED', reason: msg });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: msg });
+        return;
+      }
+
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = 'Log eerst in om in te zetten op Paardracen.';
+        socket.emit('racing_bet_rejected', { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return;
+      }
+
+      const res = racingEngine.placeBet(player.id, payload);
+      if (!res.ok) {
+        socket.emit('racing_bet_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('racing_bet_accepted', {
+        ticket: res.ticket,
+        newChips: res.newChips,
+        tickets: res.tickets,
+        phase: res.phase,
+        timeLeft: res.timeLeft,
+        winnerPot: res.winnerPot,
+        totalRacePool: res.totalRacePool
+      });
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'racing' });
+    });
+
+    socket.on('racing_cancel_bet', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('racing_bet_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Log eerst in.' });
+        return;
+      }
+
+      const ticketId = payload && typeof payload.ticketId === 'string' ? payload.ticketId : '';
+      const res = racingEngine.cancelBet(player.id, ticketId);
+      if (!res.ok) {
+        socket.emit('racing_bet_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('racing_bet_cancelled_self', {
+        cancelledTicket: res.cancelledTicket,
+        newChips: res.newChips,
+        tickets: res.tickets,
+        phase: res.phase,
+        timeLeft: res.timeLeft,
+        winnerPot: res.winnerPot,
+        totalRacePool: res.totalRacePool
+      });
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'racing' });
+    });
+
+    socket.on('racing_cheer', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        socket.emit('racing_cheer_rejected', { code: 'PLAYER_NOT_FOUND', reason: 'Log eerst in om een paard aan te moedigen.' });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: 'Log eerst in om een paard aan te moedigen.' });
+        return;
+      }
+
+      const res = racingEngine.cheerHorse(player.id, payload && payload.horseId);
+      if (!res.ok) {
+        socket.emit('racing_cheer_rejected', { code: res.code, reason: res.error });
+        return;
+      }
+    });
+
+    // 8f. Monte Carlo Hi-Lo Prive Protocol
+    function requireHiloPlayer(rejectEvent, actionDesc) {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = `Log eerst in om ${actionDesc}.`;
+        socket.emit(rejectEvent, { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return null;
+      }
+      return player;
+    }
+
+    socket.on('hilo_join', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (player) hiloEngine.joinSalon(player.id);
+      socket.emit('hilo_state', hiloEngine.getPublicSalonState(player ? player.id : null));
+    });
+
+    socket.on('hilo_start', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'hilo_action', 16, 2000)) {
+        const msg = 'Je speelt iets te snel. Wacht heel even.';
+        socket.emit('hilo_rejected', { code: 'RATE_LIMITED', reason: msg });
+        return;
+      }
+      const player = requireHiloPlayer('hilo_rejected', 'Hi-Lo te starten');
+      if (!player) return;
+
+      const res = hiloEngine.startLadder(player.id, payload && payload.betAmount);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_started', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('hilo_guess', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'hilo_action', 16, 2000)) {
+        socket.emit('hilo_rejected', { code: 'RATE_LIMITED', reason: 'Je speelt iets te snel. Wacht heel even.' });
+        return;
+      }
+      const player = requireHiloPlayer('hilo_rejected', 'een kaartkeuze te maken');
+      if (!player) return;
+
+      const res = hiloEngine.makeGuess(player.id, payload && payload.prediction);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_guess_result', res);
+      if (!res.won) {
+        broadcastPlayersUpdate();
+      }
+    });
+
+    socket.on('hilo_skip', () => {
+      const player = requireHiloPlayer('hilo_rejected', 'een kaart te wisselen');
+      if (!player) return;
+      const res = hiloEngine.skipCard(player.id);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_skipped', res);
+    });
+
+    socket.on('hilo_half_cashout', () => {
+      const player = requireHiloPlayer('hilo_rejected', '50% uit te cashen');
+      if (!player) return;
+      const res = hiloEngine.halfCashout(player.id);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_half_cashout_result', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo' });
+      emitHiloRepayments(player.id, player.name, res.repayments, 'Hi-Lo Privé');
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('hilo_cashout', () => {
+      const player = requireHiloPlayer('hilo_rejected', 'uit te betalen');
+      if (!player) return;
+      const res = hiloEngine.cashout(player.id);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_cashout_result', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo' });
+      emitHiloRepayments(player.id, player.name, res.repayments, 'Hi-Lo Privé');
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('hilo_cheer', (payload = {}) => {
+      const player = requireHiloPlayer('hilo_cheer_rejected', 'iemand aan te moedigen');
+      if (!player) return;
+      const res = hiloEngine.cheerPlayer(player.id, payload && payload.targetPlayerId);
+      if (!res.ok) {
+        socket.emit('hilo_cheer_rejected', { code: res.code, reason: res.message });
+      }
+    });
+
+    socket.on('hilo_blitz_join', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'hilo_action', 16, 2000)) {
+        socket.emit('hilo_rejected', { code: 'RATE_LIMITED', reason: 'Je speelt iets te snel.' });
+        return;
+      }
+      const player = requireHiloPlayer('hilo_rejected', 'mee te doen aan Hi-Lo Blitz');
+      if (!player) return;
+      const res = hiloEngine.blitzJoin(player.id, payload && payload.betAmount);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_blitz_joined', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo_blitz' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('hilo_blitz_cancel', () => {
+      const player = requireHiloPlayer('hilo_rejected', 'Blitz te annuleren');
+      if (!player) return;
+      const res = hiloEngine.blitzCancel(player.id);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_blitz_cancelled', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'hilo_blitz' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('hilo_blitz_action', (payload = {}) => {
+      const player = requireHiloPlayer('hilo_rejected', 'een Blitz keuze te maken');
+      if (!player) return;
+      const res = hiloEngine.blitzAction(player.id, payload && payload.action);
+      if (!res.ok) {
+        socket.emit('hilo_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('hilo_blitz_action_ack', res);
+    });
+
+    // 8g. Royal Mines Vault Protocol (Solo + Multiplayer Shared Vault)
+    function requireMinesPlayer(rejectEvent, actionDesc) {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = `Log eerst in om ${actionDesc}.`;
+        socket.emit(rejectEvent, { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return null;
+      }
+      return player;
+    }
+
+    socket.on('mines_join', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (player) minesEngine.joinSalon(player.id);
+      socket.emit('mines_state', minesEngine.getPublicState(player ? player.id : null));
+    });
+
+    socket.on('mines_solo_start', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'mines_action', 16, 2000)) {
+        socket.emit('mines_rejected', { code: 'RATE_LIMITED', reason: 'Je speelt iets te snel.' });
+        return;
+      }
+      const player = requireMinesPlayer('mines_rejected', 'een Solo Kluis te starten');
+      if (!player) return;
+      const res = minesEngine.startSolo(player.id, payload || {});
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_solo_started', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'mines' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('mines_solo_click', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'mines_action', 24, 2000)) {
+        socket.emit('mines_rejected', { code: 'RATE_LIMITED', reason: 'Je klikt iets te snel.' });
+        return;
+      }
+      const player = requireMinesPlayer('mines_rejected', 'een vakje te openen');
+      if (!player) return;
+      const res = minesEngine.clickSoloTile(player.id, payload && payload.tileIndex);
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_solo_result', res);
+      if (res.outcome === 'GRAND_CLEAR') {
+        emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'mines' });
+        emitMinesRepayments(player.id, player.name, res.repayments, 'Solo Mines');
+      }
+      if (res.outcome === 'MINE' || res.outcome === 'GRAND_CLEAR') {
+        broadcastPlayersUpdate();
+      }
+    });
+
+    socket.on('mines_solo_cashout', () => {
+      const player = requireMinesPlayer('mines_rejected', 'uit te cashen');
+      if (!player) return;
+      const res = minesEngine.cashoutSolo(player.id);
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_solo_result', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'mines' });
+      emitMinesRepayments(player.id, player.name, res.repayments, 'Solo Mines');
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('mines_shared_vote', (payload = {}) => {
+      const player = requireMinesPlayer('mines_rejected', 'op bordinstellingen te stemmen');
+      if (!player) return;
+      const res = minesEngine.voteSharedSettings(player.id, payload || {});
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        return;
+      }
+      socket.emit('mines_shared_vote_ack', res);
+    });
+
+    socket.on('mines_shared_join', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'mines_action', 16, 2000)) {
+        socket.emit('mines_rejected', { code: 'RATE_LIMITED', reason: 'Je speelt iets te snel.' });
+        return;
+      }
+      const player = requireMinesPlayer('mines_rejected', 'mee te doen aan de Shared Vault');
+      if (!player) return;
+      const res = minesEngine.joinShared(player.id, payload || {});
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_shared_joined', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'mines_shared' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('mines_shared_cancel', () => {
+      const player = requireMinesPlayer('mines_rejected', 'inzet te annuleren');
+      if (!player) return;
+      const res = minesEngine.cancelSharedBet(player.id);
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_shared_cancelled', res);
+      emitToPlayer(player.id, 'chips_update', { chips: res.newChips, source: 'mines_shared' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('mines_shared_click', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'mines_action', 24, 2000)) {
+        socket.emit('mines_rejected', { code: 'RATE_LIMITED', reason: 'Je klikt iets te snel.' });
+        return;
+      }
+      const player = requireMinesPlayer('mines_rejected', 'een vakje te klikken');
+      if (!player) return;
+      const res = minesEngine.clickSharedTile(player.id, payload && payload.tileIndex);
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_shared_click_ack', res);
+    });
+
+    socket.on('mines_shared_cashout', () => {
+      const player = requireMinesPlayer('mines_rejected', 'uit te cashen');
+      if (!player) return;
+      const res = minesEngine.cashoutShared(player.id);
+      if (!res.ok) {
+        socket.emit('mines_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('mines_shared_cashout_ack', res);
+    });
+
+    socket.on('mines_cheer', (payload = {}) => {
+      const player = requireMinesPlayer('mines_cheer_rejected', 'iemand aan te moedigen');
+      if (!player) return;
+      const res = minesEngine.cheerPlayer(player.id, payload && payload.targetPlayerId);
+      if (!res.ok) {
+        socket.emit('mines_cheer_rejected', { code: res.code, reason: res.message });
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // 8e. Casino Staatsloterij (10-minute cycle, 0% rake)
+    // -----------------------------------------------------------------------
+    socket.on('lottery_get_state', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      socket.emit('lottery_state', lotteryEngine.getPublicState(player ? player.id : null));
+    });
+
+    socket.on('lottery_buy_tickets', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'lottery_buy', 8, 4000)) {
+        const msg = 'Rustig aan — je koopt te snel loten achter elkaar.';
+        socket.emit('lottery_rejected', { code: 'RATE_LIMITED', reason: msg });
+        return;
+      }
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const reason = 'Log eerst in om Staatsloterij-loten te kopen.';
+        socket.emit('lottery_rejected', { code: 'PLAYER_NOT_FOUND', reason });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: reason });
+        return;
+      }
+
+      const res = lotteryEngine.buyTickets(player.id, payload && payload.count);
+      if (!res.ok) {
+        socket.emit('lottery_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+
+      socket.emit('chips_update', { chips: res.remainingChips, source: 'lottery' });
+      socket.emit('lottery_buy_ack', {
+        ok: true,
+        roundId: res.roundId,
+        count: res.count,
+        totalCost: res.totalCost,
+        startTicket: res.startTicket,
+        endTicket: res.endTicket,
+        pot: res.pot,
+        totalTickets: res.totalTickets,
+        remainingChips: res.remainingChips,
+        mySummary: res.mySummary
+      });
+      socket.emit('lottery_state', res.state);
+      broadcastPlayersUpdate();
+    });
+
     // 9. disconnect
     socket.on('disconnect', () => {
+      rateLimitBuckets.delete(`${socket.id}:plinko_drop`);
+      rateLimitBuckets.delete(`${socket.id}:slots_spin`);
+      rateLimitBuckets.delete(`${socket.id}:racing_place_bet`);
+      rateLimitBuckets.delete(`${socket.id}:hilo_action`);
+      rateLimitBuckets.delete(`${socket.id}:mines_action`);
+      rateLimitBuckets.delete(`${socket.id}:lottery_buy`);
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
+        hiloEngine.leaveSalon(player.id);
+        minesEngine.leaveSalon(player.id);
+        if (slotsEngine.leaveMachine(player.id)) {
+          broadcastSlotsFloor();
+        }
         // Vacate any Blackjack seats where the player has no active bets
         for (const tbl of blackjackTables.values()) {
           if (!tbl.hasActiveBets(player.id)) {
@@ -2152,11 +3465,22 @@ function setupSocket(httpServer, options = {}) {
     pokerEngine: defaultPokerEngine,
     pokerTables,
     crashEngine,
+    plinkoEngine,
+    slotsEngine,
+    racingEngine,
+    hiloEngine,
+    minesEngine,
+    lotteryEngine,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
     stop: () => {
       engine.stop();
       crashEngine.stop();
+      slotsEngine.stop();
+      racingEngine.stop();
+      hiloEngine.stop();
+      minesEngine.stop();
+      lotteryEngine.stop();
       for (const tbl of blackjackTables.values()) {
         tbl.stop();
       }

@@ -2,7 +2,7 @@
  * bank.js
  * Frontend controller for Casino Bank & Deals.
  * Handles direct chip transfers, P2P loan negotiations with win deduction,
- * active debt repayment, and the 10-minute emergency chip bailout.
+ * and active debt repayment.
  */
 
 (function (root, factory) {
@@ -55,7 +55,6 @@
         activeDebts: [],
         activeLoansGiven: [],
         repaidLoanIds: [],
-        bailoutStatus: { canClaim: false, timeLeftMs: 0, eligibleByChips: false },
         wheelStatus: {
           canSpin: true,
           timeLeftMs: 0,
@@ -67,7 +66,6 @@
       };
 
       this.connectedPlayers = [];
-      this.bailoutInterval = null;
 
       // Restore cached bank data from localStorage across sessions/restarts
       try {
@@ -159,11 +157,6 @@
       this.listMyDebts = document.getElementById('bank-my-debts');
       this.listMyLoansGiven = document.getElementById('bank-my-loans-given');
 
-      // Bailout
-      this.lblBailoutTimer = document.getElementById('bailout-timer-val');
-      this.lblBailoutReason = document.getElementById('bailout-reason-text');
-      this.btnClaimBailout = document.getElementById('btn-claim-bailout');
-
       // 15-Minute Lucky Wheel ("Rad van Fortuin")
       this.wheelSvg = document.getElementById('lucky-wheel-svg');
       this.wheelRotor = document.getElementById('lucky-wheel-rotor');
@@ -191,6 +184,13 @@
       if (this.bankModal) {
         this.bankModal.addEventListener('click', (e) => {
           if (e.target === this.bankModal) this.close();
+        });
+      }
+      if (typeof document !== 'undefined') {
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && this.bankModal && !this.bankModal.classList.contains('hidden')) {
+            this.close();
+          }
         });
       }
 
@@ -326,13 +326,6 @@
           });
           this.inputLoanAmount.value = '';
           this.switchTab('inbox');
-        });
-      }
-
-      // Bailout Claim Button
-      if (this.btnClaimBailout) {
-        this.btnClaimBailout.addEventListener('click', () => {
-          this.network.claimBailout();
         });
       }
 
@@ -547,7 +540,6 @@
       this._renderIncomingProposals(data.incomingProposals || []);
       this._renderMyDebts(mergedDebts);
       this._renderMyLoansGiven(mergedLoansGiven);
-      this._updateBailoutDisplay(data.bailoutStatus);
       this._updateWheelDisplay(reconciledWheelStatus);
 
       // Persist backup in localStorage across sessions/restarts
@@ -704,7 +696,7 @@
             <span>Afgelost: ${debt.amountRepaid.toLocaleString()} (${progressPct}%)</span>
           </div>
           <div class="debt-card-note">
-            Automatische inhouding: <strong>${debt.winDeductionPct}%</strong> van elke roulettewinst.
+            Automatische inhouding: <strong>${debt.winDeductionPct}%</strong> van elke casinowinst.
           </div>
           <div class="debt-card-actions">
             <button class="btn btn-gold-sm btn-repay-full" data-id="${debt.id}">Volledig Aflossen (${remaining.toLocaleString()})</button>
@@ -759,20 +751,6 @@
 
         this.listMyLoansGiven.appendChild(card);
       });
-    }
-
-    _updateBailoutDisplay(status) {
-      // Faucet is permanently removed (R5)
-      if (this.lblBailoutTimer) this.lblBailoutTimer.textContent = 'Uitgeschakeld';
-      if (this.btnClaimBailout) this.btnClaimBailout.disabled = true;
-    }
-
-    _startBailoutTimer() {
-      // Faucet is permanently removed (R5)
-      if (this.bailoutInterval) {
-        clearInterval(this.bailoutInterval);
-        this.bailoutInterval = null;
-      }
     }
 
     /**

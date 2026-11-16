@@ -111,6 +111,7 @@ class PokerEngine extends EventEmitter {
         seatIndex: i,
         player: null,
         stack: 0,
+        totalInvested: 0,
         currentHandBet: 0,
         totalCommittedThisHand: 0,
         pendingRebuy: 0,
@@ -286,6 +287,7 @@ class PokerEngine extends EventEmitter {
       connected: true
     };
     seat.stack = buyIn;
+    seat.totalInvested = buyIn;
     seat.status = SEAT_STATUS.SEATED;
     seat.pendingRebuy = 0;
     seat.currentHandBet = 0;
@@ -315,10 +317,36 @@ class PokerEngine extends EventEmitter {
   }
 
   /**
+   * Credits a vacating seat's remaining stack to playerManager and settles net table profit against BankManager loans.
+   * @param {Object} seat
+   * @param {string} playerId
+   * @param {number} cashoutAmount
+   * @returns {{ repayments: Array<Object>, netProfit: number }}
+   * @private
+   */
+  _settleSeatCashout(seat, playerId, cashoutAmount) {
+    const invested = seat.totalInvested || 0;
+    seat.stack = 0;
+    seat.pendingRebuy = 0;
+    seat.totalInvested = 0;
+
+    let repayments = [];
+    if (this.playerManager && cashoutAmount > 0) {
+      this.playerManager.addChips(playerId, cashoutAmount);
+      const netProfit = cashoutAmount - invested;
+      if (netProfit > 0 && this.bankManager && typeof this.bankManager.processWinRepayment === 'function') {
+        const res = this.bankManager.processWinRepayment(playerId, netProfit);
+        if (Array.isArray(res)) repayments = res;
+      }
+    }
+    return { repayments, netProfit: Math.max(0, cashoutAmount - invested) };
+  }
+
+  /**
    * Leaves seat and cashes out remaining table stack to persistent bankroll.
    * @param {number} seatIndex
    * @param {string} playerId
-   * @returns {{ success: boolean, code?: string, reason?: string, cashoutAmount?: number }}
+   * @returns {{ success: boolean, code?: string, reason?: string, cashoutAmount?: number, repayments?: Array<Object> }}
    */
   leaveSeat(seatIndex, playerId) {
     if (seatIndex < 0 || seatIndex >= this.maxSeats) {
@@ -339,12 +367,7 @@ class PokerEngine extends EventEmitter {
     }
 
     const cashoutAmount = seat.stack + (seat.pendingRebuy || 0);
-    seat.stack = 0;
-    seat.pendingRebuy = 0;
-
-    if (this.playerManager && cashoutAmount > 0) {
-      this.playerManager.addChips(playerId, cashoutAmount);
-    }
+    const { repayments } = this._settleSeatCashout(seat, playerId, cashoutAmount);
 
     seat.player = null;
     seat.status = SEAT_STATUS.EMPTY;
@@ -356,7 +379,8 @@ class PokerEngine extends EventEmitter {
       tableId: this.tableId,
       seatIndex,
       playerId,
-      cashoutAmount
+      cashoutAmount,
+      repayments
     });
 
     // If fewer than 2 players remain, revert to WAITING_FOR_PLAYERS
@@ -370,7 +394,7 @@ class PokerEngine extends EventEmitter {
       this.emit('phase_changed', { tableId: this.tableId, phase: this.currentPhase });
     }
 
-    return { success: true, cashoutAmount };
+    return { success: true, cashoutAmount, repayments };
   }
 
   /**
@@ -406,6 +430,8 @@ class PokerEngine extends EventEmitter {
       }
     }
 
+    seat.totalInvested = (seat.totalInvested || 0) + rebuyAmount;
+
     if (this.currentPhase === PHASES.WAITING_FOR_PLAYERS || this.currentPhase === PHASES.HAND_END) {
       seat.stack += rebuyAmount;
       return { success: true, stack: seat.stack, pending: false };
@@ -422,11 +448,7 @@ class PokerEngine extends EventEmitter {
     for (const seat of this.seats) {
       if (seat.player) {
         const cashout = seat.stack + (seat.pendingRebuy || 0);
-        seat.stack = 0;
-        seat.pendingRebuy = 0;
-        if (this.playerManager && cashout > 0) {
-          this.playerManager.addChips(seat.player.id, cashout);
-        }
+        this._settleSeatCashout(seat, seat.player.id, cashout);
       }
     }
   }
@@ -1028,6 +1050,15 @@ class PokerEngine extends EventEmitter {
       const settlement = this.potManager.settleUncontested(winner.player.id);
       winner.stack += settlement.totalAwarded;
 
+      if (this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
+        for (const s of this.seats) {
+          if (s.player && Array.isArray(s.cards) && s.cards.length === 2) {
+            const wonAmount = s.player.id === winner.player.id ? (settlement.totalAwarded || 0) : 0;
+            this.playerManager.updatePlayerStats(s.player.id, { wonAmount });
+          }
+        }
+      }
+
       this.emit('hand_ended', {
         tableId: this.tableId,
         handId: this.handId,
@@ -1256,6 +1287,23 @@ class PokerEngine extends EventEmitter {
       }
     }
 
+    if (this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
+      const payoutByPlayer = new Map();
+      for (const p of settlement.payouts) {
+        const seat = this.seats[p.seatIndex];
+        if (seat && seat.player) {
+          payoutByPlayer.set(seat.player.id, (payoutByPlayer.get(seat.player.id) || 0) + (p.amount || 0));
+        }
+      }
+      for (const s of this.seats) {
+        if (s.player && Array.isArray(s.cards) && s.cards.length === 2) {
+          this.playerManager.updatePlayerStats(s.player.id, {
+            wonAmount: payoutByPlayer.get(s.player.id) || 0
+          });
+        }
+      }
+    }
+
     const showdownHands = playerHands.map(ph => ({
       playerId: ph.playerId,
       seatIndex: ph.seatIndex,
@@ -1306,16 +1354,13 @@ class PokerEngine extends EventEmitter {
       if (seat.player && (!seat.player.connected || (seat.stack === 0 && seat.player.allowShortEntry))) {
         const vacatedPlayerId = seat.player.id;
         const cashout = seat.stack;
-        seat.stack = 0;
-        if (this.playerManager && cashout > 0) {
-          this.playerManager.addChips(vacatedPlayerId, cashout);
-        }
+        const { repayments } = this._settleSeatCashout(seat, vacatedPlayerId, cashout);
         seat.player = null;
         seat.status = SEAT_STATUS.EMPTY;
         seat.cards = [];
         seat.folded = false;
         seat.isAllIn = false;
-        this.emit('seat_vacated', { tableId: this.tableId, seatIndex: seat.seatIndex, playerId: vacatedPlayerId, cashoutAmount: cashout });
+        this.emit('seat_vacated', { tableId: this.tableId, seatIndex: seat.seatIndex, playerId: vacatedPlayerId, cashoutAmount: cashout, repayments });
       }
     }
 
@@ -1368,6 +1413,7 @@ class PokerEngine extends EventEmitter {
         player: seat.player ? { ...seat.player } : null,
         stack: seat.stack,
         currentBet: seat.currentHandBet,
+        totalCommittedThisHand: seat.totalCommittedThisHand || 0,
         status: seat.status,
         folded: seat.folded,
         isAllIn: seat.isAllIn,

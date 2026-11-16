@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- Unfinished WIP modules (#btn-open-market, #btn-open-exchange, #gadgets-perks-dock, #racing-modal) use .feature-wip-hidden & data-perks-hidden="true" to preserve DOM/layout for future completion -->
+<html lang="en" data-theme="theme-obsidian" data-layout="rail" data-perks-hidden="true">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,14 +12,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/shell.css">
 </head>
 <body>
 
   <!-- Pure SVG Suit Vector Defs (Zero Emojis Guardrail) -->
   <svg style="display: none;" aria-hidden="true">
     <defs>
+      <!-- Playing Card Suits -->
       <g id="suit-spade">
         <path d="M12 2C9.5 6.5 4 10 4 14.5a4.5 4.5 0 0 0 7.2 3.6c-.4 1.4-1.2 2.9-2.2 3.9h6c-1-1-1.8-2.5-2.2-3.9a4.5 4.5 0 0 0 7.2-3.6C20 10 14.5 6.5 12 2z" fill="currentColor"/>
       </g>
@@ -35,11 +39,136 @@
         <path d="M12 2a4 4 0 0 0-3.6 5.8A4.8 4.8 0 0 0 4 12.5a4.8 4.8 0 0 0 6.6 4.4c-.4 1.6-1.4 3.1-2.6 4.1h8c-1.2-1-2.2-2.5-2.6-4.1a4.8 4.8 0 0 0 6.6-4.4 4.8 4.8 0 0 0-4.4-4.7A4 4 0 0 0 12 2z" fill="currentColor"/>
       </g>
       <g id="suit-clubs"><use href="#suit-club"/></g>
+
+      <!-- Interactive Card Peek Eye Icons -->
       <g id="icon-eye-open">
         <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="currentColor"/>
       </g>
       <g id="icon-eye-closed">
         <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z" fill="currentColor"/>
+      </g>
+
+      <!-- Casino Objects & Crests -->
+      <g id="icon-chip">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.5"/>
+        <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+      </g>
+      <g id="icon-dice">
+        <rect x="2" y="5" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="5" cy="8" r="1" fill="currentColor"/>
+        <circle cx="11" cy="14" r="1" fill="currentColor"/>
+        <circle cx="8" cy="11" r="1" fill="currentColor"/>
+        <path d="M14 8l5-3a2 2 0 0 1 2.5 1l.5 7a2 2 0 0 1-1.2 1.9l-6.8 2.1" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      </g>
+      <g id="icon-crown">
+        <path d="M3 18h18v2.5H3V18zm1.5-11l3.5 5 4-8 4 8 3.5-5L21 16H3l1.5-9z" fill="currentColor"/>
+        <circle cx="3" cy="7" r="1.2" fill="currentColor"/>
+        <circle cx="8" cy="12" r="1.2" fill="currentColor"/>
+        <circle cx="12" cy="4" r="1.2" fill="currentColor"/>
+        <circle cx="16" cy="12" r="1.2" fill="currentColor"/>
+        <circle cx="21" cy="7" r="1.2" fill="currentColor"/>
+      </g>
+      <g id="icon-trophy">
+        <path d="M7 3h10v6a5 5 0 0 1-4 4.9V17h3v2H8v-2h3v-3.1A5 5 0 0 1 7 9V3z" fill="currentColor"/>
+        <path d="M7 5H4a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3h2V9H5V7h2V5zm10 0h3a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3h-2V9h2V7h-2V5z" fill="currentColor"/>
+        <rect x="6" y="19" width="12" height="2.5" rx="1" fill="currentColor"/>
+      </g>
+      <g id="icon-shield">
+        <path d="M12 2L4 5v6.5C4 16.8 7.4 21.6 12 23c4.6-1.4 8-6.2 8-11.5V5l-8-3zm0 2.2l6 2.3v5C18 15.5 15.4 19.5 12 20.8 8.6 19.5 6 15.5 6 11.5V6.5l6-2.3z" fill="currentColor"/>
+        <path d="M12 7l1.5 3 3.5.5-2.5 2.5.6 3.5-3.1-1.6-3.1 1.6.6-3.5-2.5-2.5 3.5-.5L12 7z" fill="currentColor"/>
+      </g>
+      <g id="icon-settings">
+        <path d="M19.4 13a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2.1-1.6c.2-.2.2-.5.1-.7l-2-3.5c-.1-.2-.4-.3-.7-.2l-2.5 1a7.4 7.4 0 0 0-1.7-1l-.4-2.6A.6.6 0 0 0 13.7 2h-4c-.3 0-.6.2-.6.5l-.4 2.6c-.6.3-1.2.6-1.7 1l-2.5-1c-.3-.1-.6 0-.7.2l-2 3.5c-.1.2-.1.5.1.7l2.1 1.6a7.8 7.8 0 0 0-.1 1c0 .3 0 .7.1 1l-2.1 1.6c-.2.2-.2.5-.1.7l2 3.5c.1.2.4.3.7.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .3.3.5.6.5h4c.3 0 .6-.2.6-.5l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1c.3.1.6 0 .7-.2l2-3.5c.1-.2.1-.5-.1-.7L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" fill="currentColor"/>
+      </g>
+      <g id="icon-theme-palette">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-4.97-4.48-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8s1.5.67 1.5 1.5S7.33 11 6.5 11zm3-4c-.83 0-1.5-.67-1.5-1.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z" fill="currentColor"/>
+      </g>
+
+      <!-- Active Game Navigation Icons -->
+      <g id="nav-roulette">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <circle cx="12" cy="12" r="2" fill="currentColor"/>
+        <path d="M12 2v4m0 12v4M2 12h4m12 0h4m-3.07-7.07l-2.83 2.83m-8.2 8.2l-2.83 2.83m0-13.86l2.83 2.83m8.2 8.2l2.83 2.83" stroke="currentColor" stroke-width="1.2"/>
+        <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/>
+      </g>
+      <g id="nav-blackjack">
+        <rect x="3" y="4" width="11" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M7 8h3m-3 4h3m-3 4h3" stroke="currentColor" stroke-width="1.2"/>
+        <rect x="9" y="2" width="11" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M13 6l2 4 2-4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+      </g>
+      <g id="nav-poker">
+        <path d="M12 3l-7 15h14L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M12 8c-1.5 2.5-3.5 4.5-3.5 6.5a3.5 3.5 0 0 0 7 0c0-2-2-4-3.5-6.5z" fill="currentColor"/>
+      </g>
+      <g id="nav-crash">
+        <path d="M3 20c4-1 8-4 11-9l2 2 4-9-9 4 2 2c-5 3-8 7-9 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="20" cy="4" r="1.5" fill="currentColor"/>
+      </g>
+
+      <!-- Backlog Suite Icons -->
+      <!-- 1: Gadgets & Perks Dock -->
+      <g id="icon-gadgets">
+        <circle cx="12" cy="14" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M12 10v4l2.5 2.5M10 2h4v2h-4zM12 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="12" cy="14" r="1.5" fill="currentColor"/>
+      </g>
+      <!-- 2: Openbare Marktplaats -->
+      <g id="icon-market">
+        <path d="M4 8l8-5 8 5v2H4V8zm2 4h12v9H6v-9zm2 3v3h3v-3H8zm5 0v3h3v-3h-3z" fill="currentColor"/>
+        <rect x="2" y="20" width="20" height="2" rx="0.5" fill="currentColor"/>
+      </g>
+      <!-- 3: Aandelen & Crypto Exchange -->
+      <g id="icon-exchange">
+        <path d="M3 21h18M6 18V6m0 4h4v5H6zm8 8V3m0 5h4v6h-4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M14 11l4-5 3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <!-- 4: Casino Staatsloterij -->
+      <g id="icon-lottery">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 2"/>
+        <path d="M10 10l4 4m0-4l-4 4" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M3 7l3-3 2 2-3 3M16 18l3 3 2-2-3-3" stroke="currentColor" stroke-width="1.5"/>
+      </g>
+      <!-- 5: Gokkasten / 5x3 Slots -->
+      <g id="icon-slots">
+        <rect x="3" y="4" width="15" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <rect x="5" y="7" width="11" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M7 8h1.5v4H7zm3.2 0h1.5v4h-1.5zm3.3 0h1.5v4h-1.5zM18 10h3l1-4M22 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M6 16h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </g>
+      <!-- 6: Plinko -->
+      <g id="icon-plinko">
+        <circle cx="12" cy="4" r="1.5" fill="currentColor"/>
+        <circle cx="9" cy="8" r="1.2" fill="currentColor"/>
+        <circle cx="15" cy="8" r="1.2" fill="currentColor"/>
+        <circle cx="6" cy="12" r="1.2" fill="currentColor"/>
+        <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+        <circle cx="18" cy="12" r="1.2" fill="currentColor"/>
+        <path d="M4 17h16v3H4z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 17v3m5-3v3m5-3v3" stroke="currentColor" stroke-width="1.5"/>
+      </g>
+      <!-- 7: Hi-Lo -->
+      <g id="icon-hilo">
+        <rect x="4" y="6" width="9" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="11" y="3" width="9" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M15 6l2-2 2 2m-2-2v5M7 16l2 2 2-2m-2 2v-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </g>
+      <!-- 8: Horse Racing -->
+      <g id="icon-racing">
+        <path d="M3 17c2-1 4-2 6-2 1 0 2 1 3 1s3-2 5-2c1.5 0 3 .5 4 1.5M7 12l2-4 3-2 3 1 2 4M14 6l3-3h3l-1 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="19" cy="5" r="1" fill="currentColor"/>
+        <path d="M6 18l-2 3M11 16l-1 5M16 16l1 5M20 17l2 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </g>
+      <g id="icon-horse-racing"><use href="#icon-racing"/></g>
+      <g id="icon-mines">
+        <polygon points="12,3 20,9 12,21 4,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="17.5" cy="17.5" r="3" fill="currentColor" stroke="none"/>
+        <line x1="17.5" y1="13" x2="17.5" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="13" y1="17.5" x2="22" y2="17.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
       </g>
     </defs>
   </svg>
@@ -60,7 +189,11 @@
           <button class="game-pill" data-game="blackjack" id="pill-blackjack">Blackjack</button>
           <button class="game-pill" data-game="poker" id="pill-poker">Poker</button>
           <button class="game-pill" data-game="crash" id="pill-crash">Crash</button>
-          <button class="game-pill disabled" title="Binnenkort beschikbaar">Gokkasten</button>
+          <button class="game-pill" data-game="slots" id="pill-slots" title="5x3 High-Luxury Video Slots">Gokkasten</button>
+          <button class="game-pill" data-game="plinko" id="pill-plinko" title="Monte Carlo Plinko Pyramid">Plinko</button>
+          <button class="game-pill" data-game="hilo" id="pill-hilo" title="Hoger of Lager Kaartspel">Hi-Lo</button>
+          <button class="game-pill" data-game="racing" id="pill-racing" title="Monaco Turf Club Paardenrennen">Turf Club</button>
+          <button class="game-pill" data-game="mines" id="pill-mines" title="Royal Mines Vault (Diamanten &amp; Bommen)">Mines</button>
         </div>
       </div>
 
@@ -75,8 +208,28 @@
         </div>
       </div>
 
-      <!-- Right: Rad van Fortuin, Bank & Player Profile -->
+      <!-- Right: Services, Rad, Bank, Live Switcher & Player Profile -->
       <div class="header-right">
+        <!-- Service Shortcuts (WIP modules hidden cleanly via .feature-wip-hidden) -->
+        <div class="services-group" role="group" aria-label="Diensten">
+        <button type="button" class="btn-service-hud feature-wip-hidden" id="btn-open-market" aria-hidden="true" tabindex="-1" title="Openbare Marktplaats (P2P Veilingen &amp; Handel)">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><use href="#icon-market"></use></svg>
+          <span>Markt</span>
+        </button>
+
+        <button type="button" class="btn-service-hud feature-wip-hidden" id="btn-open-exchange" aria-hidden="true" tabindex="-1" title="Aandelen &amp; Crypto Exchange (Beurs)">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><use href="#icon-exchange"></use></svg>
+          <span>Beurs</span>
+        </button>
+
+        <button type="button" class="btn-service-hud btn-lottery-hud" id="btn-open-lottery" title="Casino Staatsloterij (10-min trekking, 100% spelerspot, 0% casinovoordeel)">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><use href="#icon-lottery"></use></svg>
+          <span class="lottery-hud-label">Loterij</span>
+          <span class="lottery-hud-timer" id="hud-lottery-timer">10:00</span>
+          <span class="lottery-hud-pot" id="hud-lottery-pot">0 F</span>
+        </button>
+        </div>
+
         <button class="btn-wheel-hud ready" id="btn-open-wheel" title="Open Rad van Fortuin (Elke 15 minuten gratis draaien)">
           <svg class="wheel-hud-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -102,11 +255,57 @@
             <span class="player-chips" id="hud-player-chips">10,000 CHIPS</span>
           </div>
         </div>
+
+        <!-- Social drawer toggle (visible when the sidebar collapses on smaller screens) -->
+        <button type="button" class="btn-social-toggle" id="btn-toggle-social" title="Chat, ranglijst &amp; profiel" aria-expanded="false" aria-controls="social-sidebar">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5h16v10H8l-4 4V5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span class="social-toggle-label">Chat</span>
+        </button>
       </div>
     </header>
 
     <!-- Main Viewport (3D Stage + Betting Table + Social Panel) -->
     <main class="main-viewport">
+
+      <!-- Left Vertical Command Dock (Activated under Obsidian layout) -->
+      <aside class="dock-sidebar-left" id="dock-sidebar-left" aria-label="Command Dock">
+        <button type="button" class="dock-left-btn active" data-game="roulette" title="Roulette">
+          <svg viewBox="0 0 24 24"><use href="#nav-roulette"></use></svg>
+          <span>Roulette</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="blackjack" title="Blackjack">
+          <svg viewBox="0 0 24 24"><use href="#nav-blackjack"></use></svg>
+          <span>Blackjack</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="poker" title="Poker">
+          <svg viewBox="0 0 24 24"><use href="#nav-poker"></use></svg>
+          <span>Poker</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="crash" title="Crash">
+          <svg viewBox="0 0 24 24"><use href="#nav-crash"></use></svg>
+          <span>Crash</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="slots" title="Gokkasten">
+          <svg viewBox="0 0 24 24"><use href="#icon-slots"></use></svg>
+          <span>Slots</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="plinko" title="Plinko">
+          <svg viewBox="0 0 24 24"><use href="#icon-plinko"></use></svg>
+          <span>Plinko</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="hilo" title="Hi-Lo">
+          <svg viewBox="0 0 24 24"><use href="#icon-hilo"></use></svg>
+          <span>Hi-Lo</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="racing" title="Turf Club">
+          <svg viewBox="0 0 24 24"><use href="#icon-racing"></use></svg>
+          <span>Turf</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="mines" title="Royal Mines Vault">
+          <svg viewBox="0 0 24 24"><use href="#icon-mines"></use></svg>
+          <span>Mines</span>
+        </button>
+      </aside>
       
       <!-- Primary Play Area -->
       <section class="play-area">
@@ -742,7 +941,7 @@
           </div>
         </div>
 
-        <!-- 4. High-Dopamine Multiplayer Crash View -->
+        <!-- 4. High-Velocity Multiplayer Crash View -->
         <div id="crash-view" class="game-view-pane hidden">
           <!-- Top Bar: Title, Limits & Recent Multiplier History Strip -->
           <div class="crash-top-header glass-panel">
@@ -848,10 +1047,808 @@
           </div>
         </div>
 
+        <!-- 5. Multiplayer 5x3 Luxury Video Slots: Grand Sovereign Slots -->
+        <div id="slots-view" class="game-view-pane hidden">
+          <!-- Top Header Bar: Title, Golden Fever Meter & Grand Jackpot -->
+          <div class="slots-header-bar glass-panel" id="slots-header-bar">
+            <div class="slots-title-wrap">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-slots"></use></svg>
+              <div>
+                <span class="slots-game-title">GRAND SOVEREIGN SLOTS</span>
+                <span class="slots-game-sub">5x3 Rollen &bull; 20 Winlijnen &bull; Golden Fever</span>
+              </div>
+            </div>
+
+            <!-- Shared Golden Fever Floor Meter -->
+            <div class="slots-fever-box" id="slots-fever-box" title="Vul de vloermeter samen door te spinnen of spelers aan te moedigen voor 30s Golden Fever (1.25x + Extra Wilds)">
+              <div class="slots-fever-top">
+                <span class="slots-fever-title">GOLDEN FEVER</span>
+                <span class="slots-fever-status" id="slots-fever-label">0%</span>
+              </div>
+              <div class="slots-fever-track">
+                <div class="slots-fever-fill" id="slots-fever-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Progressive Shared Grand Jackpot -->
+            <div class="jackpot-ticker-pill" id="slots-jackpot-pill" title="Win met 5x Sovereign Crest of Wild op Winlijn 1">
+              <span class="jackpot-label">GRAND JACKPOT</span>
+              <span class="jackpot-amount" id="slots-jackpot-amount">10.000 Fiches</span>
+            </div>
+          </div>
+
+          <!-- 8-Cabinet Multiplayer Floor Strip -->
+          <div class="slots-floor-strip-wrap glass-panel">
+            <div class="slots-floor-head">
+              <span class="slots-floor-title">CASINO VLOER &bull; 8 KASTEN</span>
+              <span class="slots-floor-meta" id="slots-floor-count">0/8 bezet</span>
+            </div>
+            <div class="slots-floor-strip" id="slots-floor-strip" role="list">
+              <!-- Dynamically rendered by CasinoSlots -->
+            </div>
+          </div>
+
+          <!-- Center Stage (Cabinet + Right Multiplayer Feed & Spotlight) -->
+          <div class="slots-arena-grid">
+            <!-- Main Slot Cabinet -->
+            <div class="slots-cabinet-shell glass-panel" id="slots-stage">
+              <div class="slots-cabinet-topbar">
+                <div class="slots-cabinet-identity">
+                  <span class="slots-cab-badge" id="slots-active-cab-badge">KAST #1 &bull; SOVEREIGN 01</span>
+                  <span class="slots-mult-pill" id="slots-effective-mult-pill">1x LIJN MULTIPLIER</span>
+                </div>
+                <div class="slots-fs-status hidden" id="slots-fs-banner">
+                  <span class="slots-fs-pill" id="slots-fs-count-label">GRATIS SPINS: 10</span>
+                  <span class="slots-fs-total" id="slots-fs-total-label">Bonus: 0 F</span>
+                </div>
+                <div class="slots-topbar-actions">
+                  <button type="button" class="btn-slots-util" id="btn-slots-paytable" title="Bekijk Uitbetalingen &amp; 20 Winlijnen">Uitbetalingen</button>
+                </div>
+              </div>
+
+              <!-- 5x3 Reels Viewport + FX Canvas + Win Banner -->
+              <div class="slots-reels-stage" id="slots-reels-stage">
+                <div class="slots-reels-frame" id="slots-reels-frame">
+                  <div class="slots-reel-col" data-col="0" id="slots-reel-0"><div class="slots-reel-viewport"><div class="slots-reel-track"></div></div></div>
+                  <div class="slots-reel-col" data-col="1" id="slots-reel-1"><div class="slots-reel-viewport"><div class="slots-reel-track"></div></div></div>
+                  <div class="slots-reel-col" data-col="2" id="slots-reel-2"><div class="slots-reel-viewport"><div class="slots-reel-track"></div></div></div>
+                  <div class="slots-reel-col" data-col="3" id="slots-reel-3"><div class="slots-reel-viewport"><div class="slots-reel-track"></div></div></div>
+                  <div class="slots-reel-col" data-col="4" id="slots-reel-4"><div class="slots-reel-viewport"><div class="slots-reel-track"></div></div></div>
+                </div>
+
+                <!-- Paylines & Particle Canvas Overlay -->
+                <canvas id="slots-fx-canvas" class="slots-fx-canvas" aria-hidden="true"></canvas>
+
+                <!-- Active Payline Legend Strip -->
+                <div class="slots-payline-readout hidden" id="slots-payline-readout" aria-live="polite"></div>
+
+                <!-- Dramatic Win Tier Celebration Banner -->
+                <div class="slots-win-banner hidden" id="slots-win-banner" aria-live="polite">
+                  <span class="slots-win-kicker" id="slots-win-kicker">BIG WIN</span>
+                  <span class="slots-win-amount" id="slots-win-amount">+0 Fiches</span>
+                  <span class="slots-win-sub" id="slots-win-sub"></span>
+                </div>
+              </div>
+
+              <!-- Lower Betting & Action Controls Dock -->
+              <div class="slots-controls-dock">
+                <div class="slots-bet-panel">
+                  <div class="slots-bet-readout">
+                    <div class="slots-bet-line">
+                      <span class="slots-label">TOTALE INZET</span>
+                      <span class="slots-val" id="slots-total-bet-val">100 Fiches</span>
+                    </div>
+                    <div class="slots-bet-line">
+                      <span class="slots-label">PER LIJN (x20)</span>
+                      <span class="slots-val-sub" id="slots-bet-val">5 Fiches</span>
+                    </div>
+                  </div>
+                  <div class="slots-bet-presets" id="slots-bet-presets">
+                    <button type="button" class="btn-slot-chip" data-bet="20">20</button>
+                    <button type="button" class="btn-slot-chip" data-bet="40">40</button>
+                    <button type="button" class="btn-slot-chip active" data-bet="100">100</button>
+                    <button type="button" class="btn-slot-chip" data-bet="200">200</button>
+                    <button type="button" class="btn-slot-chip" data-bet="500">500</button>
+                    <button type="button" class="btn-slot-chip" data-bet="1000">1K</button>
+                    <button type="button" class="btn-slot-chip" data-bet="2500">2.5K</button>
+                    <button type="button" class="btn-slot-chip" data-bet="5000">5K</button>
+                    <button type="button" class="btn-slot-chip" data-bet="10000">10K</button>
+                  </div>
+                  <div class="slots-bet-quick">
+                    <button type="button" class="btn-slot-mod" id="btn-slots-bet-half">1/2</button>
+                    <button type="button" class="btn-slot-mod" id="btn-slots-bet-double">2x</button>
+                    <button type="button" class="btn-slot-mod" id="btn-slots-bet-max">MAX</button>
+                  </div>
+                </div>
+
+                <div class="slots-action-panel">
+                  <button type="button" class="btn-slot-toggle" id="btn-slots-turbo" title="Snellere rollen (Turbo)">TURBO</button>
+                  <button type="button" class="btn-slot-bonus-buy" id="btn-slots-bonus-buy" title="Direct 10+ Gratis Spins starten (30x totale inzet)">
+                    <span class="buy-tag">KOOP BONUS</span>
+                    <span class="buy-cost" id="slots-bonus-buy-cost">3.000 F</span>
+                  </button>
+                  <button type="button" class="btn btn-gold btn-lg btn-spin-slots" id="btn-spin-slots">DRAAIEN</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Multiplayer Lounge: Cabinet Spotlight + Live Big Wins -->
+            <aside class="slots-side-panel glass-panel">
+              <div class="slots-spotlight-card" id="slots-spotlight-card">
+                <div class="slots-side-head">
+                  <span class="slots-side-title" id="slots-spotlight-title">JOUW KAST #1</span>
+                  <button type="button" class="btn-slots-back-mine hidden" id="btn-slots-back-mine">Naar Mijn Kast</button>
+                </div>
+                <div class="slots-spotlight-player" id="slots-spotlight-player">
+                  <!-- Populated dynamically -->
+                </div>
+                <div class="slots-mini-grid" id="slots-spectate-mini-grid" aria-hidden="true">
+                  <!-- Live 5x3 snapshot of spotlighted cabinet -->
+                </div>
+                <div class="slots-spotlight-footer">
+                  <div class="slots-spotlight-stats" id="slots-spotlight-stats"></div>
+                  <button type="button" class="btn btn-slots-cheer" id="btn-slots-cheer-spotlight">JUICH +2.5%</button>
+                </div>
+              </div>
+
+              <div class="slots-wins-feed-wrap">
+                <div class="slots-side-head">
+                  <div class="slots-feed-tabs" role="tablist" aria-label="Slots historie">
+                    <button type="button" class="slots-feed-tab active" id="btn-slots-tab-rolls" data-feed-tab="rolls" role="tab" aria-selected="true">JOUW ROLLS</button>
+                    <button type="button" class="slots-feed-tab" id="btn-slots-tab-floor" data-feed-tab="floor" role="tab" aria-selected="false">VLOER</button>
+                  </div>
+                  <span class="slots-roll-summary" id="slots-roll-summary">0 rolls</span>
+                </div>
+                <div class="slots-roll-history-list" id="slots-roll-history-list">
+                  <div class="slots-feed-empty">Draai de rollen om je winst per roll te zien.</div>
+                </div>
+                <div class="slots-big-wins-list hidden" id="slots-big-wins-list">
+                  <div class="slots-feed-empty">Nog geen grote winsten in deze sessie.</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <!-- Paytable & 20 Paylines Drawer Modal -->
+          <div class="slots-paytable-overlay hidden" id="slots-paytable-overlay" role="dialog" aria-modal="true" aria-labelledby="slots-paytable-title">
+            <div class="slots-paytable-modal glass-panel">
+              <div class="slots-paytable-header">
+                <div>
+                  <h3 id="slots-paytable-title">UITBETALINGSTABEL &amp; 20 WINLIJNEN</h3>
+                  <p class="slots-paytable-sub">Alle lijnwinsten worden berekend als veelvoud van de lijninzet (Totale Inzet / 20).</p>
+                </div>
+                <button type="button" class="btn-modal-close" id="btn-close-slots-paytable" aria-label="Sluiten">&times;</button>
+              </div>
+              <div class="slots-paytable-body" id="slots-paytable-body">
+                <!-- Populated dynamically from slots constants/state -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Royal Plinko Arena -->
+        <div id="plinko-view" class="game-view-pane hidden">
+          <!-- Top Header Ribbon -->
+          <div class="plinko-header-bar glass-panel">
+            <div class="plinko-title-wrap">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-plinko"></use></svg>
+              <div>
+                <span class="plinko-game-title">ROYAL PLINKO — SALLE BLANCHE</span>
+                <span class="plinko-game-sub">Inzet 10 - 50.000 fiches • Tot 1.000x Multiplier</span>
+              </div>
+            </div>
+            <div class="plinko-history-strip" id="plinko-history-strip" title="Recente Plinko Multipliers">
+              <!-- Live multiplier pills injected dynamically -->
+            </div>
+            <div class="plinko-session-pills">
+              <div class="plinko-stat-pill">
+                <span class="plinko-stat-lbl">In Vlucht</span>
+                <span class="plinko-stat-val" id="plinko-inflight-count">0</span>
+              </div>
+              <div class="plinko-stat-pill plinko-stat-pill-gold">
+                <span class="plinko-stat-lbl">Laatste Winst</span>
+                <span class="plinko-stat-val" id="plinko-last-win">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center Canvas + Right Config & Live Feed -->
+          <div class="plinko-arena-grid">
+            <div class="plinko-canvas-stage glass-panel" id="plinko-stage">
+              <canvas id="plinko-canvas" class="plinko-canvas"></canvas>
+              <div id="plinko-jackpot-banner" class="plinko-jackpot-banner hidden" aria-live="polite">
+                <span class="plinko-jackpot-kicker" id="plinko-jackpot-kicker">GRAND HIT</span>
+                <span class="plinko-jackpot-mult" id="plinko-jackpot-mult">130x</span>
+                <span class="plinko-jackpot-payout" id="plinko-jackpot-payout">+13.000 fiches</span>
+              </div>
+            </div>
+
+            <aside class="plinko-side-panel glass-panel">
+              <div class="plinko-config-block">
+                <span class="plinko-section-label">RISICOPROFIEL</span>
+                <div class="plinko-risk-selector" role="group" aria-label="Risiconiveau">
+                  <button type="button" class="btn-risk" data-risk="low">Laag</button>
+                  <button type="button" class="btn-risk active" data-risk="medium">Midden</button>
+                  <button type="button" class="btn-risk" data-risk="high">Hoog</button>
+                </div>
+              </div>
+
+              <div class="plinko-config-block">
+                <span class="plinko-section-label">PYRAMIDE RIJEN</span>
+                <div class="plinko-rows-selector" role="group" aria-label="Aantal rijen">
+                  <button type="button" class="btn-plinko-rows" data-rows="8">8</button>
+                  <button type="button" class="btn-plinko-rows" data-rows="10">10</button>
+                  <button type="button" class="btn-plinko-rows active" data-rows="12">12</button>
+                  <button type="button" class="btn-plinko-rows" data-rows="14">14</button>
+                  <button type="button" class="btn-plinko-rows" data-rows="16">16</button>
+                </div>
+              </div>
+
+              <div class="plinko-config-block">
+                <span class="plinko-section-label">BALLEN PER WORP</span>
+                <div class="plinko-burst-selector" role="group" aria-label="Aantal ballen">
+                  <button type="button" class="btn-plinko-burst active" data-burst="1">1 Bal</button>
+                  <button type="button" class="btn-plinko-burst" data-burst="3">3 Ballen</button>
+                  <button type="button" class="btn-plinko-burst" data-burst="5">5 Ballen</button>
+                  <button type="button" class="btn-plinko-burst" data-burst="10">10 Ballen</button>
+                </div>
+              </div>
+
+              <div class="plinko-feed-block">
+                <div class="plinko-feed-header">
+                  <span class="plinko-section-label">LIVE CASINO WORPEN</span>
+                  <span class="plinko-feed-live-dot">LIVE</span>
+                </div>
+                <div class="plinko-live-feed" id="plinko-live-feed">
+                  <div class="plinko-feed-empty">Laat een bal vallen om de actie te starten</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <!-- Bottom Controls Dock -->
+          <div class="plinko-controls-dock glass-panel">
+            <div class="plinko-bet-section">
+              <div class="plinko-bet-input-wrap">
+                <label for="plinko-bet-amount" class="plinko-label">INZET / BAL</label>
+                <input type="number" id="plinko-bet-amount" value="100" min="10" max="50000" step="10" class="plinko-input">
+                <div class="plinko-mod-btns">
+                  <button type="button" class="btn-plinko-mod" id="btn-plinko-half">1/2</button>
+                  <button type="button" class="btn-plinko-mod" id="btn-plinko-double">2x</button>
+                  <button type="button" class="btn-plinko-mod btn-plinko-max" id="btn-plinko-max">MAX</button>
+                </div>
+              </div>
+              <div class="plinko-quick-chips" role="group" aria-label="Snel fiches toevoegen">
+                <button type="button" class="btn-plinko-chip" data-add="10">+10</button>
+                <button type="button" class="btn-plinko-chip" data-add="50">+50</button>
+                <button type="button" class="btn-plinko-chip" data-add="100">+100</button>
+                <button type="button" class="btn-plinko-chip" data-add="500">+500</button>
+                <button type="button" class="btn-plinko-chip" data-add="2500">+2.5K</button>
+              </div>
+            </div>
+
+            <div class="plinko-cta-section">
+              <div class="plinko-total-wager-readout">
+                <span class="plinko-wager-lbl">Totale inzet</span>
+                <span class="plinko-wager-val" id="plinko-total-bet-display">100 fiches</span>
+              </div>
+              <button type="button" class="btn btn-gold btn-lg btn-plinko-drop" id="btn-drop-plinko">LAAT BAL VALLEN</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. Monte Carlo Hi-Lo Prive View (Solo Ladder + Multiplayer Blitz + Live Zaal) -->
+        <div id="hilo-view" class="game-view-pane hidden">
+          <div class="hilo-header-bar glass-panel">
+            <div class="hilo-header-left">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-hilo"></use></svg>
+              <div class="hilo-title-group">
+                <span class="hilo-main-title">MONTE CARLO HI-LO PRIVÉ</span>
+                <span class="hilo-sub-title">6% Huisvoordeel (94% RTP) • 52-Kaarten Slof</span>
+              </div>
+              <div class="hilo-mode-tabs" role="tablist" aria-label="Hi-Lo spelmodi">
+                <button type="button" class="hilo-mode-tab active" id="btn-hilo-mode-solo" data-mode="solo">SOLO LADDER</button>
+                <button type="button" class="hilo-mode-tab" id="btn-hilo-mode-blitz" data-mode="blitz">
+                  MULTIPLAYER BLITZ <span class="hilo-blitz-dot" id="hilo-blitz-dot"></span>
+                </button>
+              </div>
+            </div>
+            <div class="hilo-header-right">
+              <div class="hilo-tier-pill tier-start" id="hilo-tier-pill">
+                <span class="hilo-tier-label" id="hilo-tier-label">START</span>
+                <span class="streak-count" id="hilo-streak-count">0 Kaarten</span>
+              </div>
+              <div class="hilo-shoe-pill" id="hilo-shoe-pill" title="Resterende kaarten in de 52-kaarten slof">
+                <span id="hilo-shoe-count">52/52</span> Kaarten
+              </div>
+              <div class="hilo-pot-pill">
+                <span class="pot-label">POT</span>
+                <strong id="hilo-pot-value">0</strong> F
+              </div>
+            </div>
+          </div>
+
+          <div class="hilo-main-grid">
+            <div class="hilo-arena-col">
+              <div class="hilo-top-strip glass-panel">
+                <div class="hilo-card-trail" id="hilo-card-trail">
+                  <span class="hilo-trail-empty">Start een ronde om kaartgeschiedenis te zien...</span>
+                </div>
+                <div class="hilo-blitz-banner hidden" id="hilo-blitz-banner">
+                  <div class="blitz-meta">
+                    <span class="blitz-round-tag" id="hilo-blitz-round">BLITZ #0</span>
+                    <span class="blitz-phase-tag" id="hilo-blitz-phase">WACHT OP SPELERS</span>
+                    <span class="blitz-timer-badge" id="hilo-blitz-countdown">--s</span>
+                    <span class="blitz-survivors-tag" id="hilo-blitz-survivors">0 actief</span>
+                  </div>
+                  <div class="blitz-crowd-wrap" id="hilo-blitz-crowd-wrap">
+                    <span class="crowd-label">ZAAL STEMMING:</span>
+                    <div class="crowd-bar">
+                      <div class="crowd-seg crowd-higher" id="hilo-crowd-higher" style="width:0%"></div>
+                      <div class="crowd-seg crowd-equal" id="hilo-crowd-equal" style="width:0%"></div>
+                      <div class="crowd-seg crowd-lower" id="hilo-crowd-lower" style="width:0%"></div>
+                    </div>
+                    <span class="crowd-pcts" id="hilo-crowd-pcts">0% / 0% / 0%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="hilo-felt-stage glass-panel" id="hilo-stage">
+                <canvas id="hilo-fx-canvas" class="hilo-fx-canvas" aria-hidden="true"></canvas>
+
+                <div class="hilo-cards-arena">
+                  <div class="hilo-card-slot">
+                    <span class="card-slot-label">HUIDIGE KAART</span>
+                    <div class="hilo-card current-card" id="hilo-current-card">
+                      <div class="card-corner top-left">
+                        <span class="corner-rank" id="hilo-cur-rank-tl">K</span>
+                        <svg class="corner-suit" viewBox="0 0 24 24"><use id="hilo-cur-suit-tl" href="#suit-spade"></use></svg>
+                      </div>
+                      <div class="card-inner">
+                        <span class="card-rank" id="hilo-cur-rank">K</span>
+                        <svg class="card-suit" viewBox="0 0 24 24"><use id="hilo-cur-suit" href="#suit-spade"></use></svg>
+                      </div>
+                      <div class="card-corner bottom-right">
+                        <span class="corner-rank" id="hilo-cur-rank-br">K</span>
+                        <svg class="corner-suit" viewBox="0 0 24 24"><use id="hilo-cur-suit-br" href="#suit-spade"></use></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hilo-center-status">
+                    <div class="hilo-versus-marker" id="hilo-versus-marker">VS</div>
+                    <div class="hilo-result-banner hidden" id="hilo-result-banner"></div>
+                  </div>
+
+                  <div class="hilo-card-slot">
+                    <span class="card-slot-label" id="hilo-next-label">VOLGENDE KAART</span>
+                    <div class="hilo-flip-card" id="hilo-flip-card">
+                      <div class="hilo-flip-inner">
+                        <div class="hilo-card hilo-card-face hilo-card-back">
+                          <div class="card-back-pattern">
+                            <svg class="crest-watermark" viewBox="0 0 24 24"><use href="#icon-crown"></use></svg>
+                            <span class="card-back-brand">PRIVÉ</span>
+                          </div>
+                        </div>
+                        <div class="hilo-card hilo-card-face hilo-card-front" id="hilo-next-card">
+                          <div class="card-corner top-left">
+                            <span class="corner-rank" id="hilo-next-rank-tl">A</span>
+                            <svg class="corner-suit" viewBox="0 0 24 24"><use id="hilo-next-suit-tl" href="#suit-heart"></use></svg>
+                          </div>
+                          <div class="card-inner">
+                            <span class="card-rank" id="hilo-next-rank">A</span>
+                            <svg class="card-suit" viewBox="0 0 24 24"><use id="hilo-next-suit" href="#suit-heart"></use></svg>
+                          </div>
+                          <div class="card-corner bottom-right">
+                            <span class="corner-rank" id="hilo-next-rank-br">A</span>
+                            <svg class="corner-suit" viewBox="0 0 24 24"><use id="hilo-next-suit-br" href="#suit-heart"></use></svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="hilo-prob-strip">
+                  <div class="prob-labels">
+                    <span class="prob-lbl higher">HOGER <strong id="hilo-prob-higher-pct">15.7%</strong></span>
+                    <span class="prob-lbl equal">GELIJK <strong id="hilo-prob-equal-pct">5.9%</strong></span>
+                    <span class="prob-lbl lower">LAGER <strong id="hilo-prob-lower-pct">78.4%</strong></span>
+                  </div>
+                  <div class="prob-bar-track">
+                    <div class="prob-seg higher" id="hilo-prob-higher-bar" style="width:15.7%"></div>
+                    <div class="prob-seg equal" id="hilo-prob-equal-bar" style="width:5.9%"></div>
+                    <div class="prob-seg lower" id="hilo-prob-lower-bar" style="width:78.4%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="hilo-controls-deck glass-panel">
+                <div class="hilo-entry-controls" id="hilo-entry-controls">
+                  <div class="hilo-bet-row">
+                    <label for="hilo-bet-input" class="hilo-bet-label">INZET</label>
+                    <input type="number" id="hilo-bet-input" class="hilo-bet-input" min="10" max="50000" step="10" value="100" />
+                    <div class="hilo-chip-presets">
+                      <button type="button" class="hilo-chip-btn" data-hilo-bet="50">50</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-bet="100">100</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-bet="250">250</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-bet="500">500</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-bet="1000">1K</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-mod="half">1/2</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-mod="double">2x</button>
+                      <button type="button" class="hilo-chip-btn" data-hilo-mod="max">MAX</button>
+                    </div>
+                  </div>
+                  <div class="hilo-start-actions">
+                    <button type="button" class="btn btn-hilo-primary" id="btn-hilo-start">START HI-LO LADDER</button>
+                    <button type="button" class="btn btn-hilo-primary hidden" id="btn-hilo-blitz-join">DOE MEE AAN BLITZ</button>
+                    <button type="button" class="btn btn-danger hidden" id="btn-hilo-blitz-cancel">ANNULEER INZET</button>
+                  </div>
+                </div>
+
+                <div class="hilo-active-controls hidden" id="hilo-active-controls">
+                  <div class="hilo-action-controls">
+                    <button type="button" class="btn btn-hilo btn-higher" id="btn-hilo-higher">
+                      <div class="hilo-btn-head">
+                        <span class="hilo-arrow">▲</span>
+                        <span class="hilo-text">HOGER</span>
+                      </div>
+                      <span class="hilo-odds" id="hilo-higher-odds">1.25x</span>
+                      <span class="hilo-payout-preview" id="hilo-higher-payout">-> 125 F</span>
+                    </button>
+                    <button type="button" class="btn btn-hilo btn-equal" id="btn-hilo-equal">
+                      <div class="hilo-btn-head">
+                        <span class="hilo-arrow">=</span>
+                        <span class="hilo-text">GELIJK</span>
+                      </div>
+                      <span class="hilo-odds" id="hilo-equal-odds">16.00x</span>
+                      <span class="hilo-payout-preview" id="hilo-equal-payout">-> 1.600 F</span>
+                    </button>
+                    <button type="button" class="btn btn-hilo btn-lower" id="btn-hilo-lower">
+                      <div class="hilo-btn-head">
+                        <span class="hilo-arrow">▼</span>
+                        <span class="hilo-text">LAGER</span>
+                      </div>
+                      <span class="hilo-odds" id="hilo-lower-odds">3.80x</span>
+                      <span class="hilo-payout-preview" id="hilo-lower-payout">-> 380 F</span>
+                    </button>
+                  </div>
+
+                  <div class="hilo-utility-controls">
+                    <button type="button" class="btn btn-secondary btn-hilo-util" id="btn-hilo-skip">
+                      WISSEL KAART (<span id="hilo-skip-count">2/2</span>)
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-hilo-util btn-hilo-half" id="btn-hilo-half-cashout" disabled>
+                      VERZEKER 50% (<span id="hilo-half-amount">+0</span> F)
+                    </button>
+                    <button type="button" class="btn btn-hilo-cashout" id="btn-hilo-cashout" disabled>
+                      CASHOUT (<span id="hilo-current-payout">0</span> F)
+                    </button>
+                  </div>
+
+                  <div class="hilo-hotkey-hint">Sneltoetsen: [H / Omhoog] Hoger • [E] Gelijk • [L / Omlaag] Lager • [S] Wissel • [C] Cashout</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hilo-salon-col">
+              <div class="hilo-salon-panel glass-panel">
+                <div class="hilo-panel-header">
+                  <span>LIVE HI-LO ZAAL</span>
+                  <span class="hilo-count-pill" id="hilo-salon-count">0 spelers</span>
+                </div>
+                <div class="hilo-salon-list" id="hilo-salon-list">
+                  <div class="hilo-empty-note">Nog geen andere spelers in de Hi-Lo Zaal.</div>
+                </div>
+              </div>
+
+              <div class="hilo-feed-panel glass-panel">
+                <div class="hilo-feed-tabs">
+                  <button type="button" class="hilo-feed-tab active" id="btn-hilo-tab-wins">GROTE WINSTEN</button>
+                  <button type="button" class="hilo-feed-tab" id="btn-hilo-tab-history">MIJN REEKSEN</button>
+                </div>
+                <div class="hilo-feed-list" id="hilo-feed-wins">
+                  <div class="hilo-empty-note">Nog geen uitbetalingen in deze sessie.</div>
+                </div>
+                <div class="hilo-feed-list hidden" id="hilo-feed-history">
+                  <div class="hilo-empty-note">Speel een Solo Ladder of Blitz voor jouw historiek.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. Multiplayer Feature View: Horse Racing (Monaco Turf Club & Port Hercule Derby) -->
+        <div id="racing-view" class="game-view-pane hidden">
+          <div class="backlog-game-header glass-panel racing-header-bar">
+            <div class="backlog-title-wrap">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><use href="#icon-racing"></use></svg>
+              <div>
+                <div class="racing-title-line">
+                  <span class="backlog-game-title">Monaco Turf Club &amp; Port Hercule Derby</span>
+                  <span class="racing-race-badge" id="racing-race-badge">RACE #1</span>
+                </div>
+                <span class="backlog-game-sub">6 Gelijke Paarden • 3.0x Basis + 50% Verliezers Winnaarspot</span>
+              </div>
+            </div>
+            <div class="racing-header-metrics">
+              <div class="racing-surface-badge surface-turf" id="racing-surface-badge">
+                <span class="surface-dot"></span>
+                <span class="surface-name">Riviera Grasbaan</span>
+              </div>
+              <div class="racing-winner-pot-pill" title="50% van verliezende inzetten gaat naar winnaars (Winnaarspot); 50% gaat naar het Casino.">
+                <span class="racing-jp-label">WINNAARSPOT (+50%)</span>
+                <span class="racing-jp-val" id="racing-winner-pot-val">0 F</span>
+              </div>
+              <div class="racing-odds-fixed-pill" title="3.00x vaste basis + 50% van alle verliezers verdeeld over winnaars (50% voor Casino)">
+                <span class="racing-jp-label">BASIS • 1/6 KANS</span>
+                <span class="racing-jp-val" id="racing-fixed-odds-val">3.00x + POT</span>
+              </div>
+              <div class="racing-countdown-pill">
+                <span class="racing-timer-label" id="racing-timer-label">SLIMME KLOK (1E INZET):</span>
+                <span class="racing-timer-val timer-idle" id="racing-timer-val">KLAAR</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="racing-main-stage" id="racing-stage">
+            <div class="racing-arena-grid">
+              <!-- Left/Main: Track + Paddock + History -->
+              <div class="racing-track-column">
+                <div class="racing-live-strip glass-panel">
+                  <div class="racing-commentary-box">
+                    <span class="commentary-tag">LIVE VERSLAG</span>
+                    <span id="racing-commentary-text">Kies 1 winnaar (3.0x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!</span>
+                  </div>
+                  <div class="racing-live-top3" id="racing-live-top3"></div>
+                </div>
+
+                <div class="racing-track-field racing-canvas-stage glass-panel" id="racing-track-canvas">
+                  <canvas id="racing-canvas" aria-label="Port Hercule Derby Racebaan"></canvas>
+                  <div id="racing-event-banner" class="racing-event-banner hidden"></div>
+                  <div id="racing-podium-overlay" class="racing-podium-overlay hidden"></div>
+                </div>
+
+                <div class="racing-paddock-grid" id="racing-paddock-grid"></div>
+
+                <div class="racing-history-strip glass-panel">
+                  <span class="racing-hist-title">LAATSTE WINNAARS</span>
+                  <div class="racing-history-bar" id="racing-history-bar"></div>
+                </div>
+              </div>
+
+              <!-- Right: Single-Ticket Bet Slip & Live Table Feed -->
+              <aside class="racing-control-column">
+                <div class="racing-betslip-card glass-panel">
+                  <div class="betslip-header">
+                    <h3>Derby Wedticket</h3>
+                    <span class="ticket-count-badge" id="racing-ticket-count">0 / 1 Ticket</span>
+                  </div>
+
+                  <div class="racing-select-wrap">
+                    <label for="racing-horse-select" class="racing-label">Geselecteerd Paard (1 op 6 kans)</label>
+                    <select id="racing-horse-select" class="racing-select">
+                      <option value="1">#1 Prince de Monaco (3.0x + Pot)</option>
+                      <option value="2">#2 Azure Mirage (3.0x + Pot)</option>
+                      <option value="3">#3 Obsidian Stealth (3.0x + Pot)</option>
+                      <option value="4">#4 Belle Epoque Royal (3.0x + Pot)</option>
+                      <option value="5">#5 Grimaldi Champion (3.0x + Pot)</option>
+                      <option value="6">#6 Riviera Lightning (3.0x + Pot)</option>
+                    </select>
+                  </div>
+
+                  <div class="racing-single-mode-pill">
+                    <span>ENKEL WIN (#1 + WINNAARSPOT)</span>
+                    <strong>3.00x + 50% VERLIEZERS</strong>
+                  </div>
+
+                  <div class="racing-bet-wrap">
+                    <label for="racing-bet-amount" class="racing-label">Inzet (10 – 50.000)</label>
+                    <div class="racing-amount-row">
+                      <input type="number" id="racing-bet-amount" value="100" min="10" max="50000" step="10" class="racing-input">
+                      <button type="button" class="racing-bet-mod" data-mod="half">1/2</button>
+                      <button type="button" class="racing-bet-mod" data-mod="double">2x</button>
+                      <button type="button" class="racing-bet-mod" data-mod="max">MAX</button>
+                    </div>
+                    <div class="racing-presets-row">
+                      <button type="button" class="racing-chip-preset" data-amount="10">10</button>
+                      <button type="button" class="racing-chip-preset" data-amount="50">50</button>
+                      <button type="button" class="racing-chip-preset" data-amount="100">100</button>
+                      <button type="button" class="racing-chip-preset" data-amount="500">500</button>
+                      <button type="button" class="racing-chip-preset" data-amount="1000">1K</button>
+                      <button type="button" class="racing-chip-preset" data-amount="5000">5K</button>
+                    </div>
+                  </div>
+
+                  <div class="racing-potential-box" id="racing-potential-payout">
+                    Bij winst op #1: <strong>300</strong> fiches basis (3.00x + Winnaarspot)
+                  </div>
+
+                  <button type="button" class="btn btn-gold btn-lg racing-submit-btn" id="btn-place-racing-bet">ZET IN OP PAARD #1</button>
+
+                  <div class="racing-cheer-box">
+                    <button type="button" class="btn-racing-cheer" id="btn-racing-cheer">JUICH VOOR PAARD #1</button>
+                    <span class="racing-fair-note">100% Random (1/6): 50% verliezers in Pot, 50% voor Casino.</span>
+                  </div>
+                </div>
+
+                <div class="racing-tickets-card glass-panel">
+                  <div class="betslip-subhead">Mijn Ticket (Max 1)</div>
+                  <div id="racing-my-tickets" class="racing-my-tickets"></div>
+                  <div class="betslip-subhead" style="margin-top:8px;">Live Tafel Inzetten</div>
+                  <div id="racing-live-bets-feed" class="racing-live-bets-feed"></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9. Royal Mines Vault View (Solo Kluis + Multiplayer Shared Vault) -->
+        <div id="mines-view" class="game-view-pane hidden">
+          <div class="mines-header-bar glass-panel">
+            <div class="mines-header-left">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-mines"></use></svg>
+              <div class="mines-title-group">
+                <span class="mines-main-title">ROYAL MINES VAULT</span>
+                <span class="mines-sub-title">4% Huisvoordeel (96% RTP) • Diamanten &amp; Bommen</span>
+              </div>
+              <div class="mines-mode-tabs" role="tablist" aria-label="Mines spelmodi">
+                <button type="button" class="mines-mode-tab active" id="btn-mines-mode-solo" data-mode="solo">SOLO KLUIS</button>
+                <button type="button" class="mines-mode-tab" id="btn-mines-mode-shared" data-mode="shared">
+                  SHARED VAULT <span class="mines-shared-dot" id="mines-shared-dot"></span>
+                </button>
+              </div>
+            </div>
+            <div class="mines-header-right">
+              <div class="mines-pill" id="mines-header-board">5x5 • 5 Bommen</div>
+              <div class="mines-pill mines-mult-pill">Multi <strong id="mines-header-mult">1.00x</strong></div>
+              <div class="mines-pill" id="mines-header-status">SOLO KLAAR</div>
+            </div>
+          </div>
+
+          <div class="mines-main-grid">
+            <div class="mines-arena-col">
+              <div class="mines-top-strip glass-panel" id="mines-top-strip">
+                <div class="mines-status-banner" id="mines-status-banner">
+                  <span class="mines-status-pill">SOLO KLUIS</span>
+                  <span class="mines-status-detail">Kies bordgrootte &amp; bommen en open diamanten</span>
+                </div>
+                <div class="mines-shared-banner hidden" id="mines-shared-banner">
+                  <div class="mines-shared-meta">
+                    <span class="shared-round-tag" id="mines-shared-round">SHARED #0</span>
+                    <span class="shared-phase-tag" id="mines-shared-phase">WACHT OP INZET</span>
+                    <span class="shared-timer-badge" id="mines-shared-countdown">Slimme Klok (1e Inzet)</span>
+                    <span class="shared-turn-tag" id="mines-shared-turn">0 spelers</span>
+                  </div>
+                  <span class="shared-action-note" id="mines-shared-note">Kies je favoriete bordgrootte &amp; bommen en doe mee!</span>
+                </div>
+              </div>
+
+              <div class="mines-vault-stage glass-panel" id="mines-stage">
+                <canvas id="mines-fx-canvas" class="mines-fx-canvas" aria-hidden="true"></canvas>
+                <div class="mines-board" id="mines-board" data-grid-side="5" style="--mines-cols: 5;"></div>
+                <div class="mines-result-banner hidden" id="mines-result-banner"></div>
+              </div>
+
+              <div class="mines-controls-deck glass-panel">
+                <div class="mines-config-controls" id="mines-config-controls">
+                  <div class="mines-config-row">
+                    <div class="mines-cfg-group">
+                      <span class="mines-cfg-label">BORD</span>
+                      <div class="mines-size-pills" role="group" aria-label="Bordgrootte">
+                        <button type="button" class="mines-size-btn" data-grid-side="4">4x4</button>
+                        <button type="button" class="mines-size-btn active" data-grid-side="5">5x5</button>
+                        <button type="button" class="mines-size-btn" data-grid-side="6">6x6</button>
+                        <button type="button" class="mines-size-btn" data-grid-side="7">7x7</button>
+                      </div>
+                    </div>
+
+                    <div class="mines-cfg-group" id="mines-solo-mines-wrap">
+                      <span class="mines-cfg-label">BOMMEN</span>
+                      <div class="mines-bomben-picker">
+                        <button type="button" class="mines-preset-mine-btn" data-mine-preset="1">1</button>
+                        <button type="button" class="mines-preset-mine-btn" data-mine-preset="3">3</button>
+                        <button type="button" class="mines-preset-mine-btn active" data-mine-preset="5">5</button>
+                        <button type="button" class="mines-preset-mine-btn" data-mine-preset="8">8</button>
+                        <button type="button" class="mines-preset-mine-btn" data-mine-preset="12">12</button>
+                        <button type="button" class="mines-step-btn" id="btn-mines-count-down" aria-label="Minder bommen">-</button>
+                        <input type="number" id="mines-solo-count-input" class="mines-count-input" min="1" max="24" value="5" aria-label="Aantal bommen">
+                        <button type="button" class="mines-step-btn" id="btn-mines-count-up" aria-label="Meer bommen">+</button>
+                      </div>
+                    </div>
+
+                    <div class="mines-cfg-group hidden" id="mines-shared-mines-wrap">
+                      <span class="mines-cfg-label">STEM BOMMEN</span>
+                      <div class="mines-shared-mine-pills">
+                        <button type="button" class="mines-shared-mine-btn" data-shared-mines="3">3 Bom</button>
+                        <button type="button" class="mines-shared-mine-btn active" data-shared-mines="5">5 Bom</button>
+                        <button type="button" class="mines-shared-mine-btn" data-shared-mines="8">8 Bom</button>
+                        <button type="button" class="mines-shared-mine-btn" data-shared-mines="12">12 Bom</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mines-bet-cta-row">
+                    <div class="mines-bet-row">
+                      <label for="mines-bet-input" class="mines-bet-label">INZET</label>
+                      <input type="number" id="mines-bet-input" class="mines-bet-input" min="10" max="50000" step="10" value="100">
+                      <div class="mines-chip-presets">
+                        <button type="button" class="mines-chip-btn" data-mines-bet="50">50</button>
+                        <button type="button" class="mines-chip-btn" data-mines-bet="100">100</button>
+                        <button type="button" class="mines-chip-btn" data-mines-bet="500">500</button>
+                        <button type="button" class="mines-chip-btn" data-mines-bet="1000">1K</button>
+                        <button type="button" class="mines-chip-btn" data-mines-mod="half">1/2</button>
+                        <button type="button" class="mines-chip-btn" data-mines-mod="double">2x</button>
+                        <button type="button" class="mines-chip-btn" data-mines-mod="max">MAX</button>
+                      </div>
+                    </div>
+                    <div class="mines-start-actions">
+                      <button type="button" class="btn btn-mines-primary" id="btn-mines-solo-start">OPEN KLUIS</button>
+                      <button type="button" class="btn btn-mines-primary hidden" id="btn-mines-shared-join">DOE MEE AAN SHARED VAULT</button>
+                      <button type="button" class="btn btn-danger hidden" id="btn-mines-shared-cancel">ANNULEER INZET</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mines-active-controls hidden" id="mines-active-controls">
+                  <div class="mines-telemetry-row">
+                    <div class="mines-stat-chip">
+                      <span class="stat-lbl">DIAMANTEN</span>
+                      <strong id="mines-stat-gems">0 / 20</strong>
+                    </div>
+                    <div class="mines-stat-chip">
+                      <span class="stat-lbl">MULTIPLIER</span>
+                      <strong id="mines-stat-mult">1.00x</strong>
+                    </div>
+                    <div class="mines-stat-chip">
+                      <span class="stat-lbl">VOLGENDE</span>
+                      <strong id="mines-stat-next">1.20x (120 F)</strong>
+                    </div>
+                    <div class="mines-stat-chip">
+                      <span class="stat-lbl">KANS</span>
+                      <strong id="mines-stat-risk">80.0% veilig</strong>
+                    </div>
+                    <button type="button" class="btn btn-mines-cashout" id="btn-mines-cashout" disabled>
+                      CASHOUT (+<span id="mines-cashout-val">0</span> F)
+                    </button>
+                  </div>
+                  <div class="mines-active-hint" id="mines-active-turn-hint">Klik een kluisvakje om te beginnen!</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mines-salon-col">
+              <div class="mines-salon-panel glass-panel">
+                <div class="mines-panel-header">
+                  <span>LIVE MINES ZAAL</span>
+                  <span class="mines-count-pill" id="mines-salon-count">0 spelers</span>
+                </div>
+                <div class="mines-salon-list" id="mines-salon-list">
+                  <div class="mines-empty-note">Nog geen andere spelers in de Mines Zaal.</div>
+                </div>
+              </div>
+
+              <div class="mines-feed-panel glass-panel">
+                <div class="mines-feed-tabs">
+                  <button type="button" class="mines-feed-tab active" id="btn-mines-tab-wins">GROTE WINSTEN</button>
+                  <button type="button" class="mines-feed-tab" id="btn-mines-tab-history">MIJN SPELLEN</button>
+                </div>
+                <div class="mines-feed-list" id="mines-feed-wins">
+                  <div class="mines-empty-note">Nog geen grote Mines cashouts in deze sessie.</div>
+                </div>
+                <div class="mines-feed-list hidden" id="mines-feed-history">
+                  <div class="mines-empty-note">Speel een Solo Kluis of Shared Vault voor jouw historiek.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- Live Multiplayer Social, Leaderboard & Activity Panel -->
-      <aside class="social-sidebar">
+      <div class="social-backdrop" id="social-backdrop"></div>
+      <aside class="social-sidebar" id="social-sidebar">
         <div class="sidebar-tab-buttons">
           <button class="sidebar-tab active" data-tab="chat">Chat</button>
           <button class="sidebar-tab" data-tab="leaderboard">Ranglijst</button>
@@ -897,14 +1894,35 @@
             </div>
           </div>
 
-          <!-- 2. Leaderboard Tab -->
+          <!-- 2. Leaderboard Tab (Online & Global All-Time) -->
           <div class="sidebar-tab-pane" id="tab-pane-leaderboard">
-            <div class="tab-pane-header">
-              <span class="gold-text">Casino Ranglijst</span>
-              <span class="sub-counter" id="players-online-count">1 online</span>
+            <div class="leaderboard-subtab-bar">
+              <button type="button" class="leaderboard-tab-btn active" id="tab-lb-online" data-lb-tab="online">
+                <span>Online</span>
+                <span class="lb-count-pill" id="badge-lb-online">0</span>
+              </button>
+              <button type="button" class="leaderboard-tab-btn" id="tab-lb-global" data-lb-tab="global">
+                <span>All-Time</span>
+                <span class="lb-count-pill" id="badge-lb-global">0</span>
+              </button>
             </div>
-            <div class="leaderboard-scroll" id="leaderboard-list">
-              <!-- Dynamically populated with players and their chips -->
+            <div class="tab-pane-header">
+              <span class="gold-text" id="leaderboard-pane-title">Live Casino Spelers</span>
+              <span class="sub-counter" id="players-online-count">0 online</span>
+            </div>
+            <div class="leaderboard-toolbar hidden" id="leaderboard-global-toolbar">
+              <div class="lb-sort-group" role="group" aria-label="Sorteer All-Time">
+                <button type="button" class="lb-sort-btn active" data-lb-sort="chips">Fiches</button>
+                <button type="button" class="lb-sort-btn" data-lb-sort="totalWon">Gewonnen</button>
+                <button type="button" class="lb-sort-btn" data-lb-sort="roundsPlayed">Rondes</button>
+              </div>
+              <button type="button" class="lb-filter-btn" id="btn-lb-offline-only" title="Toon alleen spelers die momenteel offline zijn">Alleen offline</button>
+            </div>
+            <div class="leaderboard-scroll active" id="leaderboard-list">
+              <!-- Dynamically populated with connected players and their chips -->
+            </div>
+            <div class="leaderboard-scroll hidden" id="global-leaderboard-list">
+              <!-- Dynamically populated with all-time players (online & offline) who have played -->
             </div>
           </div>
 
@@ -1377,6 +2395,205 @@
       </div>
     </div>
 
+    <!-- Backlog Feature Modal 2: Openbare Marktplaats (Verborgen tot uitwerking) -->
+    <div class="modal-overlay hidden feature-wip-hidden" id="market-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="market-modal-title">
+      <div class="modal-content luxury-modal-container glass-panel">
+        <div class="luxury-modal-header">
+          <div class="luxury-modal-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-market"></use></svg>
+            <span id="market-modal-title">Monte Carlo Openbare Marktplaats</span>
+          </div>
+          <button type="button" class="btn-modal-close" id="btn-close-market-modal" aria-label="Sluiten">&times;</button>
+        </div>
+        <div class="luxury-modal-body">
+          <p class="modal-subtitle">Exclusieve P2P veilingen, verzamelobjecten, VIP titels en zeldzame fiches-skins.</p>
+          <div class="market-listings-grid" id="market-listings-grid">
+            <div class="market-card glass-panel">
+              <div class="market-item-title">Vintage 1863 Salle Médecin Zakhorloge</div>
+              <div class="market-item-sub">Zeldzaam Gouden Horloge • +5% Wheel Cooldown Versneller</div>
+              <div class="market-price-tag">50.000 Fiches</div>
+              <button type="button" class="btn btn-gold btn-sm">Bod Plaatsen</button>
+            </div>
+            <div class="market-card glass-panel">
+              <div class="market-item-title">Monaco Yacht Club Privé Vlag</div>
+              <div class="market-item-sub">Exclusieve Avatar Border • Azure Shimmer</div>
+              <div class="market-price-tag">25.000 Fiches</div>
+              <button type="button" class="btn btn-gold btn-sm">Bod Plaatsen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backlog Feature Modal 3: Aandelen & Crypto Exchange (Verborgen tot uitwerking) -->
+    <div class="modal-overlay hidden feature-wip-hidden" id="exchange-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="exchange-modal-title">
+      <div class="modal-content luxury-modal-container glass-panel">
+        <div class="luxury-modal-header">
+          <div class="luxury-modal-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-exchange"></use></svg>
+            <span id="exchange-modal-title">Monte Carlo Bourse & Crypto Exchange</span>
+          </div>
+          <button type="button" class="btn-modal-close" id="btn-close-exchange-modal" aria-label="Sluiten">&times;</button>
+        </div>
+        <div class="luxury-modal-body">
+          <p class="modal-subtitle">Handel in casino-aandelen, staatsobligaties en Grimaldi Crypto Tokens met real-time koersen.</p>
+          <div class="exchange-ticker-strip">
+            <div class="ticker-box"><span>SBM Monaco:</span> <strong>248.50 Fiches (+3.2%)</strong></div>
+            <div class="ticker-box"><span>Monegasque Gold:</span> <strong>1.820 Fiches (+0.8%)</strong></div>
+            <div class="ticker-box"><span>Hercule Token:</span> <strong>42.10 Fiches (+12.4%)</strong></div>
+          </div>
+          <div class="exchange-action-box">
+            <button type="button" class="btn btn-gold">Koop Aandelen</button>
+            <button type="button" class="btn btn-secondary">Verkoop Aandelen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Casino Staatsloterij (10-Minuten Multiplayer Trekking, 100% Spelerspot, 0% Huisvoordeel) -->
+    <div class="modal-overlay hidden" id="lottery-modal" role="dialog" aria-modal="true" aria-labelledby="lottery-modal-title">
+      <div class="modal-content luxury-modal-container lottery-modal-shell glass-panel">
+        <div class="luxury-modal-header">
+          <div class="luxury-modal-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-lottery"></use></svg>
+            <span id="lottery-modal-title">Casino Staatsloterij</span>
+            <span class="lottery-round-chip">Ronde #<span id="lottery-round-id">1</span></span>
+            <span class="lottery-phase-pill is-open" id="lottery-phase-pill">INZET OPEN</span>
+          </div>
+          <button type="button" class="btn-modal-close" id="btn-close-lottery-modal" aria-label="Sluiten">&times;</button>
+        </div>
+        <div class="luxury-modal-body lottery-modal-body">
+          <!-- Hero Pot & Countdown Card -->
+          <div class="lottery-hero-card glass-panel">
+            <div class="lottery-hero-pot-block">
+              <span class="jackpot-caption">100% SPELERSPOT (0% CASINOVOORDEEL)</span>
+              <span class="jackpot-counter-val" id="lottery-jackpot-counter">0 Fiches</span>
+              <div class="lottery-hero-submeta">
+                <span>2.500 F per lot • Onbeperkt kopen</span>
+                <span>•</span>
+                <span id="lottery-total-tickets">0 loten</span>
+                <span>•</span>
+                <span id="lottery-participants-count">0 spelers</span>
+              </div>
+            </div>
+            <div class="lottery-hero-timer-block">
+              <span class="lottery-timer-caption">VOLGENDE TREKKING</span>
+              <span class="lottery-timer-val" id="lottery-timer-val">10:00</span>
+            </div>
+          </div>
+
+          <!-- Animated Raffle Reel Showcase (shown during 8s DRAWING / after last draw) -->
+          <div class="lottery-reel-stage hidden" id="lottery-reel-stage">
+            <div class="lottery-reel-pointer" aria-hidden="true"></div>
+            <div class="lottery-reel-track" id="lottery-reel-track"></div>
+          </div>
+          <div class="lottery-draw-banner hidden" id="lottery-draw-banner"></div>
+
+          <!-- Two-Column Workspace: Buy Tickets + Live Participants & Odds -->
+          <div class="lottery-columns-grid">
+            <!-- Left: Ticket Purchase & My Share -->
+            <div class="lottery-buy-card glass-panel">
+              <div class="lottery-section-title">Loten Kopen</div>
+              <div class="lottery-qty-row">
+                <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-dec" aria-label="Minder loten">-</button>
+                <input type="number" id="lottery-qty-input" class="lottery-qty-input" min="1" max="10000" step="1" value="1" aria-label="Aantal loten">
+                <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-inc" aria-label="Meer loten">+</button>
+              </div>
+              <div class="lottery-presets-row">
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="1">1 (2.5K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="5">5 (12.5K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="10">10 (25K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="25">25 (62.5K)</button>
+                <button type="button" class="btn-quick-chip chip-all lottery-preset-btn" data-preset="max">MAX</button>
+              </div>
+
+              <div class="lottery-preview-box">
+                <div class="lottery-preview-row">
+                  <span>Kosten deze aankoop</span>
+                  <strong id="lottery-preview-cost">2.500 F</strong>
+                </div>
+                <div class="lottery-preview-row">
+                  <span>Jouw loten na aankoop</span>
+                  <strong id="lottery-preview-tickets">1 lot</strong>
+                </div>
+                <div class="lottery-preview-row">
+                  <span>Geschatte winkans</span>
+                  <strong class="text-gold" id="lottery-preview-odds">100.00%</strong>
+                </div>
+              </div>
+
+              <button type="button" class="btn btn-gold btn-lg btn-block" id="btn-buy-lottery-ticket">KOOP 1 LOT (2.500 F)</button>
+
+              <div class="lottery-my-summary">
+                <div class="lottery-section-title">Mijn Deelname Deze Ronde</div>
+                <div class="lottery-summary-stats">
+                  <div><span>Loten</span><strong id="lottery-my-tickets">0 loten</strong></div>
+                  <div><span>Ingezet</span><strong id="lottery-my-spent">0 F</strong></div>
+                  <div><span>Winkans</span><strong class="text-gold" id="lottery-my-odds">0.00%</strong></div>
+                </div>
+                <div class="lottery-my-ranges" id="lottery-my-ranges">Nog geen loten in deze ronde</div>
+              </div>
+            </div>
+
+            <!-- Right: Live Participants + Odds Bars -->
+            <div class="lottery-participants-card glass-panel">
+              <div class="lottery-section-title">Deelnemers &amp; Winkansen</div>
+              <div class="lottery-participants-list" id="lottery-participants-list">
+                <div class="empty-state-notice">Nog geen deelnemers — koop het eerste lot en open de prijzenpot!</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Winners Strip -->
+          <div class="lottery-history-section">
+            <div class="lottery-section-title">Recente Trekkingen</div>
+            <div class="lottery-history-list" id="lottery-history-list">
+              <div class="empty-state-notice">Nog geen afgeronde trekkingen</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backlog Feature Modal 8: Horse Racing (Ongebruikte modal verborgen; view draait rechtstreeks) -->
+    <div class="modal-overlay hidden feature-wip-hidden" id="racing-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="racing-modal-title">
+      <div class="modal-content luxury-modal-container glass-panel">
+        <div class="luxury-modal-header">
+          <div class="luxury-modal-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-racing"></use></svg>
+            <span id="racing-modal-title">Monaco Turf Club & Port Hercule Derby</span>
+          </div>
+          <button type="button" class="btn-modal-close" id="btn-close-racing-modal" aria-label="Sluiten">&times;</button>
+        </div>
+        <div class="luxury-modal-body">
+          <p class="modal-subtitle">Pari-Mutuel renpaardenweddenschappen en live race resultaten.</p>
+          <button type="button" class="btn btn-gold btn-lg" id="btn-view-racing-live">Ga naar Renbaan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backlog Feature 1: Gadgets & Perks Dock (Verborgen tot uitwerking; layout behouden via data-perks-hidden) -->
+    <div class="gadgets-perks-dock feature-wip-hidden" id="gadgets-perks-dock" aria-hidden="true">
+      <div class="dock-perks-container">
+        <button type="button" class="btn-toggle-dock" id="btn-toggle-gadgets" title="Klap Gadgets Dock in/uit">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><use href="#icon-gadgets"></use></svg>
+          <span id="dock-toggle-perks">Gadgets &amp; Perks</span>
+        </button>
+        <div class="dock-perk-item" title="Gouden Zakhorloge: +5% snellere cooldown">
+          <svg viewBox="0 0 24 24"><use href="#icon-gadgets"></use></svg>
+          <span>Zakhorloge</span>
+        </div>
+        <div class="dock-perk-item" title="Lucky Dice Charm: +100 bonus fiches bij blackjack push">
+          <svg viewBox="0 0 24 24"><use href="#icon-dice"></use></svg>
+          <span>Gelukssteen</span>
+        </div>
+        <div class="dock-perk-item" title="Grimaldi Shield: 1x verzekering tegen crash verlies">
+          <svg viewBox="0 0 24 24"><use href="#icon-shield"></use></svg>
+          <span>Schild</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Floating Toast Notifications -->
     <div id="toast-container"></div>
 
@@ -1395,7 +2612,14 @@
   <script src="js/ui.js"></script>
   <script src="js/poker.js"></script>
   <script src="js/crash.js"></script>
+  <script src="js/plinko.js"></script>
+  <script src="js/slots.js"></script>
+  <script src="js/racing.js"></script>
+  <script src="js/hilo.js"></script>
+  <script src="js/mines.js"></script>
+  <script src="js/lottery.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/shell.js"></script>
 
 </body>
 </html>

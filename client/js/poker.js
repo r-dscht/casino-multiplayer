@@ -22,10 +22,13 @@
      * @param {Object} options
      * @param {Object} options.network CasinoNetwork instance
      * @param {Object} options.ui CasinoUI instance
+     * @param {Function} [options.onBetStateChange] Callback invoked when Poker active bet state changes
      */
-    constructor({ network, ui }) {
+    constructor({ network, ui, onBetStateChange = null }) {
       this.network = network;
       this.ui = ui;
+      this.onBetStateChange = typeof onBetStateChange === 'function' ? onBetStateChange : null;
+      this.viewActive = false;
       this.currentTableId = 'poker_1';
       this.currentTableState = null;
       this.mySeatIndex = -1;
@@ -520,6 +523,8 @@
 
       // 6. Player Action Controls
       this.renderActionControls(state);
+      this._syncHeaderPhase();
+      this._notifyNavLock();
 
       // 7. Header Rebuy Button (active when hero is seated)
       if (this.elements.btnRebuyHeader) {
@@ -1241,10 +1246,51 @@
       this.turnTimerInterval = setInterval(() => {
         this.turnTimeLeft = Math.max(0, this.turnTimeLeft - 1);
         this.updateTimerBar();
+        if (this.isViewActive() && this.ui && typeof this.ui.updateTimer === 'function') {
+          this.ui.updateTimer(this.turnTimeLeft);
+        }
         if (this.turnTimeLeft <= 0) {
           this.stopTurnTimer();
         }
       }, 1000);
+    }
+
+    isViewActive() {
+      return this.viewActive || Boolean(this.elements.viewPoker && !this.elements.viewPoker.classList.contains('hidden'));
+    }
+
+    onViewActivated() {
+      this.viewActive = true;
+      this._syncHeaderPhase();
+      this._notifyNavLock();
+    }
+
+    onViewDeactivated() {
+      this.viewActive = false;
+    }
+
+    _syncHeaderPhase() {
+      if (!this.isViewActive() || !this.ui || typeof this.ui.updatePhase !== 'function') return;
+      const state = this.currentTableState;
+      const phase = (state && state.currentPhase) || 'WAITING_FOR_PLAYERS';
+      const turnTotal = (state && state.turnDuration) || this.turnTimeTotal || 30;
+      if (phase === 'WAITING_FOR_PLAYERS') {
+        const cd = state && typeof state.preHandCountdownSec === 'number' ? state.preHandCountdownSec : 0;
+        this.ui.updatePhase('WAITING_FOR_PLAYERS', 15, cd > 0 ? cd : 'WACHT');
+        return;
+      }
+      if (phase === 'SHOWDOWN' || phase === 'SETTLEMENT' || phase === 'HAND_END') {
+        this.ui.updatePhase(phase, 3, 'UITSLAG');
+        return;
+      }
+      const timeLeft = typeof this.turnTimeLeft === 'number' ? Math.max(0, this.turnTimeLeft) : turnTotal;
+      this.ui.updatePhase(phase, turnTotal, timeLeft);
+    }
+
+    _notifyNavLock() {
+      if (this.onBetStateChange) {
+        this.onBetStateChange();
+      }
     }
 
     /**
@@ -1719,11 +1765,17 @@
             ? `HAND START OVER ${data.countdownSec}S...`
             : 'WAITING FOR PLAYERS';
         }
+        if (this.isViewActive() && this.ui && typeof this.ui.updatePhase === 'function') {
+          this.ui.updatePhase('WAITING_FOR_PLAYERS', 15, data.countdownSec > 0 ? data.countdownSec : 'WACHT');
+        }
         return;
       }
       const timeLeft = (data.turnTimeLeft !== undefined) ? data.turnTimeLeft : (data.timeLeft !== undefined ? data.timeLeft : 30);
       this.turnTimeLeft = timeLeft;
       this.updateTimerBar();
+      if (this.isViewActive() && this.ui && typeof this.ui.updateTimer === 'function') {
+        this.ui.updateTimer(timeLeft);
+      }
     }
 
     onPhaseChange(data) {

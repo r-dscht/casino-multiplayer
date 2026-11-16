@@ -1,0 +1,209 @@
+﻿/* ==========================================================================
+   THEMES.CSS — OBSIDIAN SALLE BLANCHE (DEFAULT & PERMANENT CASINO THEME)
+   Atmosphere: Pitch Black Obsidian, Deep Onyx, Satin Platinum & Champagne Gold
+   Layout: Left Vertical Command Dock + Responsive App Shell
+   ========================================================================== */
+
+:root,
+[data-theme="theme-obsidian"],
+[data-theme="obsidian"] {
+  /* Legacy Base Tokens */
+  --bg-dark: #050507;
+  --bg-obsidian: rgba(10, 11, 15, 0.94);
+  --felt-emerald: #0d0f14;
+  --felt-emerald-dark: #050608;
+  --felt-emerald-light: #171b26;
+  --gold-primary: #eed5a2;
+  --gold-secondary: #c2aa77;
+  --gold-bright: #fff2d6;
+  --gold-dark: #8c784e;
+  --gold-glow: rgba(238, 213, 162, 0.40);
+  --ruby-red: #c01e2e;
+  --ruby-red-dark: #8b101c;
+  --obsidian-black: #0a0b0f;
+  --obsidian-black-dark: #050507;
+  --border-gold: rgba(238, 213, 162, 0.35);
+  --glass-panel: rgba(16, 18, 26, 0.88);
+  --glass-blur: blur(24px);
+  --font-serif: "Cinzel", "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", -apple-system, Roboto, sans-serif;
+
+  /* Obsidian Salle Blanche Design Tokens */
+  --bg-primary: #050507;
+  --bg-secondary: #0a0b0f;
+  --bg-card: #0f1118;
+  --bg-card-hover: #161924;
+  --bg-glass: rgba(15, 17, 24, 0.88);
+  --bg-glass-blur: blur(24px);
+  --header-bg: rgba(5, 5, 7, 0.96);
+  --dock-bg: rgba(10, 11, 15, 0.94);
+
+  --border-luxury: #eed5a2;
+  --border-subtle: rgba(238, 213, 162, 0.28);
+  --border-glow: rgba(238, 213, 162, 0.38);
+  --card-shadow: 0 16px 40px rgba(0, 0, 0, 0.90), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  --text-primary: #ffffff;
+  --text-secondary: #b8c0cc;
+  --text-muted: #8a94a6;
+
+  --accent-color: #8ab4f8;
+  --accent-glow: rgba(138, 180, 248, 0.35);
+
+  --felt-color: #0d0f14;
+  --felt-gradient: radial-gradient(ellipse at 50% 30%, #171b26 0%, #0d0f16 65%, #050608 100%);
+  --felt-stage-bg: radial-gradient(ellipse at 50% 30%, #171b26 0%, #0d0f16 65%, #050608 100%);
+  --felt-rail-border: #222736;
+
+  --btn-gold-bg: linear-gradient(135deg, #fff2d6 0%, #eed5a2 50%, #c4a971 100%);
+  --btn-gold-text: #050507;
+  --font-display: "Inter", "Helvetica Neue", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ==========================================================================
+   LEFT COMMAND DOCK (#dock-sidebar-left)
+   ========================================================================== */
+.dock-left-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: rgba(15, 17, 24, 0.7);
+  border: 1px solid rgba(238, 213, 162, 0.2);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px;
+}
+
+.dock-left-btn:hover,
+.dock-left-btn.active {
+  background: rgba(238, 213, 162, 0.15);
+  border-color: var(--border-luxury);
+  color: var(--gold-bright);
+  box-shadow: 0 0 12px var(--border-glow);
+}
+
+.dock-left-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.dock-left-btn span {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   GADGETS & PERKS DOCK (#gadgets-perks-dock)
+   ========================================================================== */
+#gadgets-perks-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--dock-bg);
+  border-top: 1px solid var(--border-subtle);
+  padding: 4px 16px;
+  z-index: 900;
+  height: 32px;
+  transition: height 0.25s ease;
+  box-sizing: border-box;
+}
+
+#gadgets-perks-dock.expanded {
+  height: 68px;
+}
+
+.dock-perks-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dock-perk-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 2px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.dock-perk-item svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  color: var(--gold-primary);
+}
+
+.btn-toggle-dock {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-toggle-dock:hover {
+  color: var(--text-primary);
+  border-color: var(--border-luxury);
+}
+
+/* ==========================================================================
+   MODAL DIALOG CONTAINERS (MARKET, EXCHANGE, LOTTERY, RACING)
+   ========================================================================== */
+.luxury-modal-container {
+  background: var(--bg-card);
+  backdrop-filter: var(--bg-glass-blur);
+  border: 1px solid var(--border-luxury);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px var(--border-glow);
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.luxury-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.luxury-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-primary);
+  letter-spacing: 0.06em;
+}
+
+.luxury-modal-title svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.luxury-modal-body {
+  padding: 20px 24px;
+}

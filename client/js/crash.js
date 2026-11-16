@@ -1,6 +1,6 @@
 /**
  * crash.js
- * High-Dopamine Multiplayer Crash Client Controller & 60FPS Canvas Trajectory Renderer.
+ * High-Velocity Multiplayer Crash Client Controller & 60FPS Canvas Trajectory Renderer.
  *
  * Features:
  * - Smooth 60FPS HTML5 Canvas exponential curve rendering with auto-scaling axes.
@@ -346,7 +346,7 @@
             this.elements.stageContainer.classList.add('is-flying');
           }
           if (this.isCrashViewActive()) {
-            this.ui.updatePhase('SPINNING', 0, 0);
+            this.ui.updatePhase('CRASH_FLYING', 0, 'LIVE');
           }
         } else if (data.phase === 'CRASHED') {
           this.crashPoint = data.crashPoint || this.currentMultiplier;
