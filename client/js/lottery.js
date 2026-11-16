@@ -81,7 +81,9 @@
       this._animatingDrawRoundId = null;
       this._localTickTimer = null;
       this._lastServerTickAt = 0;
+      this._lastZeroRefreshAt = 0;
       this._announcedOfflineWinRounds = new Set();
+      this._announcedOfflineOutcomeRounds = new Set();
       this._buyTimeout = null;
       this._pendingBuy = null;
       this._isBuying = false;
@@ -471,6 +473,18 @@
         if (parsed.phase === 'OPEN' && typeof parsed.roundEndsAt === 'number' && parsed.roundEndsAt > 0) {
           computedSecs = Math.max(0, Math.min(600, Math.ceil((parsed.roundEndsAt - Date.now()) / 1000)));
         }
+        const restoredSummary = (parsed.mySummary && parsed.mySummary.tickets > 0)
+          ? parsed.mySummary
+          : (parsed.activeStake && parsed.activeStake.tickets > 0 && parsed.activeStake.roundId === parsed.roundId
+              ? {
+                  tickets: parsed.activeStake.tickets,
+                  totalSpent: parsed.activeStake.totalSpent,
+                  sharePct: parsed.totalTickets > 0
+                    ? Math.round((parsed.activeStake.tickets / parsed.totalTickets) * 10000) / 100
+                    : 100,
+                  ranges: []
+                }
+              : this.state.mySummary);
 
         this.state = {
           ...this.state,
@@ -482,7 +496,7 @@
           totalTickets: parsed.totalTickets || 0,
           uniqueParticipants: parsed.uniqueParticipants || 0,
           participants: Array.isArray(parsed.participants) ? parsed.participants : [],
-          mySummary: parsed.mySummary || this.state.mySummary,
+          mySummary: restoredSummary,
           lastDraw: parsed.lastDraw || null,
           history: Array.isArray(parsed.history) ? parsed.history : []
         };
@@ -492,11 +506,55 @@
     _saveOfflineBackup() {
       try {
         if (typeof localStorage === 'undefined') return;
+        let existingActiveStake = null;
+        try {
+          const prevRaw = localStorage.getItem('casino_lottery_backup');
+          if (prevRaw) {
+            const prevParsed = JSON.parse(prevRaw);
+            if (prevParsed && prevParsed.activeStake && typeof prevParsed.activeStake === 'object') {
+              existingActiveStake = prevParsed.activeStake;
+            }
+          }
+        } catch (_) {}
+
+        const resolvedEndsAt = this.state.roundEndsAt || (this.state.phase === 'OPEN' ? Date.now() + (this.state.secondsRemaining * 1000) : 0);
+        const settledList = Array.isArray(this.state.settledRoundIds) ? this.state.settledRoundIds : [];
+        const isCurrentRoundSettled = Boolean(
+          this.state.phase !== 'OPEN' ||
+          settledList.includes(Number(this.state.roundId)) ||
+          (this.state.lastDraw && Number(this.state.lastDraw.roundId) === Number(this.state.roundId))
+        );
+        let activeStake = existingActiveStake;
+        if (activeStake) {
+          const stakeRid = Number(activeStake.roundId);
+          const stakeSettled = Boolean(
+            (this.state.phase !== 'OPEN' && Number(this.state.roundId) === stakeRid) ||
+            settledList.includes(stakeRid) ||
+            (this.state.lastDraw && Number(this.state.lastDraw.roundId) === stakeRid) ||
+            (Array.isArray(this.state.history) && this.state.history.some((h) => h && Number(h.roundId) === stakeRid)) ||
+            Number(this.state.backupClaimResolvedRoundId) === stakeRid
+          );
+          if (stakeSettled) {
+            activeStake = null;
+          }
+        }
+        if (!isCurrentRoundSettled && this.state.mySummary && this.state.mySummary.tickets > 0 && resolvedEndsAt > 0) {
+          activeStake = {
+            roundId: this.state.roundId,
+            roundEndsAt: resolvedEndsAt,
+            tickets: this.state.mySummary.tickets,
+            totalSpent: this.state.mySummary.totalSpent,
+            playerId: (this.ui && this.ui.myPlayer && this.ui.myPlayer.id) || (existingActiveStake && existingActiveStake.playerId) || null,
+            playerName: (this.ui && this.ui.myPlayer && this.ui.myPlayer.name) || (existingActiveStake && existingActiveStake.playerName) || null,
+            savedAt: Date.now()
+          };
+        }
+
         const snapshot = {
           roundId: this.state.roundId,
           phase: this.state.phase,
           secondsRemaining: this.state.secondsRemaining,
-          roundEndsAt: this.state.roundEndsAt || (this.state.phase === 'OPEN' ? Date.now() + (this.state.secondsRemaining * 1000) : 0),
+          roundEndsAt: resolvedEndsAt,
           pot: this.state.pot,
           totalTickets: this.state.totalTickets,
           uniqueParticipants: this.state.uniqueParticipants,
@@ -506,6 +564,9 @@
           history: Array.isArray(this.state.history) ? this.state.history.slice(0, 10) : [],
           savedAt: Date.now()
         };
+        if (activeStake) {
+          snapshot.activeStake = activeStake;
+        }
         localStorage.setItem('casino_lottery_backup', JSON.stringify(snapshot));
       } catch (_) {}
     }
@@ -516,7 +577,21 @@
         if (this.state.phase !== 'OPEN') return;
         const sinceServer = Date.now() - (this._lastServerTickAt || 0);
         if (sinceServer < 1100) return;
-        if (this.state.secondsRemaining > 0) {
+        if (this.state.roundEndsAt && this.state.roundEndsAt > 0) {
+          const computed = Math.max(0, Math.ceil((this.state.roundEndsAt - Date.now()) / 1000));
+          if (computed !== this.state.secondsRemaining) {
+            this.state.secondsRemaining = computed;
+            this.renderHeaderHud();
+            this.renderTimerAndStats();
+          }
+          if (computed === 0 &&
+              (Date.now() - (this._lastZeroRefreshAt || 0)) >= 3000 &&
+              this._isNetworkConnected() &&
+              typeof this.network.requestLotteryState === 'function') {
+            this._lastZeroRefreshAt = Date.now();
+            this.network.requestLotteryState();
+          }
+        } else if (this.state.secondsRemaining > 0) {
           this.state.secondsRemaining -= 1;
           this.renderHeaderHud();
           this.renderTimerAndStats();
@@ -633,6 +708,21 @@
         }
       }
 
+      // Inform non-winning participants when a round they bought into settled while offline
+      const offOut = nextState.myPendingOfflineOutcome;
+      if (offOut && offOut.roundId && !this._announcedOfflineOutcomeRounds.has(offOut.roundId)) {
+        this._announcedOfflineOutcomeRounds.add(offOut.roundId);
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast(
+            `Loterij Ronde #${offOut.roundId} afgerond (terwijl offline): ${offOut.winnerName} won ${(offOut.potWon || 0).toLocaleString()} fiches.`,
+            'info'
+          );
+        }
+        if (this.network && typeof this.network.ackLotteryOfflineOutcome === 'function') {
+          this.network.ackLotteryOfflineOutcome(offOut.roundId);
+        }
+      }
+
       // Clear draw celebration banner cleanly when a new OPEN round starts
       if (this.state.phase === 'OPEN' && (this.state.roundId !== prevRoundId || prevPhase === 'DRAWING')) {
         this._animatingDrawRoundId = null;
@@ -652,6 +742,9 @@
     }
 
     handleDrawResult(res) {
+      if (res && Number(res.roundId) === Number(this.state.roundId)) {
+        this.state.phase = 'DRAWING';
+      }
       this.renderReel(res);
       this.renderHistory();
       this._saveOfflineBackup();

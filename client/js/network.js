@@ -128,6 +128,83 @@
     }
 
     /**
+     * Reads unsettled active Staatsloterij stake backup from localStorage.
+     * @returns {Object|null}
+     */
+    getLotteryBackup() {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_lottery_backup');
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          const stake = (parsed && parsed.activeStake && typeof parsed.activeStake === 'object')
+            ? parsed.activeStake
+            : null;
+          if (!stake) return null;
+          if (!Number.isInteger(stake.roundId) || stake.roundId < 1) return null;
+          if (!Number.isInteger(stake.tickets) || stake.tickets < 1) return null;
+          if (!Number.isInteger(stake.totalSpent) || stake.totalSpent <= 0) return null;
+          if (typeof stake.roundEndsAt !== 'number' || !Number.isFinite(stake.roundEndsAt) || stake.roundEndsAt <= 0) return null;
+          if (stake.savedAt && (Date.now() - stake.savedAt) > 7 * 24 * 60 * 60 * 1000) return null;
+          return { ...stake };
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    /**
+     * Persists unsettled Staatsloterij tickets in localStorage so ephemeral restarts never drop a stake.
+     * @param {Object} stake
+     */
+    saveLotteryStakeBackup(stake) {
+      if (!stake || typeof stake !== 'object') return;
+      if (!Number.isInteger(stake.roundId) || stake.roundId < 1) return;
+      if (!Number.isInteger(stake.tickets) || stake.tickets < 1) return;
+      if (!Number.isInteger(stake.totalSpent) || stake.totalSpent <= 0) return;
+      if (typeof stake.roundEndsAt !== 'number' || !Number.isFinite(stake.roundEndsAt) || stake.roundEndsAt <= 0) return;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          let parsed = {};
+          const raw = localStorage.getItem('casino_lottery_backup');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p && typeof p === 'object') parsed = p;
+          }
+          parsed.activeStake = {
+            roundId: stake.roundId,
+            roundEndsAt: stake.roundEndsAt,
+            tickets: stake.tickets,
+            totalSpent: stake.totalSpent,
+            playerId: stake.playerId || this.myPlayerId || null,
+            playerName: stake.playerName || (this._lastAuthPayload && this._lastAuthPayload.name) || null,
+            savedAt: Date.now()
+          };
+          localStorage.setItem('casino_lottery_backup', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    }
+
+    /**
+     * Clears stored unsettled lottery stake once its round has drawn/settled on server.
+     * @param {number|null} [roundId=null]
+     */
+    clearLotteryStakeBackup(roundId = null) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_lottery_backup');
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object' || !parsed.activeStake) return;
+          if (roundId !== null && Number(parsed.activeStake.roundId) > Number(roundId)) {
+            return;
+          }
+          delete parsed.activeStake;
+          localStorage.setItem('casino_lottery_backup', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    }
+
+    /**
      * Subscribes a callback to an event.
      * @param {string} event 
      * @param {Function} callback 
@@ -933,6 +1010,51 @@
           if (data && typeof data.remainingChips === 'number') {
             this.saveClientBackup({ chips: data.remainingChips });
           }
+          if (evt === 'lottery_buy_ack' && data && data.ok && data.mySummary && data.mySummary.tickets > 0) {
+            this.saveLotteryStakeBackup({
+              roundId: data.roundId,
+              roundEndsAt: data.roundEndsAt || 0,
+              tickets: data.mySummary.tickets,
+              totalSpent: data.mySummary.totalSpent,
+              playerId: data.playerId || this.myPlayerId,
+              playerName: data.playerName || (this._lastAuthPayload && this._lastAuthPayload.name) || null
+            });
+          } else if (evt === 'lottery_draw_result' && data && Number.isInteger(data.roundId)) {
+            this.clearLotteryStakeBackup(data.roundId);
+          } else if (evt === 'lottery_state' && data && typeof data === 'object') {
+            const stake = this.getLotteryBackup();
+            const settledList = Array.isArray(data.settledRoundIds) ? data.settledRoundIds : [];
+            const inHistory = Array.isArray(data.history) && stake && data.history.some(h => h && Number(h.roundId) === Number(stake.roundId));
+            const inOfflineNotice = Boolean(
+              stake && (
+                (data.myPendingOfflineWin && Number(data.myPendingOfflineWin.roundId) === Number(stake.roundId)) ||
+                (data.myPendingOfflineOutcome && Number(data.myPendingOfflineOutcome.roundId) === Number(stake.roundId))
+              )
+            );
+            const hasServerProgress = settledList.length > 0 || (Array.isArray(data.history) && data.history.length > 0);
+            const isSettled = Boolean(
+              stake && (
+                (data.phase === 'DRAWING' && Number(data.roundId) === Number(stake.roundId)) ||
+                settledList.includes(Number(stake.roundId)) ||
+                inHistory ||
+                inOfflineNotice ||
+                Number(data.backupClaimResolvedRoundId) === Number(stake.roundId) ||
+                (Number(data.roundId) > Number(stake.roundId) && hasServerProgress)
+              )
+            );
+            if (isSettled) {
+              this.clearLotteryStakeBackup(stake.roundId);
+            } else if (data.phase === 'OPEN' && data.mySummary && data.mySummary.tickets > 0 && Number(data.roundEndsAt) > 0) {
+              this.saveLotteryStakeBackup({
+                roundId: data.roundId,
+                roundEndsAt: data.roundEndsAt,
+                tickets: data.mySummary.tickets,
+                totalSpent: data.mySummary.totalSpent,
+                playerId: this.myPlayerId,
+                playerName: (this._lastAuthPayload && this._lastAuthPayload.name) || null
+              });
+            }
+          }
           this.emitInternal(evt, data);
         });
       });
@@ -997,13 +1119,21 @@
         ? payload.password
         : ((this._lastAuthPayload && this._lastAuthPayload.password) || null);
       this._lastAuthPayload = { sessionToken: token, name, color, password };
+      const lotBackup = this.getLotteryBackup();
+      const storedName = (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
+        : null);
+      const authUser = name || storedName || null;
+      const sameLotteryUser = !lotBackup || !lotBackup.playerName || !authUser ||
+        lotBackup.playerName.trim().toLowerCase() === authUser.trim().toLowerCase();
       this.socket.emit('auth_session', {
         sessionToken: token,
         name,
         color,
         password,
         clientBackup: this.getClientBackup(),
-        bankBackup: this.getBankBackup()
+        bankBackup: this.getBankBackup(),
+        lotteryBackup: sameLotteryUser ? lotBackup : null
       });
     }
 
@@ -1027,11 +1157,15 @@
       // Only attach clientBackup if it belongs to the same username (or no username is in backup)
       const sameUser = !backup || !backup.name || !playerProfile.name ||
         backup.name.trim().toLowerCase() === playerProfile.name.trim().toLowerCase();
+      const lotBackup = this.getLotteryBackup();
+      const sameLotteryUser = !lotBackup || !lotBackup.playerName || !playerProfile.name ||
+        lotBackup.playerName.trim().toLowerCase() === playerProfile.name.trim().toLowerCase();
       this.socket.emit('join_table', {
         ...playerProfile,
         sessionToken: token,
         clientBackup: sameUser ? backup : null,
-        bankBackup: sameUser ? this.getBankBackup() : null
+        bankBackup: sameUser ? this.getBankBackup() : null,
+        lotteryBackup: sameLotteryUser ? lotBackup : null
       });
     }
 
@@ -1658,6 +1792,11 @@
     ackLotteryOfflineWin(roundId) {
       if (!this.socket) return;
       this.socket.emit('lottery_ack_offline_win', { roundId });
+    }
+
+    ackLotteryOfflineOutcome(roundId) {
+      if (!this.socket) return;
+      this.socket.emit('lottery_ack_offline_outcome', { roundId });
     }
 
     /**

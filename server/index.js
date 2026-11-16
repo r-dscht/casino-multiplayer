@@ -12,7 +12,15 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer(app);
-const { engine, blackjackTables, pokerTables, crashEngine, playerManager } = setupSocket(server);
+const {
+  engine,
+  blackjackTables,
+  pokerTables,
+  crashEngine,
+  playerManager,
+  lotteryEngine,
+  stop: stopSocketEngines
+} = setupSocket(server);
 
 // Start game loop engines
 engine.start();
@@ -59,32 +67,46 @@ if (process.env.ENABLE_TUNNEL !== 'false' && !process.env.RENDER && !process.env
 }
 
 // Graceful shutdown
+let isShuttingDown = false;
 function shutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   console.log('\nShutting down server...');
   if (tunnel) {
     try {
       tunnel.stop();
     } catch (e) {}
   }
-  engine.stop();
-  if (crashEngine) {
+  if (typeof stopSocketEngines === 'function') {
     try {
-      crashEngine.stop();
+      stopSocketEngines();
     } catch (e) {}
-  }
-  for (const tbl of blackjackTables.values()) {
-    try {
-      tbl.stop();
-    } catch (e) {}
-  }
-  if (pokerTables) {
-    for (const tbl of pokerTables.values()) {
+  } else {
+    engine.stop();
+    if (crashEngine) {
       try {
-        if (typeof tbl.cashoutAllPlayersSync === 'function') {
-          tbl.cashoutAllPlayersSync();
-        }
+        crashEngine.stop();
+      } catch (e) {}
+    }
+    if (lotteryEngine) {
+      try {
+        lotteryEngine.stop();
+      } catch (e) {}
+    }
+    for (const tbl of blackjackTables.values()) {
+      try {
         tbl.stop();
       } catch (e) {}
+    }
+    if (pokerTables) {
+      for (const tbl of pokerTables.values()) {
+        try {
+          if (typeof tbl.cashoutAllPlayersSync === 'function') {
+            tbl.cashoutAllPlayersSync();
+          }
+          tbl.stop();
+        } catch (e) {}
+      }
     }
   }
   if (playerManager && typeof playerManager.flushToDiskSync === 'function') {
@@ -98,6 +120,9 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+if (process.platform === 'win32') {
+  process.on('SIGBREAK', shutdown);
+}
 process.on('beforeExit', () => {
   if (tunnel) tunnel.stop();
 });

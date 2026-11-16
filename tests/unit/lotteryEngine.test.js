@@ -302,4 +302,205 @@ describe('LotteryEngine — Casino Staatsloterij Unit Suite', () => {
     }
     if (ctrl._localTickTimer) clearInterval(ctrl._localTickTimer);
   });
+
+  it('L8: prevents double-draw when restarting during DRAWING phase and catches up overdue & multi-round downtime on wall-clock schedule', () => {
+    const tmpLot = path.join(os.tmpdir(), `lottery-l8-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    const tmpPlayers = path.join(os.tmpdir(), `players-l8-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    tempFiles.push(tmpLot, tmpPlayers);
+
+    const pm1 = new PlayerManager({ storagePath: tmpPlayers, debounceMs: 0 });
+    const winner = pm1.registerPlayer('sw', { name: 'RenzoOffline' });
+    const other = pm1.registerPlayer('so', { name: 'OpponentOffline' });
+    pm1.resetBankroll(winner.id, 200000);
+    pm1.resetBankroll(other.id, 200000);
+
+    const e1 = new LotteryEngine(pm1, {
+      storagePath: tmpLot,
+      debounceMs: 0,
+      roundDurationMs: 600000,
+      drawRevealMs: 12000,
+      rng: () => 0.1 // picks ticket inside winner's first range
+    });
+    e1.buyTickets(winner.id, 40); // 100,000 F -> 100,000 left
+    e1.buyTickets(other.id, 40);  // 100,000 F -> 100,000 left
+    e1.tick(e1.roundEndsAt + 1);  // draws while online -> DRAWING phase, winner gets 200,000 -> 300,000
+    assert.equal(e1.phase, PHASES.DRAWING);
+    assert.equal(winner.chips, 300000);
+    const savedRoundId = e1.roundId;
+    e1.stop();
+
+    // Restart DURING active DRAWING reveal window: must NOT draw twice or double-pay
+    const pm2 = new PlayerManager({ storagePath: tmpPlayers, debounceMs: 0 });
+    const e2 = new LotteryEngine(pm2, {
+      storagePath: tmpLot,
+      debounceMs: 0,
+      roundDurationMs: 600000,
+      drawRevealMs: 12000
+    });
+    assert.equal(e2.phase, PHASES.DRAWING);
+    assert.equal(e2.roundId, savedRoundId);
+    e2.tick(Date.now());
+    assert.equal(e2.history.filter((h) => h.roundId === savedRoundId).length, 1);
+    const wAcc2 = pm2.accounts.get('renzooffline');
+    assert.equal(wAcc2.chips, 300000);
+    e2.stop();
+
+    // Now test restarting AFTER overdue OPEN deadline (simulates 25m downtime past deadline)
+    const raw = JSON.parse(fs.readFileSync(tmpLot, 'utf8'));
+    raw.phase = PHASES.OPEN;
+    raw.roundId = 10;
+    raw.roundEndsAt = Date.now() - (25 * 60 * 1000); // ended 25 minutes ago (2.5 cycles)
+    raw.drawEndsAt = 0;
+    raw.settledRoundIds = [savedRoundId];
+    raw.ranges = [
+      { startTicket: 0, endTicket: 39, count: 40, playerId: winner.id, playerName: 'RenzoOffline', playerColor: '#D4AF37' },
+      { startTicket: 40, endTicket: 79, count: 40, playerId: other.id, playerName: 'OpponentOffline', playerColor: '#3B82F6' }
+    ];
+    fs.writeFileSync(tmpLot, JSON.stringify(raw, null, 2), 'utf8');
+
+    const pm3 = new PlayerManager({ storagePath: tmpPlayers, debounceMs: 0 });
+    const e3 = new LotteryEngine(pm3, {
+      storagePath: tmpLot,
+      debounceMs: 0,
+      roundDurationMs: 600000,
+      drawRevealMs: 12000,
+      rng: () => 0.1 // RenzoOffline wins +200,000
+    });
+    activeEngine = e3;
+    const now = Date.now();
+    e3.tick(now);
+
+    assert.equal(e3.phase, PHASES.OPEN);
+    assert.equal(e3.totalTickets, 0);
+    // 25m elapsed = 2 missed cycles + 1 drawn = +3 roundIds -> roundId 13, 5m remaining
+    assert.equal(e3.roundId, 13);
+    assert.ok(e3.roundEndsAt > now && e3.roundEndsAt <= now + 600000);
+    assert.equal(pm3.accounts.get('renzooffline').chips, 500000);
+    assert.ok(e3.hasPendingOfflineWin(winner.id, 'RenzoOffline'));
+    assert.ok(e3.hasPendingOfflineOutcome(other.id, 'OpponentOffline'));
+  });
+
+  it('L9: restores 100k unsettled stake from client backup after server wipe (active & lapsed) and blocks replay', () => {
+    const pm = new PlayerManager({ storagePath: false });
+    const player = pm.registerPlayer('sr', { name: 'BackupPlayer' });
+    pm.resetBankroll(player.id, 500000); // already reflects post-purchase balance after wipe
+
+    activeEngine = new LotteryEngine(pm, {
+      storagePath: false,
+      roundDurationMs: 600000,
+      drawRevealMs: 12000,
+      rng: () => 0.5
+    });
+
+    const futureEndsAt = Date.now() + 240000;
+    const activeRes = activeEngine.restoreFromBackup(player, {
+      roundId: 4,
+      roundEndsAt: futureEndsAt,
+      tickets: 40,
+      totalSpent: 100000,
+      playerId: player.id,
+      playerName: 'BackupPlayer'
+    });
+    assert.equal(activeRes.restored, true);
+    assert.equal(activeRes.drawExecuted, false);
+    assert.equal(activeEngine.roundId, 4);
+    assert.equal(activeEngine.pot, 100000);
+    assert.equal(activeEngine.getPublicState(player.id).mySummary.tickets, 40);
+    assert.equal(player.chips, 500000); // must not double-deduct chips
+
+    // Replay with exact same backup must be ignored
+    const dupRes = activeEngine.restoreFromBackup(player, {
+      roundId: 4,
+      roundEndsAt: futureEndsAt,
+      tickets: 40,
+      totalSpent: 100000,
+      playerId: player.id,
+      playerName: 'BackupPlayer'
+    });
+    assert.equal(dupRes.restored, false);
+
+    // Fresh wiped engine with lapsed round (server asleep past deadline): draws and credits 100k pot immediately
+    const lapsedEngine = new LotteryEngine(pm, {
+      storagePath: false,
+      roundDurationMs: 600000,
+      drawRevealMs: 12000,
+      rng: () => 0.25
+    });
+    const pastEndsAt = Date.now() - 120000; // 2 min overdue (> 12s reveal)
+    const lapsedRes = lapsedEngine.restoreFromBackup(player, {
+      roundId: 2,
+      roundEndsAt: pastEndsAt,
+      tickets: 40,
+      totalSpent: 100000,
+      playerId: player.id,
+      playerName: 'BackupPlayer'
+    });
+    assert.equal(lapsedRes.restored, true);
+    assert.equal(lapsedRes.drawExecuted, true);
+    assert.equal(lapsedRes.resolvedRoundId, 2);
+    assert.equal(player.chips, 600000); // +100k pot returned cleanly
+    assert.equal(lapsedEngine.phase, PHASES.OPEN);
+    assert.equal(lapsedEngine.roundId, 3);
+    assert.ok(lapsedEngine.hasPendingOfflineWin(player.id, 'BackupPlayer'));
+    lapsedEngine.stop();
+  });
+
+  it('L10: preserves activeStake in localStorage across lottery_tick and clears it once round settles', () => {
+    const CasinoNetwork = require('../../client/js/network');
+    const store = new Map();
+    const prevLocalStorage = global.localStorage;
+    global.localStorage = {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k)
+    };
+
+    try {
+      const net = new CasinoNetwork();
+      const emits = [];
+      const socketHandlers = new Map();
+      net.socket = {
+        on: (evt, cb) => socketHandlers.set(evt, cb),
+        emit: (evt, payload) => emits.push({ evt, payload })
+      };
+
+      // Simulate minimal listener wiring from network.connect without requiring socket.io global
+      const futureEndsAt = Date.now() + 300000;
+      net.myPlayerId = 'ply_test100k';
+      net.saveLotteryStakeBackup({
+        roundId: 5,
+        roundEndsAt: futureEndsAt,
+        tickets: 40,
+        totalSpent: 100000,
+        playerId: 'ply_test100k',
+        playerName: 'Renzo'
+      });
+
+      const backup = net.getLotteryBackup();
+      assert.ok(backup && backup.tickets === 40 && backup.totalSpent === 100000 && backup.roundId === 5);
+
+      net.authSession({ name: 'Renzo' });
+      const authEmit = emits.find((e) => e.evt === 'auth_session');
+      assert.ok(authEmit && authEmit.payload.lotteryBackup && authEmit.payload.lotteryBackup.totalSpent === 100000);
+
+      // Simulate controller tick & fresh wiped server state before recovery: activeStake stays safe
+      const ctrl = new CasinoLottery({
+        network: net,
+        ui: { myPlayer: { id: 'ply_test100k', name: 'Renzo', chips: 50000 }, updatePlayerHUD: () => {}, showToast: () => {} }
+      });
+      ctrl.applyState({ roundId: 1, phase: 'OPEN', secondsRemaining: 600, pot: 0, totalTickets: 0, history: [], settledRoundIds: [] });
+      assert.ok(net.getLotteryBackup() && net.getLotteryBackup().roundId === 5, 'empty fresh server state must not wipe unsettled activeStake');
+
+      // Once server confirms round 5 settled, backup clears cleanly
+      ctrl.applyState({ roundId: 6, phase: 'OPEN', secondsRemaining: 600, pot: 0, totalTickets: 0, history: [{ roundId: 5 }], settledRoundIds: [5] });
+      assert.equal(net.getLotteryBackup(), null);
+      if (ctrl._localTickTimer) clearInterval(ctrl._localTickTimer);
+    } finally {
+      if (prevLocalStorage === undefined) {
+        delete global.localStorage;
+      } else {
+        global.localStorage = prevLocalStorage;
+      }
+    }
+  });
 });

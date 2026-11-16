@@ -159,16 +159,25 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
  * @returns {{ io: Server, playerManager: PlayerManager, engine: RouletteEngine, blackjackEngine: BlackjackEngine }}
  */
 function setupSocket(httpServer, options = {}) {
+  const {
+    playerManager: injectedPm,
+    bankManager: injectedBm,
+    playerManagerOptions,
+    bankManagerOptions,
+    lotteryOptions: _ignoredLotOpts,
+    ...ioOptions
+  } = (options && typeof options === 'object') ? options : {};
+
   const io = new Server(httpServer, {
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
     },
-    ...options
+    ...ioOptions
   });
 
-  const playerManager = new PlayerManager();
-  const bankManager = new BankManager(playerManager);
+  const playerManager = injectedPm || new PlayerManager(playerManagerOptions || {});
+  const bankManager = injectedBm || new BankManager(playerManager, bankManagerOptions || {});
   const engine = new RouletteEngine(playerManager, { bankManager });
 
   /** Emit an event to every connected socket belonging to playerId (supports multiple open tabs). */
@@ -569,7 +578,8 @@ function setupSocket(httpServer, options = {}) {
     for (const p of playerManager.players.values()) {
       if (!p || !p.connected) continue;
       const needsPersonal = lotteryEngine.participants.has(p.id) ||
-        (typeof lotteryEngine.hasPendingOfflineWin === 'function' && lotteryEngine.hasPendingOfflineWin(p.id, p.name));
+        (typeof lotteryEngine.hasPendingOfflineWin === 'function' && lotteryEngine.hasPendingOfflineWin(p.id, p.name)) ||
+        (typeof lotteryEngine.hasPendingOfflineOutcome === 'function' && lotteryEngine.hasPendingOfflineOutcome(p.id, p.name));
       if (needsPersonal) {
         emitToPlayer(p.id, 'lottery_state', lotteryEngine.getPublicState(p.id));
       }
@@ -626,9 +636,6 @@ function setupSocket(httpServer, options = {}) {
     });
     broadcastPlayersUpdate();
   });
-
-  // Start Lottery AFTER listeners attach so offline catch-up draws broadcast and persist cleanly
-  lotteryEngine.start();
 
   // Lightweight sliding-window rate limiter per socket & event
   const rateLimitBuckets = new Map();
@@ -747,6 +754,9 @@ function setupSocket(httpServer, options = {}) {
     io.emit('players_update', list);
     io.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
   }
+
+  // Start Lottery AFTER listeners, chatHistory, and broadcast helpers are all initialized so offline catch-up draws never hit TDZ
+  lotteryEngine.start();
 
   // Hook blackjack tables events
   function hookBlackjackEvents(tbl) {
@@ -1302,7 +1312,7 @@ function setupSocket(httpServer, options = {}) {
       const { player, sessionToken, isNew } = authResult;
       currentSocketPlayerId = player.id;
 
-      // Restore active loans & wheel cooldown BEFORE emitting bank_update so client localStorage is never overwritten by an empty restart state
+      // Restore active loans, wheel cooldown & unsettled lottery stake BEFORE emitting auth_success / bank_update / lottery_state
       let restoredLoans = false;
       if (opts.bankBackup && typeof opts.bankBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
@@ -1310,6 +1320,9 @@ function setupSocket(httpServer, options = {}) {
       if (opts.clientBackup && typeof opts.clientBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
       }
+      const lotteryRestore = (opts.lotteryBackup && typeof lotteryEngine.restoreFromBackup === 'function')
+        ? lotteryEngine.restoreFromBackup(player, opts.lotteryBackup)
+        : null;
 
       // Reconnect to active poker seats if player was seated
       for (const tbl of pokerTables.values()) {
@@ -1360,7 +1373,12 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('racing_state', racingEngine.getPublicState(player.id));
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
-      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id));
+      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
+        resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
+      }));
+      if (lotteryRestore && (lotteryRestore.restored || lotteryRestore.drawExecuted)) {
+        socket.broadcast.emit('lottery_state', lotteryEngine.getPublicState(null));
+      }
       socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
 
       // Send initial banking & debt state to player
@@ -1428,7 +1446,7 @@ function setupSocket(httpServer, options = {}) {
       const player = result;
       currentSocketPlayerId = player.id;
 
-      // Restore active loans & wheel cooldown BEFORE emitting bank_update
+      // Restore active loans, wheel cooldown & unsettled lottery stake BEFORE emitting auth_success / bank_update
       let restoredLoans = false;
       if (opts.bankBackup && typeof opts.bankBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
@@ -1436,6 +1454,9 @@ function setupSocket(httpServer, options = {}) {
       if (opts.clientBackup && typeof opts.clientBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
       }
+      const lotteryRestore = (opts.lotteryBackup && typeof lotteryEngine.restoreFromBackup === 'function')
+        ? lotteryEngine.restoreFromBackup(player, opts.lotteryBackup)
+        : null;
 
       // Reconnect to active poker seats if player was seated
       for (const tbl of pokerTables.values()) {
@@ -1486,7 +1507,12 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('racing_state', racingEngine.getPublicState(player.id));
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
-      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id));
+      socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
+        resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
+      }));
+      if (lotteryRestore && (lotteryRestore.restored || lotteryRestore.drawExecuted)) {
+        socket.broadcast.emit('lottery_state', lotteryEngine.getPublicState(null));
+      }
       socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
 
       // Send initial banking & debt state to player
@@ -3240,6 +3266,14 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
+    socket.on('lottery_ack_offline_outcome', (payload = {}) => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) return;
+      if (typeof lotteryEngine.acknowledgeOfflineOutcome === 'function') {
+        lotteryEngine.acknowledgeOfflineOutcome(player.id, player.name, payload && payload.roundId);
+      }
+    });
+
     socket.on('lottery_buy_tickets', (payload = {}) => {
       if (!checkRateLimit(socket.id, 'lottery_buy', 8, 4000)) {
         const msg = 'Rustig aan — je koopt te snel loten achter elkaar.';
@@ -3265,6 +3299,9 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('lottery_buy_ack', {
         ok: true,
         roundId: res.roundId,
+        roundEndsAt: res.roundEndsAt,
+        playerId: res.playerId || player.id,
+        playerName: res.playerName || player.name,
         count: res.count,
         totalCost: res.totalCost,
         startTicket: res.startTicket,

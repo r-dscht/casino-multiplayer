@@ -198,6 +198,125 @@ describe('Lottery Socket.IO Integration & WIP Feature Hiding Contracts', () => {
     assert.equal(socketJs.includes("socket.on('mines_cheer'"), false);
     assert.equal(socketJs.includes("socket.on('hilo_blitz_join'"), false);
     assert.equal(socketJs.includes("socket.on('racing_cheer'"), true, 'Horse Racing cheer MUST remain active');
+
+    const indexJs = fs.readFileSync(path.join(__dirname, '../../server/index.js'), 'utf8');
+    assert.ok(indexJs.includes('stopSocketEngines') || indexJs.includes('lotteryEngine.stop'), 'server shutdown must stop lotteryEngine cleanly');
+  });
+
+  it('persists 100k stake across full server restart past draw deadline and recovers ephemeral wipes via lotteryBackup', async () => {
+    const os = require('os');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lottery-persist-e2e-'));
+    const playersFile = path.join(tmpDir, 'players.json');
+    const bankFile = path.join(tmpDir, 'bank.json');
+    const lotteryFile = path.join(tmpDir, 'lottery.json');
+
+    const bootServer = async ({ roundDurationMs = 600000, drawRevealMs = 50, tickIntervalMs = 40 } = {}) => {
+      const srv = http.createServer(app);
+      const pm = new (require('../../server/game/playerManager'))({ storagePath: playersFile, debounceMs: 0 });
+      const bm = new (require('../../server/game/bankManager'))(pm, { storagePath: bankFile });
+      const handler = setupSocket(srv, {
+        playerManager: pm,
+        bankManager: bm,
+        lotteryOptions: {
+          storagePath: lotteryFile,
+          debounceMs: 0,
+          roundDurationMs,
+          drawRevealMs,
+          tickIntervalMs
+        }
+      });
+      await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+      return { srv, handler, port: srv.address().port };
+    };
+
+    const stopServer = async (inst) => {
+      if (!inst) return;
+      inst.handler.stop();
+      await new Promise((resolve) => inst.handler.io.close(resolve));
+      await new Promise((resolve) => inst.srv.close(resolve));
+    };
+
+    let s1 = null;
+    let s2 = null;
+    let s3 = null;
+    try {
+      // 1. Player deposits 100,000 F (40 tickets) before server shutdown
+      s1 = await bootServer();
+      const c1 = Client(`http://127.0.0.1:${s1.port}`, { transports: ['websocket'], forceNew: true });
+      clients.push(c1);
+      await new Promise((resolve) => c1.on('connect', resolve));
+      const a1P = waitForEvent(c1, 'auth_success');
+      c1.emit('auth_session', { name: 'HundredKHero', color: '#D4AF37' });
+      const a1 = await a1P;
+      s1.handler.playerManager.resetBankroll(a1.player.id, 150000);
+      s1.handler.playerManager.flushToDiskSync();
+
+      const ackP = waitForEvent(c1, 'lottery_buy_ack');
+      c1.emit('lottery_buy_tickets', { count: 40 }); // 100,000 F
+      const ack = await ackP;
+      assert.equal(ack.ok, true);
+      assert.equal(ack.totalCost, 100000);
+      assert.equal(ack.remainingChips, 50000);
+
+      c1.disconnect();
+      await stopServer(s1);
+      s1 = null;
+
+      // Fast-forward persisted deadline to 2 minutes ago (server stayed offline past 10m draw)
+      const persistedLot = JSON.parse(fs.readFileSync(lotteryFile, 'utf8'));
+      persistedLot.roundEndsAt = Date.now() - 120000;
+      fs.writeFileSync(lotteryFile, JSON.stringify(persistedLot, null, 2), 'utf8');
+
+      // 2. Restart server -> boots & settles overdue round offline, then player reconnects via username
+      s2 = await bootServer({ roundDurationMs: 600000, drawRevealMs: 50 });
+      const c2 = Client(`http://127.0.0.1:${s2.port}`, { transports: ['websocket'], forceNew: true });
+      clients.push(c2);
+      await new Promise((resolve) => c2.on('connect', resolve));
+      const a2P = waitForEvent(c2, 'auth_success');
+      const l2P = waitForEvent(c2, 'lottery_state');
+      c2.emit('join_table', { name: 'HundredKHero', color: '#D4AF37' });
+      const [a2, l2] = await Promise.all([a2P, l2P]);
+
+      assert.equal(a2.player.chips, 150000); // 50,000 + 100,000 pot restored!
+      assert.equal(l2.phase, 'OPEN');
+      assert.ok(l2.myPendingOfflineWin && l2.myPendingOfflineWin.potWon === 100000);
+      c2.disconnect();
+      await stopServer(s2);
+      s2 = null;
+
+      // 3. Simulate ephemeral cloud wipe (delete players/bank/lottery JSONs), reconnect with client lotteryBackup
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      s3 = await bootServer({ roundDurationMs: 600000, drawRevealMs: 50 });
+      const c3 = Client(`http://127.0.0.1:${s3.port}`, { transports: ['websocket'], forceNew: true });
+      clients.push(c3);
+      await new Promise((resolve) => c3.on('connect', resolve));
+      const a3P = waitForEvent(c3, 'auth_success');
+      const l3P = waitForEvent(c3, 'lottery_state');
+      c3.emit('auth_session', {
+        name: 'RenderWipeHero',
+        clientBackup: { name: 'RenderWipeHero', chips: 50000 },
+        lotteryBackup: {
+          roundId: 1,
+          roundEndsAt: Date.now() - 120000,
+          tickets: 40,
+          totalSpent: 100000,
+          playerName: 'RenderWipeHero'
+        }
+      });
+      const [a3, l3] = await Promise.all([a3P, l3P]);
+
+      assert.equal(a3.player.chips, 150000); // 100k recovered on wiped server & drawn cleanly
+      assert.ok(l3.myPendingOfflineWin && l3.myPendingOfflineWin.potWon === 100000);
+      assert.equal(l3.backupClaimResolvedRoundId, 1);
+      c3.disconnect();
+    } finally {
+      if (s1) await stopServer(s1);
+      if (s2) await stopServer(s2);
+      if (s3) await stopServer(s3);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+    }
   });
 
   it('hides unfinished WIP triggers/modals/perks dock in HTML/CSS while keeping DOM IDs intact', () => {

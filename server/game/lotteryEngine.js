@@ -82,6 +82,18 @@ class LotteryEngine extends EventEmitter {
     /** @type {Map<string, Object>} Unseen offline wins keyed by lowercase winnerKey */
     this.unseenOfflineWins = new Map();
 
+    /** @type {Map<string, Object>} Unseen offline loss/outcome notices keyed by "roundId:playerKey" */
+    this.unseenOfflineOutcomes = new Map();
+
+    /** @type {Set<number>} Settled round IDs to guarantee idempotent single draws across restarts */
+    this.settledRoundIds = new Set();
+
+    /** @type {Set<string>} Processed client backup claim keys */
+    this.restoredClaimKeys = new Set();
+
+    /** @type {boolean} True when constructor loaded an existing lottery.json from disk */
+    this.loadedFromDisk = false;
+
     this._timer = null;
     this._saveTimer = null;
     this._isRunning = false;
@@ -157,6 +169,7 @@ class LotteryEngine extends EventEmitter {
       if (!raw || !raw.trim()) return;
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object') return;
+      this.loadedFromDisk = true;
 
       if (Number.isInteger(data.roundId) && data.roundId >= 1) {
         this.roundId = data.roundId;
@@ -180,26 +193,79 @@ class LotteryEngine extends EventEmitter {
           }
         }
       }
+      if (!this.unseenOfflineOutcomes) {
+        this.unseenOfflineOutcomes = new Map();
+      }
+      if (Array.isArray(data.unseenOfflineOutcomes)) {
+        for (const entry of data.unseenOfflineOutcomes) {
+          if (Array.isArray(entry) && entry[0] && entry[1] && typeof entry[1] === 'object') {
+            this.unseenOfflineOutcomes.set(String(entry[0]), entry[1]);
+          }
+        }
+      }
+      if (!this.settledRoundIds) {
+        this.settledRoundIds = new Set();
+      }
+      if (Array.isArray(data.settledRoundIds)) {
+        for (const rid of data.settledRoundIds) {
+          if (Number.isInteger(rid) && rid >= 1) {
+            this._recordSettledRoundId(rid);
+          }
+        }
+      }
+      for (const h of this.history) {
+        if (h && Number.isInteger(h.roundId) && h.roundId >= 1) {
+          this._recordSettledRoundId(h.roundId);
+        }
+      }
+      if (!this.restoredClaimKeys) {
+        this.restoredClaimKeys = new Set();
+      }
+      if (Array.isArray(data.restoredClaimKeys)) {
+        for (const k of data.restoredClaimKeys) {
+          if (typeof k === 'string' && k) {
+            this._recordRestoredClaimKey(k);
+          }
+        }
+      }
 
       this._rebuildAggregatesFromRanges();
 
-      // Always resume in OPEN phase cleanly; preserve remaining time if round still active
+      // Resume DRAWING safely without double-drawing; keep overdue OPEN rounds intact so start()/tick() settles once
       const now = Date.now();
-      this.phase = PHASES.OPEN;
-      this.drawEndsAt = 0;
-
-      if (typeof data.roundEndsAt === 'number' && Number.isFinite(data.roundEndsAt)) {
-        if (data.roundEndsAt > now) {
-          this.roundEndsAt = Math.min(data.roundEndsAt, now + this.roundDurationMs);
-        } else if (this.totalTickets > 0) {
-          // Persisted active tickets whose round deadline passed while server was down: allow brief grace window before drawing on tick
-          this.roundEndsAt = now;
+      if (data.phase === PHASES.DRAWING) {
+        this._recordSettledRoundId(this.roundId);
+        const savedDrawEndsAt = (typeof data.drawEndsAt === 'number' && Number.isFinite(data.drawEndsAt) && data.drawEndsAt > 0)
+          ? data.drawEndsAt
+          : (((typeof data.savedAt === 'number' && Number.isFinite(data.savedAt)) ? data.savedAt : now) + this.drawRevealMs);
+        if (savedDrawEndsAt > now) {
+          this.phase = PHASES.DRAWING;
+          this.drawEndsAt = Math.min(savedDrawEndsAt, now + this.drawRevealMs);
+          this.roundEndsAt = (typeof data.roundEndsAt === 'number' && Number.isFinite(data.roundEndsAt))
+            ? data.roundEndsAt
+            : now;
         } else {
-          this.roundId += 1;
-          this.roundEndsAt = now + this.roundDurationMs;
+          const anchor = (typeof data.roundEndsAt === 'number' && Number.isFinite(data.roundEndsAt))
+            ? data.roundEndsAt
+            : savedDrawEndsAt;
+          this._advanceOfflineOpenRound(now, anchor);
         }
       } else {
-        this.roundEndsAt = now + this.roundDurationMs;
+        this.phase = PHASES.OPEN;
+        this.drawEndsAt = 0;
+
+        if (typeof data.roundEndsAt === 'number' && Number.isFinite(data.roundEndsAt)) {
+          if (data.roundEndsAt > now) {
+            this.roundEndsAt = Math.min(data.roundEndsAt, now + this.roundDurationMs);
+          } else if (this.totalTickets > 0 && !this.settledRoundIds.has(this.roundId)) {
+            // Persisted active tickets whose round deadline passed while server was down: start()/tick() executes draw once
+            this.roundEndsAt = data.roundEndsAt;
+          } else {
+            this._advanceOfflineOpenRound(now, data.roundEndsAt);
+          }
+        } else {
+          this.roundEndsAt = now + this.roundDurationMs;
+        }
       }
     } catch (err) {
       console.error('LotteryEngine failed to load state:', err.message);
@@ -237,10 +303,14 @@ class LotteryEngine extends EventEmitter {
         roundId: this.roundId,
         phase: this.phase,
         roundEndsAt: this.roundEndsAt,
+        drawEndsAt: this.drawEndsAt,
         ranges: this.ranges,
         lastDraw: this.lastDraw,
         history: this.history.slice(0, HISTORY_LIMIT),
         unseenOfflineWins: this.unseenOfflineWins ? Array.from(this.unseenOfflineWins.entries()).slice(0, 50) : [],
+        unseenOfflineOutcomes: this.unseenOfflineOutcomes ? Array.from(this.unseenOfflineOutcomes.entries()).slice(0, 50) : [],
+        settledRoundIds: this.settledRoundIds ? Array.from(this.settledRoundIds).slice(-100) : [],
+        restoredClaimKeys: this.restoredClaimKeys ? Array.from(this.restoredClaimKeys).slice(-200) : [],
         savedAt: Date.now()
       };
       const tmp = `${this.storagePath}.tmp.${process.pid}.${Date.now()}`;
@@ -273,6 +343,64 @@ class LotteryEngine extends EventEmitter {
     this.saveStateSync();
   }
 
+  _recordSettledRoundId(roundId) {
+    if (!this.settledRoundIds) this.settledRoundIds = new Set();
+    if (!Number.isInteger(roundId) || roundId < 1) return;
+    this.settledRoundIds.add(roundId);
+    while (this.settledRoundIds.size > 100) {
+      const oldest = this.settledRoundIds.values().next().value;
+      this.settledRoundIds.delete(oldest);
+    }
+  }
+
+  _recordRestoredClaimKey(key) {
+    if (!this.restoredClaimKeys) this.restoredClaimKeys = new Set();
+    if (!key) return;
+    this.restoredClaimKeys.add(String(key));
+    while (this.restoredClaimKeys.size > 200) {
+      const oldest = this.restoredClaimKeys.values().next().value;
+      this.restoredClaimKeys.delete(oldest);
+    }
+  }
+
+  _findParticipant(playerId, playerName = null) {
+    if (playerId && this.participants.has(playerId)) {
+      return this.participants.get(playerId);
+    }
+    const normName = String(playerName || '').trim().toLowerCase();
+    if (!normName) return null;
+    for (const p of this.participants.values()) {
+      if (p && String(p.playerName || '').trim().toLowerCase() === normName) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  _hasParticipantInRound(playerId, playerName = null) {
+    return Boolean(this._findParticipant(playerId, playerName));
+  }
+
+  _advanceOfflineOpenRound(now = Date.now(), previousEndsAt = this.roundEndsAt) {
+    const cleanAnchor = (typeof previousEndsAt === 'number' && Number.isFinite(previousEndsAt) && previousEndsAt > 0)
+      ? previousEndsAt
+      : now;
+    const elapsedMs = Math.max(0, now - cleanAnchor);
+    const missedCycles = Math.floor(elapsedMs / this.roundDurationMs);
+    const stepCount = 1 + missedCycles;
+    this.roundId += stepCount;
+    this.phase = PHASES.OPEN;
+    this.roundEndsAt = cleanAnchor + stepCount * this.roundDurationMs;
+    if (this.roundEndsAt <= now) {
+      this.roundEndsAt = now + this.roundDurationMs;
+    }
+    this.drawEndsAt = 0;
+    this.ranges = [];
+    this.totalTickets = 0;
+    this.pot = 0;
+    this.participants.clear();
+  }
+
   /**
    * Advances round lifecycle according to wall-clock timestamps and emits 1s ticks.
    * @param {number} [now=Date.now()]
@@ -280,13 +408,21 @@ class LotteryEngine extends EventEmitter {
   tick(now = Date.now()) {
     if (this.phase === PHASES.OPEN) {
       if (now >= this.roundEndsAt) {
-        this._executeDraw(now);
+        const scheduledEndsAt = this.roundEndsAt;
+        if (this.totalTickets <= 0 || this.ranges.length === 0 || (this.settledRoundIds && this.settledRoundIds.has(this.roundId))) {
+          this._startNextRound(now, { offlineAnchorEndsAt: scheduledEndsAt });
+          return;
+        }
+        this._executeDraw(now, { scheduledEndsAt });
+        if (now >= this.drawEndsAt) {
+          this._startNextRound(now, { offlineAnchorEndsAt: scheduledEndsAt });
+        }
         return;
       }
       this.emit('tick', this.getTickPayload(now));
     } else if (this.phase === PHASES.DRAWING) {
       if (now >= this.drawEndsAt) {
-        this._startNextRound(now);
+        this._startNextRound(now, { offlineAnchorEndsAt: this.roundEndsAt });
         return;
       }
       this.emit('tick', this.getTickPayload(now));
@@ -382,6 +518,9 @@ class LotteryEngine extends EventEmitter {
     return {
       ok: true,
       roundId: this.roundId,
+      roundEndsAt: this.roundEndsAt,
+      playerId: player.id,
+      playerName: player.name,
       count,
       totalCost,
       startTicket: startTicket + 1,
@@ -398,12 +537,21 @@ class LotteryEngine extends EventEmitter {
    * Executes weighted random draw at round expiration.
    * Handles empty rounds (0 tickets) and single-buyer refunds cleanly.
    * @param {number} [now=Date.now()]
+   * @param {Object} [drawOpts={}]
    */
-  _executeDraw(now = Date.now()) {
-    if (this.totalTickets <= 0 || this.ranges.length === 0) {
-      this._startNextRound(now);
+  _executeDraw(now = Date.now(), drawOpts = {}) {
+    if (this.settledRoundIds && this.settledRoundIds.has(this.roundId)) {
       return;
     }
+    if (this.totalTickets <= 0 || this.ranges.length === 0) {
+      this._startNextRound(now, {
+        offlineAnchorEndsAt: drawOpts.scheduledEndsAt,
+        skipBroadcast: drawOpts.skipBroadcast
+      });
+      return;
+    }
+
+    this._recordSettledRoundId(this.roundId);
 
     const rFloat = Math.min(0.999999999999, Math.max(0, Number(this.rng()) || 0));
     const winningTicketIdx = Math.floor(rFloat * this.totalTickets);
@@ -422,11 +570,15 @@ class LotteryEngine extends EventEmitter {
     const netProfit = Math.max(0, payout - (winnerParticipant.totalSpent || 0));
     const { sharePct } = computePlayerOdds(winnerParticipant.tickets, this.totalTickets);
 
+    const forceWinnerOffline = Boolean(
+      drawOpts.forceOfflineForPlayerId && drawOpts.forceOfflineForPlayerId === winningRange.playerId
+    );
     const creditRes = this._creditWinner(
       winningRange.playerId,
       winnerParticipant.playerName,
       payout,
-      this.roundId
+      this.roundId,
+      { forceOffline: forceWinnerOffline }
     );
     const resolvedWinnerId = creditRes.resolvedPlayerId || winningRange.playerId;
 
@@ -494,12 +646,48 @@ class LotteryEngine extends EventEmitter {
       }
     }
 
+    if (!this.unseenOfflineOutcomes) this.unseenOfflineOutcomes = new Map();
+    for (const part of this.participants.values()) {
+      if (!part || part.playerId === winningRange.playerId) continue;
+      const pNameKey = String(part.playerName || '').trim().toLowerCase();
+      if (pNameKey && winnerParticipant.playerName && pNameKey === String(winnerParticipant.playerName).trim().toLowerCase()) {
+        continue;
+      }
+      const liveP = (this.playerManager && typeof this.playerManager.getPlayerById === 'function')
+        ? this.playerManager.getPlayerById(part.playerId)
+        : null;
+      const isPartOffline = !liveP || !liveP.connected || drawOpts.forceOfflineForPlayerId === part.playerId;
+      if (isPartOffline) {
+        const key = `${this.roundId}:${pNameKey || part.playerId}`;
+        this.unseenOfflineOutcomes.set(key, {
+          roundId: this.roundId,
+          playerId: part.playerId,
+          playerName: part.playerName,
+          winnerName: drawResult.winnerName,
+          winnerColor: drawResult.winnerColor,
+          winningTicketDisplay: drawResult.winningTicketDisplay,
+          potWon: drawResult.potWon,
+          myTickets: part.tickets,
+          mySpent: part.totalSpent,
+          drawnAt: now
+        });
+      }
+    }
+    while (this.unseenOfflineOutcomes.size > 50) {
+      const oldestKey = this.unseenOfflineOutcomes.keys().next().value;
+      this.unseenOfflineOutcomes.delete(oldestKey);
+    }
+
     if (this.playerManager && typeof this.playerManager.flushToDiskSync === 'function') {
       this.playerManager.flushToDiskSync();
     }
 
+    const scheduledEndsAt = (typeof drawOpts.scheduledEndsAt === 'number' && Number.isFinite(drawOpts.scheduledEndsAt) && drawOpts.scheduledEndsAt > 0)
+      ? drawOpts.scheduledEndsAt
+      : now;
+
     this.phase = PHASES.DRAWING;
-    this.drawEndsAt = now + this.drawRevealMs;
+    this.drawEndsAt = scheduledEndsAt + this.drawRevealMs;
     this.lastDraw = drawResult;
 
     this.history.unshift({
@@ -520,8 +708,10 @@ class LotteryEngine extends EventEmitter {
 
     this.saveStateSync();
 
-    this.emit('draw_result', drawResult);
-    this.emit('state', this.getPublicState(null));
+    if (!drawOpts.skipBroadcast) {
+      this.emit('draw_result', drawResult);
+      this.emit('state', this.getPublicState(null));
+    }
   }
 
   /**
@@ -529,18 +719,19 @@ class LotteryEngine extends EventEmitter {
    * and records a Bank inbox notification if offline so they see their win on reconnect.
    * @private
    */
-  _creditWinner(winnerId, winnerName, payout, roundId) {
+  _creditWinner(winnerId, winnerName, payout, roundId, opts = {}) {
     if (!this.playerManager || payout <= 0) {
       return { newChips: null, wasOffline: true };
     }
 
+    const forceOffline = Boolean(opts && opts.forceOffline);
     const livePlayer = typeof this.playerManager.getPlayerById === 'function'
       ? this.playerManager.getPlayerById(winnerId)
       : null;
 
     if (livePlayer) {
       const addRes = this.playerManager.addChips(winnerId, payout);
-      const isOffline = !livePlayer.connected;
+      const isOffline = forceOffline || !livePlayer.connected;
       if (isOffline) {
         this._queueOfflineWinNotice(livePlayer, payout, roundId);
       }
@@ -628,6 +819,39 @@ class LotteryEngine extends EventEmitter {
   }
 
   /** @private */
+  _resolveOfflineOutcomeKey(playerId, playerName) {
+    if (!this.unseenOfflineOutcomes || this.unseenOfflineOutcomes.size === 0) return null;
+    const normName = String(playerName || '').trim().toLowerCase();
+    for (const [k, rec] of this.unseenOfflineOutcomes.entries()) {
+      if (!rec) continue;
+      if ((playerId && rec.playerId === playerId) ||
+          (normName && String(rec.playerName || '').trim().toLowerCase() === normName)) {
+        return k;
+      }
+    }
+    return null;
+  }
+
+  hasPendingOfflineOutcome(playerId, playerName = null) {
+    return Boolean(this._resolveOfflineOutcomeKey(playerId, playerName));
+  }
+
+  getPendingOfflineOutcome(playerId, playerName = null) {
+    const k = this._resolveOfflineOutcomeKey(playerId, playerName);
+    return k ? { ...this.unseenOfflineOutcomes.get(k) } : null;
+  }
+
+  acknowledgeOfflineOutcome(playerId, playerName = null, roundId = null) {
+    const k = this._resolveOfflineOutcomeKey(playerId, playerName);
+    if (!k) return false;
+    const rec = this.unseenOfflineOutcomes.get(k);
+    if (roundId != null && rec && Number(roundId) !== Number(rec.roundId)) return false;
+    this.unseenOfflineOutcomes.delete(k);
+    this._scheduleSave();
+    return true;
+  }
+
+  /** @private */
   _queueOfflineWinNotice(targetPlayer, payout, roundId) {
     if (!this.bankManager || typeof this.bankManager._addInboxNotification !== 'function') return;
     this.bankManager._addInboxNotification(targetPlayer, {
@@ -646,12 +870,28 @@ class LotteryEngine extends EventEmitter {
 
   /**
    * Starts a fresh 10-minute lottery round with zero carried-over tickets.
+   * Advances missed cycles cleanly on wall-clock schedule when recovering from downtime.
    * @param {number} [now=Date.now()]
+   * @param {Object} [opts={}]
    */
-  _startNextRound(now = Date.now()) {
-    this.roundId += 1;
+  _startNextRound(now = Date.now(), opts = {}) {
+    const anchor = (opts && typeof opts.offlineAnchorEndsAt === 'number' && Number.isFinite(opts.offlineAnchorEndsAt) && opts.offlineAnchorEndsAt > 0)
+      ? opts.offlineAnchorEndsAt
+      : null;
+
+    if (anchor && (now - anchor) >= this.drawRevealMs) {
+      const elapsedMs = Math.max(0, now - anchor);
+      const missedCycles = Math.floor(elapsedMs / this.roundDurationMs);
+      const stepCount = 1 + missedCycles;
+      const candidateEndsAt = anchor + stepCount * this.roundDurationMs;
+      this.roundId += stepCount;
+      this.roundEndsAt = (candidateEndsAt - now) >= 50 ? candidateEndsAt : (now + this.roundDurationMs);
+    } else {
+      this.roundId += 1;
+      this.roundEndsAt = now + this.roundDurationMs;
+    }
+
     this.phase = PHASES.OPEN;
-    this.roundEndsAt = now + this.roundDurationMs;
     this.drawEndsAt = 0;
     this.ranges = [];
     this.totalTickets = 0;
@@ -659,16 +899,143 @@ class LotteryEngine extends EventEmitter {
     this.participants.clear();
 
     this.saveStateSync();
-    this.emit('state', this.getPublicState(null));
+    if (!opts || !opts.skipBroadcast) {
+      this.emit('state', this.getPublicState(null));
+    }
+  }
+
+  /**
+   * Restores an unsettled lottery stake from client localStorage backup if the server restarted
+   * without persisted lottery.json (e.g., ephemeral cloud sleep or restart), and settles immediately
+   * if the round deadline already passed while offline.
+   * @param {Object} player
+   * @param {Object} rawBackup
+   * @param {number} [now=Date.now()]
+   */
+  restoreFromBackup(player, rawBackup, now = Date.now()) {
+    if (!player || !player.id || !rawBackup || typeof rawBackup !== 'object') {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    const stake = (rawBackup.activeStake && typeof rawBackup.activeStake === 'object')
+      ? rawBackup.activeStake
+      : rawBackup;
+
+    const roundId = Number(stake.roundId);
+    const tickets = Number(stake.tickets);
+    const totalSpent = Number(stake.totalSpent);
+    const roundEndsAt = Number(stake.roundEndsAt);
+
+    if (!Number.isInteger(roundId) || roundId < 1 || roundId > 10000000) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    if (!Number.isInteger(tickets) || tickets < MIN_PURCHASE_COUNT || tickets > 100000) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    if (!Number.isInteger(totalSpent) || totalSpent !== tickets * TICKET_PRICE) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    if (!Number.isFinite(roundEndsAt) || roundEndsAt <= 0) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    if ((now - roundEndsAt) > 7 * 24 * 60 * 60 * 1000 || roundEndsAt > now + this.roundDurationMs + 5000) {
+      return { restored: false, alreadySettled: true, drawExecuted: false, resolvedRoundId: roundId };
+    }
+
+    const normPlayerName = String(player.usernameKey || player.name || '').trim().toLowerCase();
+    const normStakeName = String(stake.playerName || '').trim().toLowerCase();
+    if (normStakeName && normPlayerName && normStakeName !== normPlayerName) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+    if (!normStakeName && stake.playerId && stake.playerId !== player.id) {
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: null };
+    }
+
+    const claimKey = `${normPlayerName || player.id}:${roundId}:${roundEndsAt}`;
+    if (this.restoredClaimKeys && this.restoredClaimKeys.has(claimKey)) {
+      return { restored: false, alreadySettled: true, drawExecuted: false, resolvedRoundId: roundId };
+    }
+
+    const inHistory = this.history.some((h) => h && Number(h.roundId) === roundId);
+    const hasAuthoritativeHistory = (this.settledRoundIds && this.settledRoundIds.size > 0) ||
+      this.history.length > 0 ||
+      this.loadedFromDisk;
+    if ((this.settledRoundIds && this.settledRoundIds.has(roundId)) ||
+        inHistory ||
+        (hasAuthoritativeHistory && this.roundId > roundId)) {
+      this._recordRestoredClaimKey(claimKey);
+      return { restored: false, alreadySettled: true, drawExecuted: false, resolvedRoundId: roundId };
+    }
+
+    if (this.loadedFromDisk && this.settledRoundIds && this.settledRoundIds.size > 0 && !this._hasParticipantInRound(player.id, player.name)) {
+      return { restored: false, alreadySettled: true, drawExecuted: false, resolvedRoundId: roundId };
+    }
+
+    if (this._hasParticipantInRound(player.id, player.name)) {
+      this._recordRestoredClaimKey(claimKey);
+      return { restored: false, alreadySettled: false, drawExecuted: false, resolvedRoundId: roundId };
+    }
+
+    this._recordRestoredClaimKey(claimKey);
+
+    if (this.totalTickets === 0) {
+      this.roundId = roundId;
+      this.phase = PHASES.OPEN;
+      this.roundEndsAt = roundEndsAt > now
+        ? Math.min(roundEndsAt, now + this.roundDurationMs)
+        : roundEndsAt;
+      this.drawEndsAt = 0;
+    } else if (roundEndsAt < this.roundEndsAt) {
+      this.roundEndsAt = roundEndsAt;
+    }
+
+    const startTicket = this.totalTickets;
+    const endTicket = startTicket + tickets - 1;
+    const range = {
+      startTicket,
+      endTicket,
+      count: tickets,
+      playerId: player.id,
+      playerName: player.name,
+      playerColor: player.color || '#D4AF37'
+    };
+
+    this.ranges.push(range);
+    this.totalTickets += tickets;
+    this.pot = Math.round(this.totalTickets * TICKET_PRICE * (1 - HOUSE_FEE_RATE));
+    this._recordParticipantRange(range);
+
+    let drawExecuted = false;
+    if (now >= this.roundEndsAt && this.phase === PHASES.OPEN && !this.settledRoundIds.has(this.roundId)) {
+      const scheduledEndsAt = this.roundEndsAt;
+      this._executeDraw(now, {
+        scheduledEndsAt,
+        forceOfflineForPlayerId: player.id,
+        skipBroadcast: true
+      });
+      drawExecuted = true;
+      if (now >= this.drawEndsAt) {
+        this._startNextRound(now, { offlineAnchorEndsAt: scheduledEndsAt, skipBroadcast: true });
+      }
+    } else {
+      this.saveStateSync();
+    }
+
+    return {
+      restored: true,
+      alreadySettled: drawExecuted,
+      drawExecuted,
+      resolvedRoundId: drawExecuted ? roundId : null
+    };
   }
 
   /**
    * Returns sanitized public lottery state, plus private `mySummary` when `viewerPlayerId` is given.
    * @param {string|null} [viewerPlayerId=null]
    * @param {number} [now=Date.now()]
+   * @param {Object} [extras={}]
    * @returns {Object}
    */
-  getPublicState(viewerPlayerId = null, now = Date.now()) {
+  getPublicState(viewerPlayerId = null, now = Date.now(), extras = {}) {
     const participantsList = Array.from(this.participants.values())
       .map((p) => {
         const { sharePct } = computePlayerOdds(p.tickets, this.totalTickets);
@@ -684,14 +1051,20 @@ class LotteryEngine extends EventEmitter {
       })
       .sort((a, b) => (b.tickets - a.tickets) || a.playerName.localeCompare(b.playerName));
 
+    const liveViewer = (viewerPlayerId && this.playerManager && typeof this.playerManager.getPlayerById === 'function')
+      ? this.playerManager.getPlayerById(viewerPlayerId)
+      : null;
+
     let mySummary = {
       tickets: 0,
       totalSpent: 0,
       sharePct: 0,
       ranges: []
     };
-    if (viewerPlayerId && this.participants.has(viewerPlayerId)) {
-      const mine = this.participants.get(viewerPlayerId);
+    const mine = viewerPlayerId
+      ? this._findParticipant(viewerPlayerId, liveViewer ? liveViewer.name : null)
+      : null;
+    if (mine) {
       const { sharePct } = computePlayerOdds(mine.tickets, this.totalTickets);
       mySummary = {
         tickets: mine.tickets,
@@ -702,11 +1075,11 @@ class LotteryEngine extends EventEmitter {
     }
 
     const tick = this.getTickPayload(now);
-    const liveViewer = (viewerPlayerId && this.playerManager && typeof this.playerManager.getPlayerById === 'function')
-      ? this.playerManager.getPlayerById(viewerPlayerId)
-      : null;
     const myPendingOfflineWin = viewerPlayerId
       ? this.getPendingOfflineWin(viewerPlayerId, liveViewer ? liveViewer.name : null)
+      : null;
+    const myPendingOfflineOutcome = viewerPlayerId
+      ? this.getPendingOfflineOutcome(viewerPlayerId, liveViewer ? liveViewer.name : null)
       : null;
 
     return {
@@ -724,6 +1097,9 @@ class LotteryEngine extends EventEmitter {
       participants: participantsList,
       mySummary,
       myPendingOfflineWin,
+      myPendingOfflineOutcome,
+      settledRoundIds: this.settledRoundIds ? Array.from(this.settledRoundIds).slice(-30) : [],
+      backupClaimResolvedRoundId: extras && extras.resolvedRoundId != null ? extras.resolvedRoundId : null,
       lastDraw: this.lastDraw,
       history: this.history
     };
