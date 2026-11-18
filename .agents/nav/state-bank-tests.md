@@ -4,7 +4,7 @@
 - `server/game/playerManager.js` (`PlayerManager`):
   - Beheert live sessies (`players` Map) en opgeslagen accounts (`accounts` Map op lowercase `usernameKey`).
   - Persist als `players.json` in `server/data/` (in testomgeving met `NODE_ENV=test` of `storagePath: false` uitgeschakeld).
-  - Belangrijkste methodes: `authSession`, `registerPlayer`, `addChips`, `deductChips`, `updatePlayerStats`, `scheduleSave`, `flushToDiskSync`, `saveAccounts`.
+  - Belangrijkste methodes: `authSession`, `registerPlayer`, `addChips`, `deductChips`, `updatePlayerStats`, `getGlobalLeaderboard`, `restoreLeaderboardBackup`, `scheduleSave`, `flushToDiskSync`, `saveAccounts`.
 - `server/game/bankManager.js` (`BankManager`):
   - Persist P2P-leningen, notificaties en rad-cooldowns als `bank.json` in `server/data/`.
   - `processWinRepayment(borrowerPlayerId, netWin)` ondersteunt zowel online spelers als offline opgeslagen `accounts` en keert automatisch afgeloste bedragen uit aan de uitlener.

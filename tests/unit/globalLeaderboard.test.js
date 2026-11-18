@@ -154,6 +154,87 @@ describe('Global All-Time & Online/Offline Leaderboard', () => {
         poker.stop();
       }
     });
+
+    it('includes offline players with chip/wheel/bank activity even when roundsPlayed is 0, while excluding untouched 10k visitors', () => {
+      const idle = pm.registerPlayer('s_v0', { name: 'UntouchedVisitor' });
+      const chipChanged = pm.registerPlayer('s_v1', { name: 'ChipBuyerOff' });
+      pm.deductChips(chipChanged.id, 1500);
+      pm.disconnectPlayer('s_v1');
+
+      const wheelOnly = pm.registerPlayer('s_v2', { name: 'WheelSpinnerOff' });
+      wheelOnly.lastWheelSpin = Date.now();
+      pm.disconnectPlayer('s_v2');
+
+      const board = pm.getGlobalLeaderboard();
+      const names = board.map((p) => p.name);
+      assert.equal(names.includes(idle.name), false);
+      assert.ok(names.includes('ChipBuyerOff'));
+      assert.ok(names.includes('WheelSpinnerOff'));
+
+      const offlineOnly = pm.getGlobalLeaderboard({ status: 'offline' });
+      assert.ok(offlineOnly.some((p) => p.name === 'ChipBuyerOff' && p.chips === 8500));
+      assert.ok(offlineOnly.some((p) => p.name === 'WheelSpinnerOff'));
+    });
+
+    it('preserves stats in client backup when patches have undefined stats and restores offline leaderboard entries', () => {
+      const CasinoNetwork = require('../../client/js/network');
+      const store = new Map();
+      const prevStorage = global.localStorage;
+      global.localStorage = {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => store.set(k, String(v)),
+        removeItem: (k) => store.delete(k)
+      };
+
+      try {
+        const net = Object.create(CasinoNetwork.prototype);
+        net.saveClientBackup({
+          id: 'ply_backup_1',
+          name: 'BackupHero',
+          chips: 12000,
+          stats: { roundsPlayed: 4, totalWon: 2500, biggestWin: 1800 }
+        });
+        // Regression check: stats: undefined must NOT overwrite cached career stats
+        net.saveClientBackup({ chips: 11500, stats: undefined });
+        const saved = net.getClientBackup();
+        assert.equal(saved.chips, 11500);
+        assert.equal(saved.stats.roundsPlayed, 4);
+        assert.equal(saved.stats.totalWon, 2500);
+        assert.equal(saved.stats.biggestWin, 1800);
+      } finally {
+        if (prevStorage === undefined) delete global.localStorage;
+        else global.localStorage = prevStorage;
+      }
+
+      // Simulated ephemeral server restart: new PlayerManager restores offline VIP from client leaderboardBackup
+      const restored = pm.restoreLeaderboardBackup([
+        {
+          id: 'ply_offline_hero',
+          name: 'OfflineVeteran',
+          color: '#e5c158',
+          chips: 45000,
+          stats: { roundsPlayed: 12, totalWon: 35000, biggestWin: 15000 },
+          lastGame: 'Cross',
+          lastSeen: Date.now() - 60000
+        },
+        {
+          id: 'ply_untouched_skip',
+          name: 'IdleZero',
+          chips: 10000,
+          stats: { roundsPlayed: 0, totalWon: 0, biggestWin: 0 }
+        }
+      ]);
+      assert.equal(restored, true);
+
+      const board = pm.getGlobalLeaderboard({ status: 'offline' });
+      const vet = board.find((p) => p.name === 'OfflineVeteran');
+      assert.ok(vet);
+      assert.equal(vet.chips, 45000);
+      assert.equal(vet.stats.roundsPlayed, 12);
+      assert.equal(vet.connected, false);
+      assert.equal(vet.lastGame, 'Cross');
+      assert.equal(board.some((p) => p.name === 'IdleZero'), false);
+    });
   });
 
   describe('Socket.IO integration for Online & Global All-Time Leaderboards', () => {
@@ -236,6 +317,30 @@ describe('Global All-Time & Online/Offline Leaderboard', () => {
       const offlineOnlyList = await offlineReqPromise;
       assert.ok(offlineOnlyList.some((p) => p.name === 'BoardAlice' && p.connected === false));
       assert.equal(offlineOnlyList.some((p) => p.connected === true), false);
+
+      // Reconnecting/refreshing client passes leaderboardBackup via leaderboard_get to restore lost offline veterans
+      const restoredPromise = waitForEvent(
+        client2,
+        'global_leaderboard_update',
+        (list) => Array.isArray(list) && list.some((p) => p.name === 'EphemeralVeteran' && p.chips === 33000)
+      );
+      client2.emit('leaderboard_get', {
+        leaderboardBackup: [
+          {
+            id: 'ply_ephemeral_vet',
+            name: 'EphemeralVeteran',
+            color: '#d4af37',
+            chips: 33000,
+            stats: { roundsPlayed: 9, totalWon: 23000, biggestWin: 9000 },
+            lastGame: 'Slots'
+          }
+        ]
+      });
+      const restoredList = await restoredPromise;
+      const vet = restoredList.find((p) => p.name === 'EphemeralVeteran');
+      assert.ok(vet);
+      assert.equal(vet.connected, false);
+      assert.equal(vet.stats.roundsPlayed, 9);
     });
   });
 

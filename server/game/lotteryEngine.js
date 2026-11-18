@@ -585,6 +585,12 @@ class LotteryEngine extends EventEmitter {
     if (!creditRes.wasOfflineAccountStatsUpdated && this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
       this.playerManager.updatePlayerStats(resolvedWinnerId, { wonAmount: payout });
     }
+    if (this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
+      for (const part of this.participants.values()) {
+        if (!part || !part.playerId || part.playerId === resolvedWinnerId) continue;
+        this.playerManager.updatePlayerStats(part.playerId, { wonAmount: 0 });
+      }
+    }
 
     let repayments = [];
     if (netProfit > 0 && this.bankManager && typeof this.bankManager.processWinRepayment === 'function') {

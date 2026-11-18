@@ -341,6 +341,14 @@
       if (this.elements.tabPanes) {
         this.elements.tabPanes.forEach(pane => pane.classList.toggle('active', pane.id === `tab-pane-${targetTab}`));
       }
+      if (targetTab === 'leaderboard') {
+        if (this.activeLeaderboardTab === 'global') {
+          this.renderGlobalLeaderboard();
+        }
+        if (typeof this.options.onRequestGlobalLeaderboard === 'function') {
+          this.options.onRequestGlobalLeaderboard();
+        }
+      }
     }
 
     setupSidebarTabs() {

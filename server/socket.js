@@ -1400,13 +1400,16 @@ function setupSocket(httpServer, options = {}) {
       const { player, sessionToken, isNew } = authResult;
       currentSocketPlayerId = player.id;
 
-      // Restore active loans, wheel cooldown & unsettled lottery stake BEFORE emitting auth_success / bank_update / lottery_state
+      // Restore active loans, wheel cooldown, cached offline leaderboard & unsettled lottery stake BEFORE emitting auth_success / bank_update / lottery_state
       let restoredLoans = false;
       if (opts.bankBackup && typeof opts.bankBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
       }
       if (opts.clientBackup && typeof opts.clientBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
+      }
+      if (Array.isArray(opts.leaderboardBackup) && typeof playerManager.restoreLeaderboardBackup === 'function') {
+        playerManager.restoreLeaderboardBackup(opts.leaderboardBackup);
       }
       const lotteryRestore = (opts.lotteryBackup && typeof lotteryEngine.restoreFromBackup === 'function')
         ? lotteryEngine.restoreFromBackup(player, opts.lotteryBackup)
@@ -1536,13 +1539,16 @@ function setupSocket(httpServer, options = {}) {
       const player = result;
       currentSocketPlayerId = player.id;
 
-      // Restore active loans, wheel cooldown & unsettled lottery stake BEFORE emitting auth_success / bank_update
+      // Restore active loans, wheel cooldown, cached offline leaderboard & unsettled lottery stake BEFORE emitting auth_success / bank_update
       let restoredLoans = false;
       if (opts.bankBackup && typeof opts.bankBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.bankBackup) || restoredLoans;
       }
       if (opts.clientBackup && typeof opts.clientBackup === 'object') {
         restoredLoans = bankManager.restoreFromBackup(player.id, opts.clientBackup) || restoredLoans;
+      }
+      if (Array.isArray(opts.leaderboardBackup) && typeof playerManager.restoreLeaderboardBackup === 'function') {
+        playerManager.restoreLeaderboardBackup(opts.leaderboardBackup);
       }
       const lotteryRestore = (opts.lotteryBackup && typeof lotteryEngine.restoreFromBackup === 'function')
         ? lotteryEngine.restoreFromBackup(player, opts.lotteryBackup)
@@ -2075,6 +2081,12 @@ function setupSocket(httpServer, options = {}) {
 
     socket.on('leaderboard_get', (payload = {}) => {
       const opts = (payload && typeof payload === 'object') ? payload : {};
+      const restoredAny = Array.isArray(opts.leaderboardBackup) && typeof playerManager.restoreLeaderboardBackup === 'function'
+        ? playerManager.restoreLeaderboardBackup(opts.leaderboardBackup)
+        : false;
+      if (restoredAny) {
+        io.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
+      }
       socket.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard({
         playedOnly: opts.playedOnly !== false,
         status: opts.status,

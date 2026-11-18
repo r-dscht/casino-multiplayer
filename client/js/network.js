@@ -109,7 +109,8 @@
     }
 
     /**
-     * Updates local player state backup in localStorage.
+     * Updates local player state backup in localStorage without overwriting existing
+     * fields with undefined or regressing career stats.
      * @param {Object} patch
      */
     saveClientBackup(patch = {}) {
@@ -117,12 +118,93 @@
       try {
         if (typeof localStorage !== 'undefined') {
           const existing = this.getClientBackup() || {};
+          const cleanPatch = {};
+          Object.keys(patch).forEach((key) => {
+            if (patch[key] !== undefined && key !== 'stats') {
+              cleanPatch[key] = patch[key];
+            }
+          });
+          let mergedStats = existing.stats;
+          if (patch.stats && typeof patch.stats === 'object') {
+            const prev = (existing.stats && typeof existing.stats === 'object') ? existing.stats : {};
+            mergedStats = {
+              roundsPlayed: Math.max(Number(prev.roundsPlayed) || 0, Number(patch.stats.roundsPlayed) || 0),
+              totalWon: Math.max(Number(prev.totalWon) || 0, Number(patch.stats.totalWon) || 0),
+              biggestWin: Math.max(Number(prev.biggestWin) || 0, Number(patch.stats.biggestWin) || 0)
+            };
+          }
           const merged = {
             ...existing,
-            ...patch,
+            ...cleanPatch,
+            ...(mergedStats ? { stats: mergedStats } : {}),
             updatedAt: Date.now()
           };
           localStorage.setItem('casino_player_backup', JSON.stringify(merged));
+        }
+      } catch (e) {}
+    }
+
+    /**
+     * Reads cached All-Time / Offline leaderboard snapshot from localStorage.
+     * @returns {Array<Object>|null}
+     */
+    getLeaderboardBackup() {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('casino_leaderboard_backup');
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.slice(0, 150);
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    /**
+     * Persists a compact snapshot of the global leaderboard in localStorage
+     * so offline players survive ephemeral server restarts.
+     * @param {Array<Object>} list
+     */
+    saveLeaderboardBackup(list) {
+      if (!Array.isArray(list) || list.length === 0) return;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const existing = this.getLeaderboardBackup() || [];
+          const mergedMap = new Map();
+          const ingestCompact = (entry) => {
+            if (!entry || typeof entry !== 'object' || !entry.id || !entry.name) return;
+            const normKey = String(entry.name).trim().toLowerCase();
+            if (!normKey) return;
+            const s = (entry.stats && typeof entry.stats === 'object') ? entry.stats : {};
+            const prev = mergedMap.get(normKey);
+            const compactStats = {
+              roundsPlayed: Math.max((prev && prev.stats && prev.stats.roundsPlayed) || 0, Number(s.roundsPlayed) || 0),
+              totalWon: Math.max((prev && prev.stats && prev.stats.totalWon) || 0, Number(s.totalWon) || 0),
+              biggestWin: Math.max((prev && prev.stats && prev.stats.biggestWin) || 0, Number(s.biggestWin) || 0)
+            };
+            const chipsVal = typeof entry.chips === 'number'
+              ? entry.chips
+              : (prev && typeof prev.chips === 'number' ? prev.chips : 0);
+            mergedMap.set(normKey, {
+              id: entry.id,
+              name: entry.name,
+              color: entry.color || (prev && prev.color) || '#10b981',
+              avatar: entry.avatar || (prev && prev.avatar) || 'avatar_1',
+              chips: chipsVal,
+              stats: compactStats,
+              lastGame: entry.lastGame || (entry.currentGame && entry.currentGame !== 'Offline' ? entry.currentGame : ((prev && prev.lastGame) || 'Roulette')),
+              createdAt: entry.createdAt || (prev && prev.createdAt) || Date.now(),
+              lastSeen: Math.max((prev && prev.lastSeen) || 0, Number(entry.lastSeen) || 0)
+            });
+          };
+          existing.forEach(ingestCompact);
+          list.forEach(ingestCompact);
+          const compacted = Array.from(mergedMap.values())
+            .sort((a, b) => (b.chips - a.chips) || (b.lastSeen - a.lastSeen))
+            .slice(0, 150);
+          localStorage.setItem('casino_leaderboard_backup', JSON.stringify(compacted));
         }
       } catch (e) {}
     }
@@ -389,7 +471,7 @@
         if (data && data.playerResults && this.myPlayerId && data.playerResults[this.myPlayerId]) {
           const myRes = data.playerResults[this.myPlayerId];
           if (typeof myRes.chips === 'number') {
-            this.saveClientBackup({ chips: myRes.chips });
+            this.saveClientBackup({ chips: myRes.chips, stats: myRes.stats });
           }
         }
         this.emitInternal('round_result', data);
@@ -434,10 +516,19 @@
       });
 
       this.socket.on('players_update', (data) => {
+        if (Array.isArray(data) && this.myPlayerId) {
+          const me = data.find(p => p && p.id === this.myPlayerId);
+          if (me) {
+            this.saveClientBackup({ chips: me.chips, stats: me.stats });
+          }
+        }
         this.emitInternal('players_update', data);
       });
 
       this.socket.on('global_leaderboard_update', (data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          this.saveLeaderboardBackup(data);
+        }
         this.emitInternal('global_leaderboard_update', data);
       });
 
@@ -524,6 +615,9 @@
 
       // Player Profile & Presence events
       this.socket.on('profile_data', (data) => {
+        if (data && data.id && data.id === this.myPlayerId) {
+          this.saveClientBackup({ chips: data.chips, stats: data.stats });
+        }
         this.emitInternal('profile_data', data);
       });
 
@@ -654,7 +748,7 @@
         if (Array.isArray(resultsList) && this.myPlayerId) {
           const myRes = resultsList.find(r => r.playerId === this.myPlayerId);
           if (myRes && typeof myRes.chips === 'number') {
-            this.saveClientBackup({ chips: myRes.chips });
+            this.saveClientBackup({ chips: myRes.chips, stats: myRes.stats });
           }
         }
         this.emitInternal('bj_round_result', data);
@@ -1173,7 +1267,8 @@
         password,
         clientBackup: this.getClientBackup(),
         bankBackup: this.getBankBackup(),
-        lotteryBackup: sameLotteryUser ? lotBackup : null
+        lotteryBackup: sameLotteryUser ? lotBackup : null,
+        leaderboardBackup: this.getLeaderboardBackup()
       });
     }
 
@@ -1205,7 +1300,8 @@
         sessionToken: token,
         clientBackup: sameUser ? backup : null,
         bankBackup: sameUser ? this.getBankBackup() : null,
-        lotteryBackup: sameLotteryUser ? lotBackup : null
+        lotteryBackup: sameLotteryUser ? lotBackup : null,
+        leaderboardBackup: this.getLeaderboardBackup()
       });
     }
 
@@ -1882,7 +1978,12 @@
      */
     getGlobalLeaderboard(options = {}) {
       if (!this.socket) return;
-      this.socket.emit('leaderboard_get', options);
+      const payload = (options && typeof options === 'object') ? { ...options } : {};
+      const lbBackup = this.getLeaderboardBackup();
+      if (lbBackup && lbBackup.length > 0) {
+        payload.leaderboardBackup = lbBackup;
+      }
+      this.socket.emit('leaderboard_get', payload);
     }
   }
 

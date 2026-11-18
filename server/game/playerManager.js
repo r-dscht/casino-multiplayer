@@ -344,6 +344,89 @@ class PlayerManager {
   }
 
   /**
+   * Monotonically merges stats objects so counts/winnings never regress.
+   * @private
+   */
+  _mergeStats(targetStats, sourceStats) {
+    const a = (targetStats && typeof targetStats === 'object') ? targetStats : {};
+    const b = (sourceStats && typeof sourceStats === 'object') ? sourceStats : {};
+    return {
+      roundsPlayed: Math.max(Number(a.roundsPlayed) || 0, Number(b.roundsPlayed) || 0),
+      totalWon: Math.max(Number(a.totalWon) || 0, Number(b.totalWon) || 0),
+      biggestWin: Math.max(Number(a.biggestWin) || 0, Number(b.biggestWin) || 0)
+    };
+  }
+
+  /**
+   * Reconciles backed-up client stats/chips (when matching the same username)
+   * without overwriting fresh server state.
+   * @private
+   */
+  _applySameUserBackup(record, backup, normKey) {
+    if (!record || !backup || typeof backup !== 'object') return false;
+    const bName = typeof backup.name === 'string' ? backup.name.trim().toLowerCase() : '';
+    const rKey = (normKey || record.usernameKey || (record.name ? record.name.toLowerCase() : '')).trim();
+    if (bName && rKey && bName !== rKey) return false;
+
+    let changed = false;
+    if (backup.stats && typeof backup.stats === 'object') {
+      const merged = this._mergeStats(record.stats, backup.stats);
+      const prev = record.stats || {};
+      if (merged.roundsPlayed !== (prev.roundsPlayed || 0) ||
+          merged.totalWon !== (prev.totalWon || 0) ||
+          merged.biggestWin !== (prev.biggestWin || 0)) {
+        record.stats = merged;
+        changed = true;
+      } else if (!record.stats) {
+        record.stats = merged;
+      }
+    }
+
+    const prevRounds = (record.stats && Number(record.stats.roundsPlayed)) || 0;
+    const prevChips = typeof record.chips === 'number' ? record.chips : STARTING_CHIPS;
+    if (prevRounds === 0 &&
+        prevChips === STARTING_CHIPS &&
+        Number.isInteger(backup.chips) &&
+        backup.chips >= 0 &&
+        backup.chips <= 1000000000 &&
+        backup.chips !== STARTING_CHIPS) {
+      record.chips = backup.chips;
+      changed = true;
+    }
+
+    if (rKey && this.accounts.has(rKey)) {
+      const acc = this.accounts.get(rKey);
+      if (acc !== record) {
+        acc.stats = this._mergeStats(acc.stats, record.stats);
+        if (changed) acc.chips = record.chips;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * Finds a player record in `this.players`, or restores an offline account from `this.accounts` into `this.players`
+   * so offline updates (Lottery/Racing/Bank) always synchronize both maps.
+   * @private
+   */
+  _resolveOrActivateRecord(playerId) {
+    if (!playerId) return null;
+    const existing = this.players.get(playerId);
+    if (existing) return existing;
+
+    for (const acc of this.accounts.values()) {
+      if (!acc) continue;
+      if (acc.id === playerId || (acc.usernameKey && acc.usernameKey === String(playerId).toLowerCase())) {
+        if (!acc.id) acc.id = playerId;
+        if (acc.connected === undefined) acc.connected = false;
+        this.players.set(acc.id, acc);
+        return acc;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Authenticates or resumes a session using a bearer sessionToken.
    * Restores exact PlayerRecord without resetting chips.
    * If token is missing or not found, registers a new player with 10,000 chips.
@@ -407,10 +490,16 @@ class PlayerManager {
             player.avatar = opts.avatar;
           }
           const currentNormKey = (player.usernameKey || player.name || '').toLowerCase();
+          if (backup) {
+            this._applySameUserBackup(player, backup, currentNormKey);
+          }
           if (currentNormKey && this.accounts.has(currentNormKey)) {
             const acc = this.accounts.get(currentNormKey);
             acc.color = player.color;
             acc.avatar = player.avatar;
+            acc.stats = this._mergeStats(acc.stats, player.stats);
+            player.stats = { ...acc.stats };
+            acc.chips = player.chips;
             acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, player.lastWheelSpin || 0);
             acc.lastSeen = Date.now();
           }
@@ -495,6 +584,9 @@ class PlayerManager {
           createdAt: existingAccount.createdAt || Date.now(),
           lastSeen: Date.now()
         };
+        if (backup) {
+          this._applySameUserBackup(player, backup, normKey);
+        }
         this.players.set(player.id, player);
         this.tokenToPlayerId.set(player.sessionToken, player.id);
         this.accounts.set(normKey, player);
@@ -506,6 +598,10 @@ class PlayerManager {
         }
         player.lastSeen = Date.now();
         player.lastWheelSpin = Math.max(player.lastWheelSpin || 0, existingAccount.lastWheelSpin || 0, backupWheelSpin);
+        player.stats = this._mergeStats(player.stats, existingAccount.stats);
+        if (backup) {
+          this._applySameUserBackup(player, backup, normKey);
+        }
         // Preserve player's existing server color
         if (!player.color) {
           player.color = existingAccount.color || opts.color || DEFAULT_COLORS[0];
@@ -517,6 +613,8 @@ class PlayerManager {
           const acc = this.accounts.get(player.usernameKey);
           acc.color = player.color;
           acc.avatar = player.avatar;
+          acc.stats = { ...player.stats };
+          acc.chips = player.chips;
           acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, player.lastWheelSpin || 0);
           acc.lastSeen = Date.now();
         }
@@ -791,7 +889,10 @@ class PlayerManager {
       existingPlayer.name = savedAccount.name || cleanName;
       existingPlayer.passwordHash = savedAccount.passwordHash || '';
       existingPlayer.chips = savedAccount.chips;
-      existingPlayer.stats = savedAccount.stats;
+      existingPlayer.stats = this._mergeStats(existingPlayer.stats, savedAccount.stats);
+      if (backup) {
+        this._applySameUserBackup(existingPlayer, backup, normKey);
+      }
       existingPlayer.currentGame = savedAccount.currentGame || 'Roulette';
       existingPlayer.location = savedAccount.location || 'ROULETTE';
       existingPlayer.seatIndex = savedAccount.seatIndex;
@@ -799,13 +900,7 @@ class PlayerManager {
       existingPlayer.lastWheelSpin = Math.max(existingPlayer.lastWheelSpin || 0, savedAccount.lastWheelSpin || 0, backupWheelSpin);
       if (!existingPlayer.color) existingPlayer.color = savedAccount.color || opts.color;
       if (opts.avatar) existingPlayer.avatar = opts.avatar;
-      if (existingPlayer.usernameKey && this.accounts.has(existingPlayer.usernameKey)) {
-        const acc = this.accounts.get(existingPlayer.usernameKey);
-        acc.color = existingPlayer.color;
-        acc.avatar = existingPlayer.avatar;
-        acc.lastWheelSpin = Math.max(acc.lastWheelSpin || 0, existingPlayer.lastWheelSpin || 0);
-        acc.lastSeen = Date.now();
-      }
+      this.accounts.set(normKey, existingPlayer);
 
       this.scheduleSave();
       return existingPlayer;
@@ -823,7 +918,7 @@ class PlayerManager {
       avatar: opts.avatar || savedAccount.avatar || 'avatar_1',
       color: savedAccount.color || opts.color || DEFAULT_COLORS[0],
       chips: savedAccount.chips,
-      stats: savedAccount.stats,
+      stats: savedAccount.stats ? { ...savedAccount.stats } : { roundsPlayed: 0, totalWon: 0, biggestWin: 0 },
       currentGame: savedAccount.currentGame || 'Roulette',
       location: savedAccount.location || 'ROULETTE',
       seatIndex: savedAccount.seatIndex !== undefined ? savedAccount.seatIndex : null,
@@ -836,6 +931,9 @@ class PlayerManager {
       createdAt: savedAccount.createdAt || Date.now(),
       lastSeen: Date.now()
     };
+    if (backup) {
+      this._applySameUserBackup(newPlayer, backup, normKey);
+    }
 
     this.players.set(id, newPlayer);
     this.tokenToPlayerId.set(savedAccount.sessionToken, id);
@@ -1006,7 +1104,7 @@ class PlayerManager {
    * @returns {{ success: boolean, chips?: number, reason?: string }}
    */
   deductChips(playerId, amount) {
-    const player = this.players.get(playerId);
+    const player = this._resolveOrActivateRecord(playerId);
     if (!player) {
       return { success: false, reason: 'Player not found' };
     }
@@ -1033,7 +1131,7 @@ class PlayerManager {
    * @returns {{ success: boolean, chips?: number, reason?: string }}
    */
   addChips(playerId, amount) {
-    const player = this.players.get(playerId);
+    const player = this._resolveOrActivateRecord(playerId);
     if (!player) {
       return { success: false, reason: 'Player not found' };
     }
@@ -1057,7 +1155,7 @@ class PlayerManager {
    * @returns {number|null} New chips balance
    */
   resetBankroll(playerId, amount = STARTING_CHIPS) {
-    const player = this.players.get(playerId);
+    const player = this._resolveOrActivateRecord(playerId);
     if (!player) return null;
     player.chips = amount;
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
@@ -1074,7 +1172,7 @@ class PlayerManager {
    * @returns {Object|null} Updated stats
    */
   updatePlayerStats(playerId, { wonAmount = 0 } = {}) {
-    const player = this.players.get(playerId);
+    const player = this._resolveOrActivateRecord(playerId);
     if (!player) return null;
     if (!player.stats) {
       player.stats = { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };
@@ -1325,18 +1423,24 @@ class PlayerManager {
       if (!normKey) return;
       const prev = uniqueByKey.get(normKey);
       if (!prev) {
-        uniqueByKey.set(normKey, rec);
+        uniqueByKey.set(normKey, {
+          ...rec,
+          stats: this._mergeStats(rec.stats, null)
+        });
         return;
       }
+      const mergedStats = this._mergeStats(prev.stats, rec.stats);
       const prevRounds = (prev.stats && prev.stats.roundsPlayed) || 0;
       const recRounds = (rec.stats && rec.stats.roundsPlayed) || 0;
       const shouldReplace =
         (!prev.connected && !!rec.connected) ||
         (!!prev.connected === !!rec.connected &&
           (recRounds > prevRounds || (recRounds === prevRounds && (rec.lastSeen || 0) > (prev.lastSeen || 0))));
-      if (shouldReplace) {
-        uniqueByKey.set(normKey, rec);
-      }
+      const chosen = shouldReplace ? rec : prev;
+      uniqueByKey.set(normKey, {
+        ...chosen,
+        stats: mergedStats
+      });
     };
 
     for (const acc of this.accounts.values()) ingest(acc);
@@ -1348,7 +1452,19 @@ class PlayerManager {
       const roundsPlayed = Number(stats.roundsPlayed) || 0;
       const totalWon = Number(stats.totalWon) || 0;
       const biggestWin = Number(stats.biggestWin) || 0;
-      const hasPlayed = roundsPlayed > 0 || totalWon > 0 || biggestWin > 0;
+      const chips = typeof rec.chips === 'number' ? rec.chips : STARTING_CHIPS;
+      const hasBankOrWheelActivity =
+        (Number(rec.lastWheelSpin) || 0) > 0 ||
+        (Array.isArray(rec.activeDebts) && rec.activeDebts.length > 0) ||
+        (Array.isArray(rec.activeLoansGiven) && rec.activeLoansGiven.length > 0) ||
+        (Array.isArray(rec.repaidLoanIds) && rec.repaidLoanIds.length > 0);
+      const hasChipActivity = chips !== STARTING_CHIPS;
+      const hasPlayed =
+        roundsPlayed > 0 ||
+        totalWon > 0 ||
+        biggestWin > 0 ||
+        hasChipActivity ||
+        hasBankOrWheelActivity;
 
       if (playedOnly && !hasPlayed) continue;
 
@@ -1363,7 +1479,7 @@ class PlayerManager {
         monogram: getMonogram(rec.name),
         avatar: rec.avatar || 'avatar_1',
         color: rec.color || DEFAULT_COLORS[0],
-        chips: typeof rec.chips === 'number' ? rec.chips : 0,
+        chips,
         connected: isConnected,
         currentGame: isConnected ? lastGame : 'Offline',
         lastGame,
@@ -1402,6 +1518,115 @@ class PlayerManager {
     });
 
     return list.slice(0, limit);
+  }
+
+  /**
+   * Restores previously cached All-Time / Offline leaderboard entries sent by
+   * reconnecting clients after an ephemeral cloud restart.
+   * Never downgrades live connected players or higher stats.
+   * @param {Array<Object>} entries
+   * @returns {boolean} True if at least one record was added or updated
+   */
+  restoreLeaderboardBackup(entries = []) {
+    if (!Array.isArray(entries) || entries.length === 0) return false;
+    let changed = false;
+    const cap = Math.min(200, entries.length);
+
+    for (let i = 0; i < cap; i += 1) {
+      const entry = entries[i];
+      if (!entry || typeof entry !== 'object') continue;
+      if (typeof entry.id !== 'string' || !entry.id.startsWith('ply_')) continue;
+      const cleanName = sanitizeName(entry.name);
+      if (!cleanName) continue;
+      const normKey = cleanName.toLowerCase();
+      if (!Number.isInteger(entry.chips) || entry.chips < 0 || entry.chips > 1000000000) continue;
+
+      const backupStats = this._mergeStats(entry.stats, null);
+      const hasBackupActivity =
+        backupStats.roundsPlayed > 0 ||
+        backupStats.totalWon > 0 ||
+        backupStats.biggestWin > 0 ||
+        entry.chips !== STARTING_CHIPS;
+      if (!hasBackupActivity) continue;
+
+      const existing = this.accounts.get(normKey) || this.players.get(entry.id) || null;
+      if (existing) {
+        const mergedStats = this._mergeStats(existing.stats, backupStats);
+        const prev = existing.stats || {};
+        if (mergedStats.roundsPlayed !== (prev.roundsPlayed || 0) ||
+            mergedStats.totalWon !== (prev.totalWon || 0) ||
+            mergedStats.biggestWin !== (prev.biggestWin || 0)) {
+          existing.stats = mergedStats;
+          changed = true;
+        }
+        const existingIdleAtStart =
+          !existing.connected &&
+          (Number(prev.roundsPlayed) || 0) === 0 &&
+          (Number(prev.totalWon) || 0) === 0 &&
+          existing.chips === STARTING_CHIPS;
+        if (existingIdleAtStart && (backupStats.roundsPlayed > 0 || entry.chips !== STARTING_CHIPS)) {
+          existing.chips = entry.chips;
+          if (typeof entry.color === 'string' && entry.color.startsWith('#')) {
+            existing.color = entry.color;
+          }
+          if (typeof entry.avatar === 'string' && entry.avatar.trim()) {
+            existing.avatar = entry.avatar.trim().slice(0, 24);
+          }
+          if (typeof entry.lastSeen === 'number' && Number.isFinite(entry.lastSeen)) {
+            existing.lastSeen = Math.max(existing.lastSeen || 0, Math.min(Date.now(), entry.lastSeen));
+          }
+          changed = true;
+        }
+        if (!this.players.has(existing.id)) {
+          this.players.set(existing.id, existing);
+        }
+        if (!this.accounts.has(normKey)) {
+          this.accounts.set(normKey, existing);
+        }
+        continue;
+      }
+
+      const rawGame = (typeof entry.lastGame === 'string' && entry.lastGame.trim())
+        ? entry.lastGame.trim().slice(0, 24)
+        : ((typeof entry.currentGame === 'string' && entry.currentGame.trim() && entry.currentGame !== 'Offline')
+          ? entry.currentGame.trim().slice(0, 24)
+          : 'Roulette');
+      const upperLoc = rawGame.toUpperCase();
+      const allowedLocs = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'];
+      const cleanLoc = allowedLocs.includes(upperLoc) ? upperLoc : 'ROULETTE';
+      const now = Date.now();
+      const record = {
+        id: entry.id,
+        sessionToken: `cst_${crypto.randomBytes(16).toString('hex')}`,
+        socketId: null,
+        usernameKey: normKey,
+        name: cleanName,
+        passwordHash: '',
+        avatar: (typeof entry.avatar === 'string' && entry.avatar.trim()) ? entry.avatar.trim().slice(0, 24) : 'avatar_1',
+        color: (typeof entry.color === 'string' && entry.color.startsWith('#')) ? entry.color : DEFAULT_COLORS[0],
+        chips: entry.chips,
+        stats: backupStats,
+        currentGame: rawGame,
+        location: cleanLoc,
+        seatIndex: null,
+        activeDebts: [],
+        activeLoansGiven: [],
+        repaidLoanIds: [],
+        lastWheelSpin: 0,
+        connected: false,
+        isHost: false,
+        createdAt: Number.isInteger(entry.createdAt) ? Math.min(now, entry.createdAt) : now,
+        lastSeen: (typeof entry.lastSeen === 'number' && Number.isFinite(entry.lastSeen)) ? Math.min(now, entry.lastSeen) : now
+      };
+      this.players.set(record.id, record);
+      this.accounts.set(normKey, record);
+      changed = true;
+    }
+
+    if (changed) {
+      this.scheduleSave();
+    }
+    return changed;
   }
 
   /**
