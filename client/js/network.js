@@ -25,6 +25,13 @@
       this._reauthInFlight = false;
       this._lastReauthAt = 0;
       this.handlers = new Map();
+      this.initialBuildHash = null;
+      this.initialBootId = null;
+      this._pendingVersionReload = null;
+      this._versionReloadTimer = null;
+      this._disconnectBannerTimer = null;
+      this._versionPollTimer = null;
+      this._isReloadingPage = false;
     }
 
     /**
@@ -338,6 +345,8 @@
         this.isConnected = true;
         this.isAuthenticated = false;
         this._reauthInFlight = false;
+        this._clearDisconnectWatchers();
+        this.emitInternal('reconnecting_status', { active: false });
         this.emitInternal('connection_change', { connected: true, id: this.socket.id });
 
         // Auto authenticate session on socket connect if stored bearer token, account name, or in-memory backup exists
@@ -361,7 +370,16 @@
         this.isConnected = false;
         this.isAuthenticated = false;
         this._reauthInFlight = false;
+        this._startDisconnectWatchers();
         this.emitInternal('connection_change', { connected: false, reason });
+      });
+
+      this.socket.on('server_version', (data) => {
+        this.handleServerVersion(data);
+      });
+
+      this.socket.on('server_updating', (data) => {
+        this.emitInternal('server_updating', data || { message: 'Nieuwe casino-update wordt geladen...' });
       });
 
       this.socket.on('auth_success', (data) => {
@@ -379,6 +397,9 @@
           if (wasRecovery) {
             this.emitInternal('session_recovered', data);
           }
+        }
+        if (this._pendingVersionReload) {
+          this._performSafePageReload(this._pendingVersionReload);
         }
       });
 
@@ -1984,6 +2005,117 @@
         payload.leaderboardBackup = lbBackup;
       }
       this.socket.emit('leaderboard_get', payload);
+    }
+
+    /**
+     * Compares incoming server `server_version` against the active tab version and
+     * triggers a safe auto-reload if a new server boot or client build was deployed.
+     * @param {{ buildHash?: string, bootId?: string }} data
+     */
+    handleServerVersion(data) {
+      if (!data || typeof data !== 'object') return false;
+      const incomingBoot = data.bootId ? String(data.bootId) : '';
+      const incomingHash = data.buildHash ? String(data.buildHash) : '';
+
+      if (!this.initialBootId && !this.initialBuildHash) {
+        this.initialBootId = incomingBoot || null;
+        this.initialBuildHash = incomingHash || null;
+        return false;
+      }
+
+      const bootChanged = Boolean(incomingBoot && this.initialBootId && incomingBoot !== this.initialBootId);
+      const hashChanged = Boolean(incomingHash && this.initialBuildHash && incomingHash !== this.initialBuildHash);
+      if (!bootChanged && !hashChanged) {
+        return false;
+      }
+
+      this._pendingVersionReload = data;
+      this.emitInternal('version_mismatch', data);
+
+      if (this._versionReloadTimer) {
+        clearTimeout(this._versionReloadTimer);
+      }
+      this._versionReloadTimer = setTimeout(() => {
+        this._versionReloadTimer = null;
+        if (this._pendingVersionReload) {
+          this._performSafePageReload(this._pendingVersionReload);
+        }
+      }, 700);
+      return true;
+    }
+
+    _startDisconnectWatchers() {
+      this._clearDisconnectWatchers();
+      this._disconnectBannerTimer = setTimeout(() => {
+        this._disconnectBannerTimer = null;
+        if (!this.isConnected) {
+          this.emitInternal('reconnecting_status', { active: true });
+          this._startVersionPolling();
+        }
+      }, 1500);
+    }
+
+    _clearDisconnectWatchers() {
+      if (this._disconnectBannerTimer) {
+        clearTimeout(this._disconnectBannerTimer);
+        this._disconnectBannerTimer = null;
+      }
+      if (this._versionPollTimer) {
+        clearInterval(this._versionPollTimer);
+        this._versionPollTimer = null;
+      }
+    }
+
+    _startVersionPolling() {
+      if (this._versionPollTimer || typeof fetch !== 'function') return;
+      const poll = async () => {
+        if (this.isConnected) {
+          this._clearDisconnectWatchers();
+          return;
+        }
+        try {
+          const res = await fetch('/api/version', { cache: 'no-store' });
+          if (!res.ok) return;
+          const json = await res.json();
+          if (json && (json.bootId || json.buildHash)) {
+            const changed = this.handleServerVersion(json);
+            if (!changed && this.socket && !this.socket.connected && typeof this.socket.connect === 'function') {
+              this.socket.connect();
+            }
+          }
+        } catch (e) {}
+      };
+      this._versionPollTimer = setInterval(poll, 2500);
+      poll();
+    }
+
+    _performSafePageReload(versionInfo) {
+      if (this._isReloadingPage) return false;
+      const bootKey = versionInfo && (versionInfo.bootId || versionInfo.buildHash)
+        ? String(versionInfo.bootId || versionInfo.buildHash)
+        : '';
+      try {
+        if (bootKey && typeof sessionStorage !== 'undefined') {
+          if (sessionStorage.getItem('casino_reloaded_boot_id') === bootKey) {
+            return false;
+          }
+          sessionStorage.setItem('casino_reloaded_boot_id', bootKey);
+          sessionStorage.setItem('casino_updated_toast', '1');
+        }
+      } catch (e) {}
+
+      this._isReloadingPage = true;
+      if (this._versionReloadTimer) {
+        clearTimeout(this._versionReloadTimer);
+        this._versionReloadTimer = null;
+      }
+      this.emitInternal('version_reloading', versionInfo || {});
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function') {
+          window.location.reload();
+        }
+      }, 600);
+      return true;
     }
   }
 

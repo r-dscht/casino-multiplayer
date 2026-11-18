@@ -178,7 +178,10 @@ class RouletteEngine extends EventEmitter {
       // Update player statistics
       let updatedStats = null;
       if (typeof this.playerManager.updatePlayerStats === 'function') {
-        updatedStats = this.playerManager.updatePlayerStats(playerId, { wonAmount: totalWon });
+        updatedStats = this.playerManager.updatePlayerStats(playerId, {
+          wonAmount: totalWon,
+          lostAmount: net < 0 ? -net : 0
+        });
       }
 
       results.push({

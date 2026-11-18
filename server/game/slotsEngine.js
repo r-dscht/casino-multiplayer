@@ -476,7 +476,10 @@ class SlotsEngine extends EventEmitter {
     // Career statistics
     let stats = null;
     if (typeof this.playerManager.updatePlayerStats === 'function') {
-      stats = this.playerManager.updatePlayerStats(playerId, { wonAmount: netProfit });
+      stats = this.playerManager.updatePlayerStats(playerId, {
+        wonAmount: netProfit,
+        lostAmount: totalPayout < wager ? (wager - totalPayout) : 0
+      });
     }
 
     const payoutMultiplier = Math.round((totalPayout / Math.max(1, effectiveBet)) * 100) / 100;

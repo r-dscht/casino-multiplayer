@@ -1023,7 +1023,10 @@ class BlackjackEngine extends EventEmitter {
 
       // Update statistics
       if (typeof this.playerManager.updatePlayerStats === 'function') {
-        this.playerManager.updatePlayerStats(seat.player.id, { wonAmount: totalWon });
+        this.playerManager.updatePlayerStats(seat.player.id, {
+          wonAmount: totalWon,
+          lostAmount: netProfit < 0 ? -netProfit : 0
+        });
       }
 
       const updatedPlayer = this.playerManager.getPlayerById(seat.player.id);

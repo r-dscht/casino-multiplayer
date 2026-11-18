@@ -6,6 +6,7 @@
  */
 
 const { Server } = require('socket.io');
+const { getVersionInfo } = require('./version');
 const PlayerManager = require('./game/playerManager');
 const RouletteEngine = require('./game/rouletteEngine');
 const BankManager = require('./game/bankManager');
@@ -655,9 +656,9 @@ function setupSocket(httpServer, options = {}) {
     io.emit('lottery_state', baseState);
     for (const p of playerManager.players.values()) {
       if (!p || !p.connected) continue;
-      const needsPersonal = lotteryEngine.participants.has(p.id) ||
-        (typeof lotteryEngine.hasPendingOfflineWin === 'function' && lotteryEngine.hasPendingOfflineWin(p.id, p.name)) ||
-        (typeof lotteryEngine.hasPendingOfflineOutcome === 'function' && lotteryEngine.hasPendingOfflineOutcome(p.id, p.name));
+      const key = String(p.usernameKey || p.name || p.id || '').trim().toLowerCase();
+      const needsPersonal = (key && lotteryEngine.personalHistory && lotteryEngine.personalHistory.has(key)) ||
+        lotteryEngine.participants.has(p.id);
       if (needsPersonal) {
         emitToPlayer(p.id, 'lottery_state', lotteryEngine.getPublicState(p.id));
       }
@@ -706,7 +707,7 @@ function setupSocket(httpServer, options = {}) {
     broadcastChatMessage({
       sender: 'CASINO',
       color: '#d4af37',
-      text: `[STAATSLOTERIJ] ${res.winnerName} wint de 100%-pot van ${res.potWon.toLocaleString()} fiches in Ronde #${res.roundId} (Lot #${res.winningTicketDisplay}/${res.totalTickets}, winkans ${res.winnerOddsPct}%)!`,
+      text: `[KRASLOTEN] ${res.winnerName} kraste ${res.tierLabel || 'een prijs'} open en won ${(res.potWon || 0).toLocaleString()} fiches uit de Krasloten-pot!`,
       timestamp: Date.now(),
       isSystem: true,
       scope: 'global',
@@ -1377,6 +1378,7 @@ function setupSocket(httpServer, options = {}) {
   // Client connection handler
   io.on('connection', (socket) => {
     let currentSocketPlayerId = null;
+    socket.emit('server_version', getVersionInfo());
 
     function notifyLoanCounterparties(restoredPlayerId) {
       for (const connectedPlayer of playerManager.getConnectedPlayers()) {
@@ -3598,6 +3600,9 @@ function setupSocket(httpServer, options = {}) {
       }
 
       socket.emit('chips_update', { chips: res.remainingChips, source: 'lottery' });
+      if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+        emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
+      }
       socket.emit('lottery_buy_ack', {
         ok: true,
         roundId: res.roundId,
@@ -3606,14 +3611,21 @@ function setupSocket(httpServer, options = {}) {
         playerName: res.playerName || player.name,
         count: res.count,
         totalCost: res.totalCost,
+        totalPayout: res.totalPayout || 0,
+        netProfit: res.netProfit || 0,
+        pot: res.pot,
         startTicket: res.startTicket,
         endTicket: res.endTicket,
-        pot: res.pot,
         totalTickets: res.totalTickets,
         remainingChips: res.remainingChips,
+        stats: res.stats || null,
+        ticket: res.ticket || null,
+        tickets: res.tickets || [],
+        repayments: res.repayments || [],
         mySummary: res.mySummary
       });
       socket.emit('lottery_state', res.state);
+      emitPersonalizedLotteryStates();
       broadcastPlayersUpdate();
     });
 
@@ -3704,6 +3716,12 @@ function setupSocket(httpServer, options = {}) {
     lotteryEngine,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
+    notifyServerUpdating: (reason) => {
+      io.emit('server_updating', {
+        ...getVersionInfo(),
+        message: reason || 'Nieuwe casino-update wordt geladen...'
+      });
+    },
     stop: () => {
       engine.stop();
       crashEngine.stop();

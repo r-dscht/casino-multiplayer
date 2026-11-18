@@ -306,7 +306,7 @@ class CrashEngine extends EventEmitter {
       if (!bet.cashedOut) {
         bet.payout = 0;
         bet.profit = -bet.amount;
-        this.playerManager.updatePlayerStats(playerId, { wonAmount: 0 });
+        this.playerManager.updatePlayerStats(playerId, { wonAmount: 0, lostAmount: bet.amount });
       }
     }
 

@@ -459,7 +459,10 @@ class RacingEngine extends EventEmitter {
 
       let stats = null;
       if (this.playerManager && typeof this.playerManager.updatePlayerStats === 'function') {
-        stats = this.playerManager.updatePlayerStats(pAgg.playerId, { wonAmount: netProfit });
+        stats = this.playerManager.updatePlayerStats(pAgg.playerId, {
+          wonAmount: netProfit,
+          lostAmount: pAgg.totalReturned < pAgg.totalStaked ? (pAgg.totalStaked - pAgg.totalReturned) : 0
+        });
       }
 
       const playerObj = this.playerManager && this.playerManager.getPlayerById(pAgg.playerId);

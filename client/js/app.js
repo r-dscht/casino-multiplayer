@@ -308,6 +308,65 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.showLoginError('Sessie verlopen. Log opnieuw in om verder te spelen.');
   });
 
+  // Live Deploy & Auto-Update Banner Controller
+  const deployBanner = document.getElementById('deploy-update-banner');
+  const deployText = document.getElementById('deploy-update-text');
+  const btnDeployReload = document.getElementById('btn-deploy-reload-now');
+
+  function showDeployBanner(text, { reloading = false, showBtn = true } = {}) {
+    if (!deployBanner) return;
+    if (deployText) deployText.textContent = text;
+    deployBanner.classList.toggle('is-reloading', Boolean(reloading));
+    if (btnDeployReload) btnDeployReload.classList.toggle('hidden', !showBtn);
+    deployBanner.classList.remove('hidden');
+  }
+
+  function hideDeployBanner() {
+    if (!deployBanner) return;
+    deployBanner.classList.add('hidden');
+  }
+
+  if (btnDeployReload) {
+    btnDeployReload.addEventListener('click', () => {
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('casino_updated_toast', '1');
+        }
+      } catch (e) {}
+      window.location.reload();
+    });
+  }
+
+  network.on('server_updating', (data) => {
+    showDeployBanner(
+      (data && data.message) || 'Nieuwe casino-update wordt geladen — je saldo blijft veilig bewaard...',
+      { reloading: false, showBtn: true }
+    );
+  });
+
+  network.on('reconnecting_status', ({ active } = {}) => {
+    if (active) {
+      showDeployBanner('Verbinding verbroken — opnieuw verbinden met nieuwste server...', { reloading: false, showBtn: true });
+    } else if (!network._isReloadingPage) {
+      hideDeployBanner();
+    }
+  });
+
+  network.on('version_mismatch', () => {
+    showDeployBanner('Nieuwe casino-versie gedetecteerd — pagina wordt automatisch ververst...', { reloading: true, showBtn: true });
+  });
+
+  network.on('version_reloading', () => {
+    showDeployBanner('Nieuwe versie gereed — pagina wordt vernieuwd...', { reloading: true, showBtn: false });
+  });
+
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('casino_updated_toast') === '1') {
+      sessionStorage.removeItem('casino_updated_toast');
+      ui.showToast('Casino is bijgewerkt naar de nieuwste versie!', 'success');
+    }
+  } catch (e) {}
+
   network.on('auth_success', (data) => {
     ui.hideLoginModal();
     if (data && data.player) {

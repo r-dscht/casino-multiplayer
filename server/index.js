@@ -19,6 +19,7 @@ const {
   crashEngine,
   playerManager,
   lotteryEngine,
+  notifyServerUpdating,
   stop: stopSocketEngines
 } = setupSocket(server);
 
@@ -72,6 +73,11 @@ function shutdown() {
   if (isShuttingDown) return;
   isShuttingDown = true;
   console.log('\nShutting down server...');
+  if (typeof notifyServerUpdating === 'function') {
+    try {
+      notifyServerUpdating('Nieuwe casino-update wordt geïnstalleerd — je saldo blijft veilig bewaard.');
+    } catch (e) {}
+  }
   if (tunnel) {
     try {
       tunnel.stop();

@@ -190,6 +190,13 @@
   <!-- Main Application Container -->
   <div id="casino-app">
 
+    <!-- Live Deploy & Auto-Update Refresh Banner -->
+    <div id="deploy-update-banner" class="deploy-update-banner hidden" role="status" aria-live="polite">
+      <span class="deploy-update-dot" aria-hidden="true"></span>
+      <span id="deploy-update-text" class="deploy-update-text">Nieuwe casino-update gedetecteerd — pagina wordt ververst...</span>
+      <button type="button" id="btn-deploy-reload-now" class="deploy-reload-btn">Nu Vernieuwen</button>
+    </div>
+
     <!-- Unified Master Luxury Header -->
     <header class="hud-header glass-panel master-header">
       <!-- Left: Casino Brand & Game Switcher -->
@@ -239,11 +246,11 @@
           <span>Beurs</span>
         </button>
 
-        <button type="button" class="btn-service-hud btn-lottery-hud" id="btn-open-lottery" title="Casino Staatsloterij (10-min trekking, 100% spelerspot, 0% casinovoordeel)">
+        <button type="button" class="btn-service-hud btn-lottery-hud" id="btn-open-lottery" title="Monte Carlo Gouden Krasloten (1.000 F per lot • 100% lot + 1% casinoverlies in pot)">
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><use href="#icon-lottery"></use></svg>
-          <span class="lottery-hud-label">Loterij</span>
-          <span class="lottery-hud-timer" id="hud-lottery-timer">10:00</span>
-          <span class="lottery-hud-pot" id="hud-lottery-pot">0 F</span>
+          <span class="lottery-hud-label">Krasloten</span>
+          <span class="lottery-hud-timer" id="hud-lottery-timer">1.000 F</span>
+          <span class="lottery-hud-pot" id="hud-lottery-pot">10.000 F</span>
         </button>
         </div>
 
@@ -2690,107 +2697,115 @@
       </div>
     </div>
 
-    <!-- Casino Staatsloterij (10-Minuten Multiplayer Trekking, 100% Spelerspot, 0% Huisvoordeel) -->
+    <!-- Monte Carlo Gouden Krasloten (1.000 F per lot -> 100% in pot + 1% casinoverlies) -->
     <div class="modal-overlay hidden" id="lottery-modal" role="dialog" aria-modal="true" aria-labelledby="lottery-modal-title">
-      <div class="modal-content luxury-modal-container lottery-modal-shell glass-panel">
+      <div class="modal-content luxury-modal-container lottery-modal-shell scratch-modal-shell glass-panel">
         <div class="luxury-modal-header">
           <div class="luxury-modal-title">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-lottery"></use></svg>
-            <span id="lottery-modal-title">Casino Staatsloterij</span>
-            <span class="lottery-round-chip">Ronde #<span id="lottery-round-id">1</span></span>
-            <span class="lottery-phase-pill is-open" id="lottery-phase-pill">INZET OPEN</span>
+            <span id="lottery-modal-title">Monte Carlo Gouden Krasloten</span>
+            <span class="lottery-round-chip">Lot #<span id="lottery-round-id">1</span></span>
+            <span class="lottery-phase-pill is-open" id="lottery-phase-pill">DIRECT KRASSEN</span>
           </div>
           <button type="button" class="btn-modal-close" id="btn-close-lottery-modal" aria-label="Sluiten">&times;</button>
         </div>
         <div class="luxury-modal-body lottery-modal-body">
-          <!-- Hero Pot & Countdown Card -->
+          <!-- Hero Progressive Pot Card -->
           <div class="lottery-hero-card glass-panel">
             <div class="lottery-hero-pot-block">
-              <span class="jackpot-caption">100% SPELERSPOT (0% CASINOVOORDEEL)</span>
-              <span class="jackpot-counter-val" id="lottery-jackpot-counter">0 Fiches</span>
+              <span class="jackpot-caption">GEZAMENLIJKE KRASLOTEN-POT (100% LOT + 1% CASINOVERLIES)</span>
+              <span class="jackpot-counter-val" id="lottery-jackpot-counter">10.000 Fiches</span>
               <div class="lottery-hero-submeta">
-                <span>2.500 F per lot • Onbeperkt kopen</span>
+                <span>1.000 F per kraslot • Match 3 symbolen</span>
                 <span>•</span>
-                <span id="lottery-total-tickets">0 loten</span>
+                <span id="lottery-total-tickets">0 loten gekrast</span>
                 <span>•</span>
-                <span id="lottery-participants-count">0 spelers</span>
+                <span id="lottery-participants-count">0 F uit verliezen</span>
               </div>
             </div>
             <div class="lottery-hero-timer-block">
-              <span class="lottery-timer-caption">VOLGENDE TREKKING</span>
-              <span class="lottery-timer-val" id="lottery-timer-val">10:00</span>
+              <span class="lottery-timer-caption">100% JACKPOT</span>
+              <span class="lottery-timer-val scratch-jackpot-val" id="lottery-timer-val">10.000 F</span>
             </div>
           </div>
 
-          <!-- Animated Raffle Reel Showcase (shown during 12s DRAWING / after last draw) -->
-          <div class="lottery-draw-status hidden" id="lottery-draw-status"></div>
-          <div class="lottery-reel-stage hidden" id="lottery-reel-stage">
-            <canvas id="lottery-fx-canvas" class="lottery-fx-canvas" aria-hidden="true"></canvas>
-            <div class="lottery-reel-pointer" aria-hidden="true"></div>
-            <div class="lottery-reel-track" id="lottery-reel-track"></div>
-          </div>
-          <div class="lottery-draw-banner hidden" id="lottery-draw-banner"></div>
+          <!-- Live Prize Tiers Table -->
+          <div class="scratch-prize-tiers" id="scratch-prize-table"></div>
 
-          <!-- Two-Column Workspace: Buy Tickets + Live Participants & Odds -->
-          <div class="lottery-columns-grid">
-            <!-- Left: Ticket Purchase & My Share -->
+          <!-- Interactive 3x3 Gold Foil Scratch Card Workspace -->
+          <div class="scratch-workspace-grid">
+            <div class="scratch-card-column">
+              <div class="lottery-draw-status" id="lottery-draw-status">Koop een Gouden Kraslot en veeg met je muis of vinger over het goud!</div>
+              <div class="lottery-reel-stage scratch-stage" id="lottery-reel-stage">
+                <div class="lottery-reel-track scratch-grid-3x3" id="lottery-reel-track">
+                  <div class="scratch-placeholder-note">Kraslot #1 klaar • Klik hieronder om een nieuw kraslot te trekken</div>
+                </div>
+                <canvas id="lottery-fx-canvas" class="lottery-fx-canvas scratch-foil-canvas"></canvas>
+              </div>
+              <div class="scratch-stage-actions">
+                <button type="button" class="btn btn-secondary btn-sm hidden" id="btn-scratch-reveal-all">KRAS ALLES OPEN</button>
+                <div class="lottery-draw-banner hidden" id="lottery-draw-banner"></div>
+              </div>
+            </div>
+
+            <!-- Right: Buy Card & Controls -->
             <div class="lottery-buy-card glass-panel">
-              <div class="lottery-section-title">Loten Kopen</div>
+              <div class="lottery-section-title">Kraslot Trekken (1.000 F)</div>
               <div class="lottery-qty-row">
                 <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-dec" aria-label="Minder loten">-</button>
-                <input type="number" id="lottery-qty-input" class="lottery-qty-input" min="1" max="10000" step="1" value="1" aria-label="Aantal loten">
+                <input type="number" id="lottery-qty-input" class="lottery-qty-input" min="1" max="25" step="1" value="1" aria-label="Aantal krasloten">
                 <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-inc" aria-label="Meer loten">+</button>
               </div>
               <div class="lottery-presets-row">
-                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="1">1 (2.5K)</button>
-                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="5">5 (12.5K)</button>
-                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="10">10 (25K)</button>
-                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="25">25 (62.5K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="1">1 (1K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="3">3 (3K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="5">5 (5K)</button>
+                <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="10">10 (10K)</button>
                 <button type="button" class="btn-quick-chip chip-all lottery-preset-btn" data-preset="max">MAX</button>
               </div>
 
               <div class="lottery-preview-box">
                 <div class="lottery-preview-row">
                   <span>Kosten deze aankoop</span>
-                  <strong id="lottery-preview-cost">2.500 F</strong>
+                  <strong id="lottery-preview-cost">1.000 F</strong>
                 </div>
                 <div class="lottery-preview-row">
-                  <span>Jouw loten na aankoop</span>
-                  <strong id="lottery-preview-tickets">1 lot</strong>
+                  <span>Na aankoop in pot</span>
+                  <strong class="text-gold" id="lottery-preview-tickets">11.000 F</strong>
                 </div>
                 <div class="lottery-preview-row">
-                  <span>Geschatte winkans</span>
-                  <strong class="text-gold" id="lottery-preview-odds">100.00%</strong>
+                  <span>Winkans per lot</span>
+                  <strong class="text-emerald" id="lottery-preview-odds">32.00%</strong>
                 </div>
               </div>
 
-              <button type="button" class="btn btn-gold btn-lg btn-block" id="btn-buy-lottery-ticket">KOOP 1 LOT (2.500 F)</button>
+              <button type="button" class="btn btn-gold btn-lg btn-block" id="btn-buy-lottery-ticket">KOOP 1 KRASLOT (1.000 F)</button>
 
               <div class="lottery-my-summary">
-                <div class="lottery-section-title">Mijn Deelname Deze Ronde</div>
+                <div class="lottery-section-title">Mijn Krasloten</div>
                 <div class="lottery-summary-stats">
-                  <div><span>Loten</span><strong id="lottery-my-tickets">0 loten</strong></div>
-                  <div><span>Ingezet</span><strong id="lottery-my-spent">0 F</strong></div>
-                  <div><span>Winkans</span><strong class="text-gold" id="lottery-my-odds">0.00%</strong></div>
+                  <div><span>Gekrast</span><strong id="lottery-my-tickets">0 loten</strong></div>
+                  <div><span>Besteed</span><strong id="lottery-my-spent">0 F</strong></div>
+                  <div><span>Gewonnen</span><strong class="text-emerald" id="lottery-my-odds">0 F</strong></div>
                 </div>
-                <div class="lottery-my-ranges" id="lottery-my-ranges">Nog geen loten in deze ronde</div>
-              </div>
-            </div>
-
-            <!-- Right: Live Participants + Odds Bars -->
-            <div class="lottery-participants-card glass-panel">
-              <div class="lottery-section-title">Deelnemers &amp; Winkansen</div>
-              <div class="lottery-participants-list" id="lottery-participants-list">
-                <div class="empty-state-notice">Nog geen deelnemers — koop het eerste lot en open de prijzenpot!</div>
+                <div class="lottery-my-ranges hidden" id="lottery-my-ranges"></div>
               </div>
             </div>
           </div>
 
-          <!-- Recent Winners Strip -->
-          <div class="lottery-history-section">
-            <div class="lottery-section-title">Recente Trekkingen</div>
-            <div class="lottery-history-list" id="lottery-history-list">
-              <div class="empty-state-notice">Nog geen afgeronde trekkingen</div>
+          <!-- History Split: Personal vs Casino Recent Wins -->
+          <div class="scratch-history-columns">
+            <div class="lottery-participants-card glass-panel">
+              <div class="lottery-section-title">Mijn Laatste Krasloten</div>
+              <div class="lottery-participants-list" id="lottery-participants-list">
+                <div class="empty-state-notice">Nog geen krasloten opengekrast</div>
+              </div>
+            </div>
+            <div class="lottery-history-section glass-panel">
+              <div class="lottery-section-title">Recente Klappers (Hele Casino)</div>
+              <div class="lottery-history-list" id="lottery-history-list">
+                <div class="empty-state-notice">Nog geen prijzen gevallen — pak de eerste klapper!</div>
+              </div>
             </div>
           </div>
         </div>

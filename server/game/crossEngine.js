@@ -331,7 +331,7 @@ class CrossEngine extends EventEmitter {
       this.activeRuns.delete(playerId);
 
       if (typeof this.playerManager.updatePlayerStats === 'function') {
-        this.playerManager.updatePlayerStats(playerId, { wonAmount: 0 });
+        this.playerManager.updatePlayerStats(playerId, { wonAmount: 0, lostAmount: run.betAmount });
       }
       this._persistPlayer(player);
 

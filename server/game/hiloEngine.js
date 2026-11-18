@@ -416,7 +416,10 @@ class HiloEngine extends EventEmitter {
     this.soloShoes.set(playerId, ladder.shoe);
     this.soloLadders.delete(playerId);
 
-    this.playerManager.updatePlayerStats(playerId, { wonAmount: halfCashedOutTotal });
+    this.playerManager.updatePlayerStats(playerId, {
+      wonAmount: halfCashedOutTotal,
+      lostAmount: netProfit < 0 ? -netProfit : 0
+    });
     const historyEntry = {
       mode: 'SOLO',
       initialBet,
@@ -592,7 +595,10 @@ class HiloEngine extends EventEmitter {
     ladder.unrecoveredCost -= recoveredNow;
 
     const { newChips, repayments } = this._settlePayout(playerId, payout, realizedProfit);
-    this.playerManager.updatePlayerStats(playerId, { wonAmount: totalPayout });
+    this.playerManager.updatePlayerStats(playerId, {
+      wonAmount: totalPayout,
+      lostAmount: netProfit < 0 ? -netProfit : 0
+    });
 
     const historyEntry = {
       mode: 'SOLO',

@@ -189,7 +189,10 @@ class PlinkoEngine {
       }
 
       if (typeof this.playerManager.updatePlayerStats === 'function') {
-        this.playerManager.updatePlayerStats(playerId, { wonAmount: profit });
+        this.playerManager.updatePlayerStats(playerId, {
+          wonAmount: profit,
+          lostAmount: payout < amount ? (amount - payout) : 0
+        });
       } else {
         if (!player.stats) {
           player.stats = { roundsPlayed: 0, totalWon: 0, biggestWin: 0 };

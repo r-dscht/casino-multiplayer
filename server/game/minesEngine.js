@@ -405,7 +405,7 @@ class MinesEngine extends EventEmitter {
       };
 
       this.soloGames.delete(playerId);
-      this.playerManager.updatePlayerStats(playerId, { wonAmount: 0 });
+      this.playerManager.updatePlayerStats(playerId, { wonAmount: 0, lostAmount: game.betAmount });
       if (typeof this.playerManager._persistPlayer === 'function') {
         this.playerManager._persistPlayer(player);
       }
@@ -976,7 +976,7 @@ class MinesEngine extends EventEmitter {
           p.status = 'BUSTED';
           p.payout = 0;
           const playerObj = this._ensurePlayer(p.playerId);
-          this.playerManager.updatePlayerStats(p.playerId, { wonAmount: 0 });
+          this.playerManager.updatePlayerStats(p.playerId, { wonAmount: 0, lostAmount: p.betAmount });
           if (playerObj && typeof this.playerManager._persistPlayer === 'function') {
             this.playerManager._persistPlayer(playerObj);
           }

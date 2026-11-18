@@ -19,8 +19,8 @@ Alle frontend-code staat in `client/` zonder build-stap of module-bundler; scrip
 
 ### Header, HUD & Actieve Modals
 - Master-header ID's: `#pill-roulette`, `#pill-blackjack`, `#pill-poker`, `#pill-crash`, `#pill-slots`, `#pill-plinko`, `#pill-hilo`, `#pill-racing`, `#pill-mines`, `#pill-cross`, `#pill-avia` (WIP-verborgen), `#hud-phase-badge`, `#phase-title`, `#phase-timer`, `#hud-history-strip`.
-- Service-HUD & Speler: `#btn-open-lottery` (`#hud-lottery-timer`, `#hud-lottery-pot`), `#btn-open-wheel` (`#hud-wheel-cooldown`), `#btn-open-bank`, `#hud-avatar-disc`, `#hud-player-name`, `#hud-player-chips`, `#btn-toggle-social`.
-- Modals: `#onboarding-modal` (`#input-player-name`, `#input-player-password`, `#btn-enter-table`), `#inside-bets-modal`, `#bank-modal`, `#player-profile-modal`, `#poker-buyin-modal`, `#lottery-modal` (`#lottery-draw-status`, `#lottery-reel-stage`, `#lottery-fx-canvas`, `#lottery-reel-track`, `#lottery-draw-banner`, `#btn-buy-lottery-ticket`).
+- Service-HUD & Speler: `#deploy-update-banner` (`#deploy-update-text`, `#btn-deploy-reload-now`), `#btn-open-lottery` (`#hud-lottery-timer`, `#hud-lottery-pot`), `#btn-open-wheel` (`#hud-wheel-cooldown`), `#btn-open-bank`, `#hud-avatar-disc`, `#hud-player-name`, `#hud-player-chips`, `#btn-toggle-social`.
+- Modals: `#onboarding-modal` (`#input-player-name`, `#input-player-password`, `#btn-enter-table`), `#inside-bets-modal`, `#bank-modal`, `#player-profile-modal`, `#poker-buyin-modal`, `#lottery-modal` (Monte Carlo Gouden Krasloten: `#scratch-prize-table`, `#lottery-reel-stage`, `#lottery-fx-canvas`, `#lottery-reel-track`, `#btn-scratch-reveal-all`, `#lottery-draw-banner`, `#btn-buy-lottery-ticket`).
 - Verborgen WIP-ankers (`.feature-wip-hidden`, intact laten voor tests): `#btn-open-market`, `#btn-open-exchange`, `#market-modal`, `#exchange-modal`, `#racing-modal`, `#gadgets-perks-dock` (`data-perks-hidden="true"`).
 
 ## Frontend Controllers (`client/js/`)
@@ -28,7 +28,7 @@ Alle frontend-code staat in `client/` zonder build-stap of module-bundler; scrip
 - `client/js/network.js` (`CasinoNetwork`) — Socket-wrapper, auto-reauth via `_lastAuthPayload`, `localStorage` backup (`saveClientBackup`, `getClientBackup`).
 - `client/js/ui.js` (`CasinoUI`) — Onboarding, HUD-updates, `updatePhase` (`phaseMap`), sidebar chat/leaderboard, profielkleurstudio, Roulette- & Blackjack-DOM.
 - `client/js/bank.js` (`CasinoBank`) — Bankmodal, P2P-leningen, inboxmeldingen en gratis rad.
-- `client/js/lottery.js` (`CasinoLottery`) — `10-min` aftelklok met offline backup (`casino_lottery_backup`), `myPendingOfflineWin`-viering, 3-fasen `renderReel` met `_burstLotterySparks` op canvas.
+- `client/js/lottery.js` (`CasinoLottery`) — Monte Carlo Gouden Krasloten controller met live pot (`100%` lotprijs + `1%` casinoverlies), dynamische prijstabel en interactieve 3x3 gouden kraslaag op canvas (`_paintGoldFoil`, `_eraseFoilBrush`, `revealScratchCard`).
 - `client/js/shell.js` — Viewport-classificatie en responsive drawer-gedrag (`setSocial`, `classify`, `onResize`).
 
 ## CSS Architectuur (`client/css/`)

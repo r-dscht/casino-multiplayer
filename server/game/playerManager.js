@@ -1166,12 +1166,13 @@ class PlayerManager {
   }
 
   /**
-   * Updates player gameplay statistics (rounds played, total won, biggest win).
-   * @param {string} playerId 
-   * @param {{ wonAmount?: number }} params 
+   * Updates player gameplay statistics (rounds played, total won, biggest win)
+   * and notifies `onHouseNetLoss(lostAmount, playerId)` when a net loss is recorded.
+   * @param {string} playerId
+   * @param {{ wonAmount?: number, lostAmount?: number }} params
    * @returns {Object|null} Updated stats
    */
-  updatePlayerStats(playerId, { wonAmount = 0 } = {}) {
+  updatePlayerStats(playerId, { wonAmount = 0, lostAmount = 0 } = {}) {
     const player = this._resolveOrActivateRecord(playerId);
     if (!player) return null;
     if (!player.stats) {
@@ -1183,6 +1184,11 @@ class PlayerManager {
       if (wonAmount > player.stats.biggestWin) {
         player.stats.biggestWin = wonAmount;
       }
+    }
+    if (typeof lostAmount === 'number' && Number.isFinite(lostAmount) && lostAmount > 0 && typeof this.onHouseNetLoss === 'function') {
+      try {
+        this.onHouseNetLoss(lostAmount, playerId);
+      } catch (err) {}
     }
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
       this.accounts.get(player.usernameKey).stats = { ...player.stats };
