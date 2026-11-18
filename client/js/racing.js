@@ -27,32 +27,52 @@
 
   const SURFACE_THEMES = {
     RIVIERA_TURF: {
-      grassA: '#0f3828',
-      grassB: '#154734',
-      railColor: '#d4af37',
-      skyTint: 'rgba(212, 175, 55, 0.05)',
+      skyTop: '#071b24',
+      skyBot: '#103b31',
+      grandstand: '#0c2329',
+      hedge: '#0a3322',
+      grassA: '#0f3c2b',
+      grassB: '#164d38',
+      railColor: '#eed5a2',
+      skyTint: 'rgba(238, 213, 162, 0.04)',
       particleColor: 'rgba(214, 198, 150, 0.72)',
+      clodColor: '#2d5a3b',
     },
     NIGHT_DERBY: {
-      grassA: '#0b1e2e',
-      grassB: '#112a3d',
-      railColor: '#38bdf8',
-      skyTint: 'rgba(56, 189, 248, 0.09)',
-      particleColor: 'rgba(186, 230, 253, 0.7)',
+      skyTop: '#040914',
+      skyBot: '#0c1c34',
+      grandstand: '#091122',
+      hedge: '#0a2232',
+      grassA: '#0b2234',
+      grassB: '#102e44',
+      railColor: '#7dd3fc',
+      skyTint: 'rgba(56, 189, 248, 0.08)',
+      particleColor: 'rgba(186, 230, 253, 0.72)',
+      clodColor: '#1d4963',
     },
     GOLDEN_HOUR: {
-      grassA: '#2a2214',
-      grassB: '#382d1a',
-      railColor: '#f59e0b',
+      skyTop: '#241219',
+      skyBot: '#4d2a1b',
+      grandstand: '#231419',
+      hedge: '#242514',
+      grassA: '#262915',
+      grassB: '#33361b',
+      railColor: '#fbbf24',
       skyTint: 'rgba(245, 158, 11, 0.09)',
-      particleColor: 'rgba(253, 230, 138, 0.74)',
+      particleColor: 'rgba(253, 230, 138, 0.76)',
+      clodColor: '#4c451f',
     },
     RAIN_DERBY: {
-      grassA: '#0c2720',
-      grassB: '#12352c',
-      railColor: '#94a3b8',
+      skyTop: '#091119',
+      skyBot: '#14262f',
+      grandstand: '#0c1721',
+      hedge: '#0a251f',
+      grassA: '#0c2b24',
+      grassB: '#123830',
+      railColor: '#cbd5e1',
       skyTint: 'rgba(148, 163, 184, 0.08)',
-      particleColor: 'rgba(148, 163, 184, 0.75)',
+      particleColor: 'rgba(186, 230, 253, 0.75)',
+      clodColor: '#1f493e',
     },
   };
 
@@ -85,6 +105,38 @@
   function formatChips(val) {
     const n = Math.floor(Number(val) || 0);
     return n.toLocaleString('nl-NL');
+  }
+
+  let silkSvgSeq = 0;
+
+  function renderSilkSvg(horse, size = 34) {
+    const color = escapeHtml((horse && horse.silkColor) || '#d4af37');
+    const accent = escapeHtml((horse && horse.silkAccent) || '#ffffff');
+    const pat = (horse && horse.silkPattern) || 'sash';
+    silkSvgSeq += 1;
+    const clipId = `silk_clip_${(horse && horse.horseId) || 1}_${silkSvgSeq}`;
+    let overlay = '';
+    if (pat === 'sash') {
+      overlay = `<path d="M9 6 L13 6 L27 29 L23 29 Z" fill="${accent}" opacity="0.92"/>`;
+    } else if (pat === 'stripe') {
+      overlay = `<rect x="13" y="6" width="3" height="23" fill="${accent}" opacity="0.92"/><rect x="20" y="6" width="3" height="23" fill="${accent}" opacity="0.92"/>`;
+    } else if (pat === 'diamond') {
+      overlay = `<polygon points="18,10 24,18 18,26 12,18" fill="${accent}" opacity="0.92"/>`;
+    } else if (pat === 'chevron') {
+      overlay = `<path d="M10 13 L18 20 L26 13 L26 18 L18 25 L10 18 Z" fill="${accent}" opacity="0.92"/>`;
+    } else if (pat === 'check') {
+      overlay = `<rect x="10" y="9" width="8" height="8" fill="${accent}" opacity="0.88"/><rect x="18" y="17" width="8" height="8" fill="${accent}" opacity="0.88"/>`;
+    } else if (pat === 'star') {
+      overlay = `<polygon points="18,10 20.2,15.2 25.8,15.6 21.4,19.2 22.8,24.8 18,21.6 13.2,24.8 14.6,19.2 10.2,15.6 15.8,15.2" fill="${accent}" opacity="0.94"/>`;
+    }
+    const labelNum = Number((horse && horse.horseId) || 1);
+    return `<svg class="racing-silk-svg" viewBox="0 0 36 34" width="${size}" height="${Math.round(size * 34 / 36)}" aria-hidden="true">` +
+      `<defs><clipPath id="${escapeHtml(clipId)}"><path d="M11 6 L15 8 C17 9 19 9 21 8 L25 6 L33 11 L30 18 L27 16.5 L27 29 L9 29 L9 16.5 L6 18 L3 11 Z"/></clipPath></defs>` +
+      `<path d="M11 6 L15 8 C17 9 19 9 21 8 L25 6 L33 11 L30 18 L27 16.5 L27 29 L9 29 L9 16.5 L6 18 L3 11 Z" fill="${color}" stroke="rgba(255,255,255,0.48)" stroke-width="1.2" stroke-linejoin="round"/>` +
+      `<g clip-path="url(#${escapeHtml(clipId)})">${overlay}</g>` +
+      `<circle cx="27.5" cy="25.5" r="7" fill="#080b12" stroke="rgba(238,213,162,0.8)" stroke-width="1"/>` +
+      `<text x="27.5" y="28.3" text-anchor="middle" fill="#fff2d6" font-size="9" font-weight="800" font-family="Inter, sans-serif">${labelNum}</text>` +
+      `</svg>`;
   }
 
   class CasinoRacing {
@@ -154,6 +206,13 @@
       this._cacheElements();
       this._bindUIEvents();
       this._bindNetworkEvents();
+      if (typeof window !== 'undefined') {
+        window.addEventListener('resize', () => {
+          if (this.viewActive && this.els.canvas) {
+            this._drawFrame(typeof performance !== 'undefined' ? performance.now() : Date.now());
+          }
+        });
+      }
       this._renderAll();
     }
 
@@ -161,6 +220,9 @@
       this.viewActive = true;
       this._startAnimationLoop();
       this._renderHeader();
+      if (this.els.canvas) {
+        this._drawFrame(typeof performance !== 'undefined' ? performance.now() : Date.now());
+      }
       if (this.ui && typeof this.ui.setNavigationLocked === 'function') {
         this.ui.setNavigationLocked(this.hasActiveBets());
       }
@@ -199,6 +261,7 @@
         historyBar: document.getElementById('racing-history-bar'),
         ticketCount: document.getElementById('racing-ticket-count'),
         horseSelect: document.getElementById('racing-horse-select'),
+        runnerSpotlight: document.getElementById('racing-runner-spotlight'),
         betAmountInput: document.getElementById('racing-bet-amount'),
         potentialPayout: document.getElementById('racing-potential-payout'),
         btnPlaceBet: document.getElementById('btn-place-racing-bet'),
@@ -576,9 +639,11 @@
       } else if (mod === 'double') {
         this.setBetAmount(Math.min(MAX_BET, cur * 2));
       } else if (mod === 'max') {
-        const myChips = (this.network && this.network.player && typeof this.network.player.chips === 'number')
-          ? this.network.player.chips
-          : MAX_BET;
+        const myChips = (this.ui && this.ui.myPlayer && typeof this.ui.myPlayer.chips === 'number')
+          ? this.ui.myPlayer.chips
+          : ((this.network && this.network.player && typeof this.network.player.chips === 'number')
+              ? this.network.player.chips
+              : MAX_BET);
         const maxAllowed = Math.max(MIN_BET, Math.min(MAX_BET, Math.floor(myChips / 10) * 10 || MIN_BET));
         this.setBetAmount(maxAllowed);
       }
@@ -617,6 +682,9 @@
       this._renderBetSlip();
       this._renderTicketsAndFeed();
       this._renderHistory();
+      if (this.viewActive && this.els.canvas) {
+        this._drawFrame(typeof performance !== 'undefined' ? performance.now() : Date.now());
+      }
     }
 
     _estimateHorsePoolStats(horseId, prospectiveStake = 0, alreadyBacked = false) {
@@ -741,13 +809,23 @@
           <span class="live-rank-chip rank-${i + 1}">
             <span class="rank-pos">${i + 1}e</span>
             <span class="rank-dot" style="background:${escapeHtml(h.silkColor)}"></span>
-            <span class="rank-name">#${h.horseId} ${escapeHtml(h.name)}</span>
+            <span class="rank-name">#${h.horseId} ${escapeHtml((h.name || '').split(' ')[0])}</span>
+            <span class="rank-pct">${Math.min(100, Math.round(h.pos))}%</span>
           </span>
         `).join('');
+        if (this.els.paddockGrid) {
+          this.state.horses.forEach((h) => {
+            const bar = this.els.paddockGrid.querySelector(`[data-horse-progress="${h.horseId}"]`);
+            if (bar) {
+              const p = Math.max(0, Math.min(100, Number((this.targetPositions && this.targetPositions[h.horseId]) || 0)));
+              bar.style.width = `${p.toFixed(1)}%`;
+            }
+          });
+        }
       } else {
         const rollover = Math.max(0, Math.floor(Number(this.state.winnerPot || 0)));
         const rollStr = rollover > 0 ? ` • Rollover Pot: ${formatChips(rollover)} F` : '';
-        this.els.liveTop3.innerHTML = `<span class="live-leader-pill">6 Gelijke Paarden (1/6) • ${BASE_WIN_ODDS.toFixed(2)}x Basis + 50% Verliezers Winnaarspot${rollStr}</span>`;
+        this.els.liveTop3.innerHTML = `<span class="live-leader-pill">6 Volbloeden (1/6) • ${BASE_WIN_ODDS.toFixed(2)}x Basis + 50% Pot${rollStr}</span>`;
       }
     }
 
@@ -755,6 +833,7 @@
       if (!this.els.paddockGrid || !Array.isArray(this.state.horses)) return;
 
       const cleanAmt = Math.max(MIN_BET, Math.floor(Number(this.betAmount) || MIN_BET));
+      const isRacingOrDone = this.state.phase === 'RACING' || this.state.phase === 'FINISHED';
       const myTicketByHorse = new Map();
       (this.state.myTickets || []).forEach((t) => {
         myTicketByHorse.set(Number(t.horseId), t);
@@ -770,6 +849,9 @@
         const myTkt = myTicketByHorse.get(Number(h.horseId));
         const isBacked = Boolean(myTkt);
         const backers = ticketsByHorse[h.horseId] || [];
+        const progPct = isRacingOrDone
+          ? Math.max(0, Math.min(100, Number((this.targetPositions && this.targetPositions[h.horseId]) || 0)))
+          : 0;
 
         const uniqueBackers = [];
         const seen = new Set();
@@ -799,21 +881,21 @@
           : poolEst.estPotBonus;
         const potBadgeHtml = potChipNum > 0
           ? `<span class="horse-pot-share-badge">+${formatChips(potChipNum)} F Pot${uniqueBackers.length > 1 ? ` / ${uniqueBackers.length}` : ''}</span>`
-          : '';
+          : '<span class="horse-pot-share-badge is-base">1/6 gelijke kans</span>';
 
         return `
-          <div class="racing-horse-card ${isSelected ? 'selected' : ''} ${isBacked ? 'is-backed' : ''}" data-horse-id="${h.horseId}">
+          <div class="racing-horse-card ${isSelected ? 'selected' : ''} ${isBacked ? 'is-backed' : ''}" data-horse-id="${h.horseId}" style="--horse-silk:${escapeHtml(h.silkColor || '#d4af37')};">
             <div class="horse-card-top">
-              <div class="horse-silk-badge" style="background:${escapeHtml(h.silkColor)};border-bottom:3px solid ${escapeHtml(h.silkAccent || '#ffffff')};">
-                ${h.horseId}
+              <div class="horse-silk-badge">
+                ${renderSilkSvg(h, 28)}
               </div>
               <div class="horse-identity">
                 <div class="horse-name-row">
                   <span class="horse-name">${escapeHtml(h.name)}</span>
-                  ${isBacked ? '<span class="horse-backed-tag">JOUW INZET</span>' : ''}
                 </div>
                 <div class="horse-meta-row">
-                  <span class="horse-jockey">Jockey: ${escapeHtml(h.jockey)}</span>
+                  <span class="horse-coat-dot" style="background:${escapeHtml(h.coatColor || '#7c3f1d')}" aria-hidden="true"></span>
+                  <span class="horse-jockey">${escapeHtml(h.jockey)}</span>
                 </div>
               </div>
               <div class="horse-odds-col">
@@ -824,10 +906,16 @@
 
             <div class="horse-card-footer">
               <div class="horse-supporters">
-                ${backerBadges || '<span class="no-bets-hint">1 op 6 gelijke kans</span>'}
+                ${backerBadges || '<span class="no-bets-hint">Nog geen inzetten</span>'}
                 ${uniqueBackers.length > 4 ? `<span class="horse-bettor-more">+${uniqueBackers.length - 4}</span>` : ''}
               </div>
-              ${h.cheers > 0 ? `<span class="horse-cheers-pill">Hype ${h.cheers}</span>` : ''}
+              <div class="horse-footer-tags">
+                ${isBacked ? '<span class="horse-backed-tag">JOUW INZET</span>' : ''}
+                ${h.cheers > 0 ? `<span class="horse-cheers-pill">Hype ${h.cheers}</span>` : ''}
+              </div>
+            </div>
+            <div class="horse-live-progress-track">
+              <div class="horse-live-progress-fill" data-horse-progress="${h.horseId}" style="width:${progPct.toFixed(1)}%;background:${escapeHtml(h.silkColor || '#d4af37')};"></div>
             </div>
           </div>
         `;
@@ -844,17 +932,57 @@
         this.els.ticketCount.textContent = `${myCount} / ${MAX_TICKETS_PER_PLAYER} Ticket`;
       }
 
+      if (this.els.runnerSpotlight && selectedHorse) {
+        const myTktOnSelected = (this.state.myTickets || []).find((t) => Number(t.horseId) === Number(selectedHorse.horseId));
+        const cleanAmt = myTktOnSelected
+          ? Math.max(MIN_BET, Math.floor(Number(myTktOnSelected.amount) || MIN_BET))
+          : Math.max(MIN_BET, Math.floor(Number(this.betAmount) || MIN_BET));
+        const est = this._estimateHorsePoolStats(selectedHorse.horseId, cleanAmt, Boolean(myTktOnSelected));
+        this.els.runnerSpotlight.style.setProperty('--spotlight-silk', selectedHorse.silkColor || '#d4af37');
+        this.els.runnerSpotlight.innerHTML = `
+          <div class="spotlight-silk-wrap">${renderSilkSvg(selectedHorse, 38)}</div>
+          <div class="spotlight-meta">
+            <div class="spotlight-title-row">
+              <strong>#${selectedHorse.horseId} ${escapeHtml(selectedHorse.name)}</strong>
+              ${myTktOnSelected ? '<span class="horse-backed-tag">INGEZET</span>' : ''}
+            </div>
+            <div class="spotlight-sub">
+              <span class="horse-coat-dot" style="background:${escapeHtml(selectedHorse.coatColor || '#7c3f1d')}" aria-hidden="true"></span>
+              <span>Jockey ${escapeHtml(selectedHorse.jockey)} &bull; 1/6 kans</span>
+            </div>
+          </div>
+          <div class="spotlight-odds-chip">${est.estMult.toFixed(2)}x</div>
+        `;
+      }
+
+      if (this.els.view) {
+        const presetBtns = this.els.view.querySelectorAll('.racing-chip-preset');
+        presetBtns.forEach((btn) => {
+          btn.classList.toggle('active', Number(btn.dataset.amount) === Number(this.betAmount));
+        });
+      }
+
       if (this.els.potentialPayout && selectedHorse) {
         const myExistingOnSelected = (this.state.myTickets || []).find((t) => Number(t.horseId) === Number(selectedHorse.horseId));
         const cleanAmt = myExistingOnSelected
           ? Math.max(0, Math.floor(Number(myExistingOnSelected.amount) || 0))
           : Math.max(0, Math.floor(Number(this.betAmount) || 0));
         const est = this._estimateHorsePoolStats(selectedHorse.horseId, cleanAmt, Boolean(myExistingOnSelected));
-        const potText = est.estPotBonus > 0
-          ? ` + <strong>${formatChips(est.estPotBonus)} F</strong> Pot = <strong>${formatChips(est.estTotal)} F</strong> (${est.estMult.toFixed(2)}x)`
-          : ` (${BASE_WIN_ODDS.toFixed(2)}x + 50% Verliezers-Pot)`;
         this.els.potentialPayout.innerHTML = `
-          Basis ${formatChips(est.estBase)} F${potText}
+          <div class="payout-metrics-grid">
+            <div class="payout-metric">
+              <span class="pm-label">Basis (3.38x)</span>
+              <strong class="pm-val">${formatChips(est.estBase)} F</strong>
+            </div>
+            <div class="payout-metric">
+              <span class="pm-label">+ Winnaarspot</span>
+              <strong class="pm-val is-pot">+${formatChips(est.estPotBonus)} F</strong>
+            </div>
+            <div class="payout-metric">
+              <span class="pm-label">Totaal (${est.estMult.toFixed(2)}x)</span>
+              <strong class="pm-val is-total">${formatChips(est.estTotal)} F</strong>
+            </div>
+          </div>
           <span class="crown-hint">50% verliezers in Pot &bull; 50% naar Casino${est.onHorseExisting > 0 && !myExistingOnSelected ? ` &bull; Deelt op #${selectedHorse.horseId}` : ''}</span>
         `;
       }
@@ -955,17 +1083,24 @@
       if (!this.els.podiumOverlay || !result || !Array.isArray(result.podium)) return;
 
       const winOddsDisplay = Number(result.winOdds || BASE_WIN_ODDS).toFixed(2);
-      const podiumHtml = result.podium.map((p) => `
-        <div class="podium-card podium-place-${p.rank}">
-          <div class="podium-rank">${p.rank === 1 ? '1E WINNAAR' : `${p.rank}E PLAATS`}</div>
-          <div class="podium-silk" style="background:${escapeHtml(p.silkColor)};border-bottom:3px solid ${escapeHtml(p.silkAccent || '#ffffff')}">${p.horseId}</div>
-          <div class="podium-horse-name">${escapeHtml(p.name)}</div>
-          <div class="podium-meta">
-            <span>${p.rank === 1 ? `${winOddsDisplay}x` : '-'}</span>
-            <span>${((p.finishTimeMs || 12800) / 1000).toFixed(2)}s</span>
+      const orderByRank = new Map(result.podium.map((p) => [p.rank, p]));
+      const steppedList = [orderByRank.get(2), orderByRank.get(1), orderByRank.get(3)].filter(Boolean);
+      const renderList = steppedList.length === 3 ? steppedList : result.podium;
+
+      const podiumHtml = renderList.map((p) => {
+        const horseObj = (this.state.horses || []).find((h) => h.horseId === p.horseId) || p;
+        return `
+          <div class="podium-card podium-place-${p.rank}">
+            <div class="podium-rank">${p.rank === 1 ? '1E KAMPIOEN' : `${p.rank}E PLAATS`}</div>
+            <div class="podium-silk-emblem">${renderSilkSvg(horseObj, p.rank === 1 ? 42 : 34)}</div>
+            <div class="podium-horse-name">${escapeHtml(p.name)}</div>
+            <div class="podium-meta">
+              <span>${p.rank === 1 ? `${winOddsDisplay}x` : '-'}</span>
+              <span>${((p.finishTimeMs || 12800) / 1000).toFixed(2)}s</span>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
       let bannerMsg = '';
       if (result.isPhotoFinish) {
@@ -1090,19 +1225,21 @@
         const isSurging = this.surgingSet.has(h.horseId);
 
         if (isRacing) {
-          this.stridePhases[h.horseId] = (this.stridePhases[h.horseId] || 0) + dt * (9.5 + spd * 1.25 + (isSurging ? 4.5 : 0));
-          const dustProb = isSurging ? dt * 32 : dt * 16;
+          this.stridePhases[h.horseId] = (this.stridePhases[h.horseId] || 0) + dt * (10.5 + spd * 1.3 + (isSurging ? 4.8 : 0));
+          const dustProb = isSurging ? dt * 36 : dt * 20;
           if (Math.random() < dustProb) {
+            const spawnClod = Math.random() < 0.35 && !isSurging;
             this.particles.push({
-              type: isSurging ? 'spark' : 'dust',
+              type: isSurging ? 'spark' : (spawnClod ? 'clod' : 'dust'),
               horseId: h.horseId,
-              posPct: Math.max(0, next - 1.4),
-              offsetY: (Math.random() - 0.5) * 9,
-              vx: isSurging ? (-45 - Math.random() * 45) : (-22 - Math.random() * 28),
-              vy: (Math.random() - 0.5) * 16,
+              posPct: Math.max(0, next - 1.5),
+              offsetY: 5 + (Math.random() - 0.5) * 6,
+              vx: isSurging ? (-52 - Math.random() * 48) : (-26 - Math.random() * 30),
+              vy: spawnClod ? (-24 - Math.random() * 20) : ((Math.random() - 0.5) * 14),
+              gravity: spawnClod ? 68 : 0,
               life: 1,
-              decay: isSurging ? 2.4 : 2.1,
-              size: isSurging ? (2.0 + Math.random() * 2.4) : (1.6 + Math.random() * 2.0),
+              decay: isSurging ? 2.5 : (spawnClod ? 2.2 : 2.0),
+              size: isSurging ? (2.1 + Math.random() * 2.4) : (spawnClod ? (1.8 + Math.random() * 1.6) : (1.7 + Math.random() * 2.0)),
               color: isSurging ? '#fbbf24' : null,
             });
           }
@@ -1112,6 +1249,9 @@
       this.particles.forEach((p) => {
         p.offsetX = (p.offsetX || 0) + p.vx * dt;
         p.offsetY = (p.offsetY || 0) + p.vy * dt;
+        if (p.gravity) {
+          p.vy += p.gravity * dt;
+        }
         p.life -= p.decay * dt;
       });
       this.particles = this.particles.filter((p) => p.life > 0);
@@ -1151,25 +1291,56 @@
       const myTickets = (this.state && Array.isArray(this.state.myTickets)) ? this.state.myTickets : [];
       const backedSet = new Set(myTickets.map((t) => t.horseId));
 
-      const padLeft = 58;
-      const padRight = 54;
+      const padLeft = 66;
+      const padRight = 56;
       const usableW = Math.max(120, W - padLeft - padRight);
-      const topRail = 24;
-      const botRail = H - 16;
+      const topRail = Math.max(38, Math.round(H * 0.165));
+      const botRail = H - 20;
       const laneH = (botRail - topRail) / 6;
-
-      // 1. Track Background + Parallax Mowed Turf Stripes
-      ctx.fillStyle = theme.grassB;
-      ctx.fillRect(0, 0, W, H);
-
-      const stripeCount = 14;
-      const stripeW = usableW / stripeCount;
       const isRacing = this.state && this.state.phase === 'RACING';
-      const parallaxShift = isRacing ? ((this.state.progressPct || 0) * 1.4) % (stripeW * 2) : 0;
+
+      // 1. Monte Carlo Grandstand Sky & Horizon Backdrop
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, topRail);
+      skyGrad.addColorStop(0, theme.skyTop || '#071b24');
+      skyGrad.addColorStop(1, theme.skyBot || '#103b31');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, topRail);
+
+      // Coastal Grandstand Silhouette & Illuminated Arches
+      ctx.fillStyle = theme.grandstand || '#0c2329';
+      ctx.fillRect(padLeft - 8, 8, usableW + 18, topRail - 14);
+      ctx.fillStyle = 'rgba(238, 213, 162, 0.08)';
+      for (let gx = padLeft; gx < padLeft + usableW - 12; gx += 26) {
+        ctx.fillRect(gx, 12, 16, Math.max(4, topRail - 22));
+      }
+
+      // Grandstand Roof Fascia Sign
+      ctx.fillStyle = 'rgba(10, 14, 22, 0.84)';
+      ctx.fillRect(padLeft + usableW * 0.34, 4, usableW * 0.32, 12);
+      ctx.strokeStyle = 'rgba(238, 213, 162, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padLeft + usableW * 0.34, 4, usableW * 0.32, 12);
+      ctx.fillStyle = '#fff2d6';
+      ctx.font = '800 8px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('PORT HERCULE • MONACO', padLeft + usableW * 0.5, 10);
+
+      // Hedge Verge Border along top rail
+      ctx.fillStyle = theme.hedge || '#0a3322';
+      ctx.fillRect(0, topRail - 7, W, 7);
+
+      // 2. Track Surface + Mowed Turf Parallax Stripes
+      ctx.fillStyle = theme.grassB;
+      ctx.fillRect(0, topRail, W, H - topRail);
+
+      const stripeCount = 16;
+      const stripeW = usableW / stripeCount;
+      const parallaxShift = isRacing ? ((this.state.progressPct || 0) * 1.6) % (stripeW * 2) : 0;
 
       ctx.save();
       ctx.beginPath();
-      ctx.rect(padLeft, topRail, usableW, botRail - topRail);
+      ctx.rect(padLeft, topRail, usableW + 14, botRail - topRail);
       ctx.clip();
       for (let i = -2; i <= stripeCount + 2; i += 1) {
         if (Math.abs(i) % 2 === 0) {
@@ -1179,45 +1350,49 @@
       }
       ctx.restore();
 
-      // Atmospheric layer (Rain or Floodlights or Sky Tint)
+      // Atmospheric overlay (Rain streaks or Night floodlight beams or Golden sheen)
       ctx.fillStyle = theme.skyTint;
       ctx.fillRect(0, 0, W, H);
 
       if (track.id === 'RAIN_DERBY') {
-        ctx.strokeStyle = 'rgba(186, 230, 253, 0.22)';
+        ctx.strokeStyle = 'rgba(186, 230, 253, 0.24)';
         ctx.lineWidth = 1;
-        const shift = (nowMs * 0.28) % 44;
-        for (let rx = -44; rx < W + 44; rx += 28) {
+        const shift = (nowMs * 0.32) % 44;
+        for (let rx = -44; rx < W + 44; rx += 26) {
           ctx.beginPath();
           ctx.moveTo(rx + shift, 0);
-          ctx.lineTo(rx - 22 + shift, H);
+          ctx.lineTo(rx - 24 + shift, H);
           ctx.stroke();
         }
       } else if (track.id === 'NIGHT_DERBY') {
         for (let lx = 0.2; lx <= 0.85; lx += 0.3) {
-          const grad = ctx.createRadialGradient(W * lx, 0, 4, W * lx, H * 0.4, H * 0.9);
-          grad.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
+          const grad = ctx.createRadialGradient(W * lx, 0, 4, W * lx, H * 0.42, H * 0.92);
+          grad.addColorStop(0, 'rgba(56, 189, 248, 0.18)');
           grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
           ctx.fillStyle = grad;
           ctx.fillRect(0, 0, W, H);
         }
       }
 
-      // Highlight player's backed lane subtly all across the track
+      // Highlight player's backed lane with luxury emerald/gold carpet spotlight
       horses.forEach((h, i) => {
         if (backedSet.has(h.horseId)) {
           const yTop = topRail + i * laneH;
-          ctx.fillStyle = 'rgba(212, 175, 55, 0.08)';
+          const laneGrad = ctx.createLinearGradient(padLeft, yTop, padLeft + usableW, yTop);
+          laneGrad.addColorStop(0, 'rgba(16, 185, 129, 0.16)');
+          laneGrad.addColorStop(0.5, 'rgba(238, 213, 162, 0.10)');
+          laneGrad.addColorStop(1, 'rgba(16, 185, 129, 0.16)');
+          ctx.fillStyle = laneGrad;
           ctx.fillRect(padLeft, yTop, usableW, laneH);
         }
       });
 
-      // 2. Sprintpoort & Eindsprint Visual Zones
+      // 3. Sprintpoort & Eindsprint Visual Zones with Turf Chevrons
       const turboZones = (this.state && Array.isArray(this.state.turboZones)) ? this.state.turboZones : [];
       turboZones.forEach((z) => {
         const zx = padLeft + (z.startPct / 100) * usableW;
         const zw = ((z.endPct - z.startPct) / 100) * usableW;
-        const pulse = 0.11 + 0.05 * Math.sin(nowMs * 0.005);
+        const pulse = 0.12 + 0.05 * Math.sin(nowMs * 0.005);
         const zGrad = ctx.createLinearGradient(zx, topRail, zx + zw, topRail);
         zGrad.addColorStop(0, 'rgba(212, 175, 55, 0)');
         zGrad.addColorStop(0.5, `rgba(212, 175, 55, ${pulse.toFixed(3)})`);
@@ -1225,97 +1400,164 @@
         ctx.fillStyle = zGrad;
         ctx.fillRect(zx, topRail, zw, botRail - topRail);
 
-        ctx.fillStyle = 'rgba(245, 198, 72, 0.82)';
-        ctx.font = '700 9px Inter, sans-serif';
+        // Directional chevron marks along center of zone
+        ctx.strokeStyle = 'rgba(253, 230, 138, 0.22)';
+        ctx.lineWidth = 1.4;
+        const zMid = zx + zw / 2;
+        for (let r = 0; r < 6; r += 1) {
+          const cy = topRail + (r + 0.5) * laneH;
+          ctx.beginPath();
+          ctx.moveTo(zMid - 5, cy - 4);
+          ctx.lineTo(zMid, cy);
+          ctx.lineTo(zMid - 5, cy + 4);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(10, 14, 22, 0.85)';
+        ctx.beginPath();
+        ctx.roundRect(zMid - 34, topRail - 17, 68, 13, 4);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(238, 213, 162, 0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '800 8px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(z.label || 'SPRINTPOORT', zx + zw / 2, topRail - 8);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(z.label || 'SPRINTPOORT', zMid, topRail - 10.5);
       });
 
-      // 3. Monaco Guardrails & Distance Posts
+      // 4. Monaco Brushed-Brass Guardrails, Fence Posts & Distance Bollards
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      ctx.fillRect(0, botRail, W, H - botRail);
+
       ctx.strokeStyle = theme.railColor;
       ctx.lineWidth = 2.4;
       ctx.beginPath();
-      ctx.moveTo(padLeft, topRail);
-      ctx.lineTo(W - padRight + 14, topRail);
-      ctx.moveTo(padLeft, botRail);
-      ctx.lineTo(W - padRight + 14, botRail);
+      ctx.moveTo(padLeft - 4, topRail);
+      ctx.lineTo(W - padRight + 16, topRail);
+      ctx.moveTo(padLeft - 4, botRail);
+      ctx.lineTo(W - padRight + 16, botRail);
       ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.36)';
+      ctx.lineWidth = 1.3;
+      for (let px = padLeft; px <= padLeft + usableW + 8; px += 46) {
+        ctx.beginPath();
+        ctx.moveTo(px, topRail - 4);
+        ctx.lineTo(px, topRail + 2);
+        ctx.moveTo(px, botRail - 2);
+        ctx.lineTo(px, botRail + 4);
+        ctx.stroke();
+      }
 
       [25, 50, 75].forEach((pct) => {
         const x = padLeft + (pct / 100) * usableW;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
-        ctx.moveTo(x, topRail);
-        ctx.lineTo(x, botRail);
+        ctx.moveTo(x, topRail + 2);
+        ctx.lineTo(x, botRail - 2);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(229, 231, 235, 0.46)';
-        ctx.font = '600 9px monospace';
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.beginPath();
+        ctx.roundRect(x - 16, H - 15, 32, 12, 3);
+        ctx.fill();
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 8px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`${pct * 8}m`, x, H - 5);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${pct * 8}m`, x, H - 9);
       });
 
-      // Finish Wire (Checkered + Photo-Finish laser)
+      // Finish Post & Checkered Line + Photo-Finish Laser
       const finishX = padLeft + usableW;
-      const cell = 6;
+      const cell = 5.5;
       const rows = Math.ceil((botRail - topRail) / cell);
       for (let r = 0; r < rows; r += 1) {
-        ctx.fillStyle = r % 2 === 0 ? '#f8fafc' : '#111827';
+        ctx.fillStyle = r % 2 === 0 ? '#f8fafc' : '#0f172a';
         ctx.fillRect(finishX - 4, topRail + r * cell, 4, cell);
-        ctx.fillStyle = r % 2 === 0 ? '#111827' : '#f8fafc';
+        ctx.fillStyle = r % 2 === 0 ? '#0f172a' : '#f8fafc';
         ctx.fillRect(finishX, topRail + r * cell, 4, cell);
       }
-      ctx.fillStyle = '#e5e7eb';
-      ctx.font = '700 9px Inter, sans-serif';
+
+      // Royal Finish Arch Post
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.roundRect(finishX - 20, topRail - 17, 40, 14, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#eed5a2';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#fff2d6';
+      ctx.font = '800 8px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('FINISH', finishX, topRail - 8);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FINISH', finishX, topRail - 10);
 
       if (this.state && this.state.photoFinishActive) {
         const laserAlpha = 0.65 + 0.35 * Math.sin(nowMs * 0.02);
         ctx.strokeStyle = `rgba(239, 68, 68, ${laserAlpha.toFixed(2)})`;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.6;
         ctx.beginPath();
-        ctx.moveTo(finishX, topRail - 4);
+        ctx.moveTo(finishX, topRail - 3);
         ctx.lineTo(finishX, botRail + 4);
         ctx.stroke();
       }
 
-      // 4. Lane Dividers, Stall Badges & Mechanical Starting Gates
+      // 5. Lane Dividers, Silk Number Plaques & Chrome Starting Gates
       for (let i = 0; i < 6; i += 1) {
         const yTop = topRail + i * laneH;
         const yMid = yTop + laneH / 2;
         if (i > 0) {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+          ctx.setLineDash([7, 5]);
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(padLeft, yTop);
           ctx.lineTo(finishX + 10, yTop);
           ctx.stroke();
+          ctx.setLineDash([]);
         }
         const h = horses[i];
         const silk = h ? h.silkColor : '#d4af37';
+        const acc = h ? (h.silkAccent || '#ffffff') : '#ffffff';
+        const isBackedLane = h && backedSet.has(h.horseId);
+
+        ctx.fillStyle = '#0c111b';
+        ctx.beginPath();
+        ctx.roundRect(8, yMid - 11, 34, 22, 5);
+        ctx.fill();
+        ctx.strokeStyle = isBackedLane ? '#10b981' : 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = isBackedLane ? 1.6 : 1;
+        ctx.stroke();
+
         ctx.fillStyle = silk;
         ctx.beginPath();
-        ctx.roundRect(10, yMid - 11, 26, 22, 5);
+        ctx.roundRect(10, yMid - 9, 12, 18, 3);
         ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '800 11px Inter, sans-serif';
+        ctx.fillStyle = acc;
+        ctx.fillRect(10, yMid + 5, 12, 2.5);
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '800 10.5px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(h ? h.horseId : i + 1), 23, yMid);
+        ctx.fillText(String(h ? h.horseId : i + 1), 32, yMid + 0.5);
 
-        // Starting gate frame + swinging door
-        ctx.strokeStyle = 'rgba(226, 232, 240, 0.34)';
-        ctx.lineWidth = 1.6;
-        ctx.strokeRect(padLeft - 14, yTop + 3, 14, laneH - 6);
+        // Chrome Starting Box + Swing Gate
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.36)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(padLeft - 17, yTop + 3, 17, laneH - 6);
 
-        const swingAngle = (this.gateOpenProgress || 0) * (Math.PI * 0.45);
+        const swingAngle = (this.gateOpenProgress || 0) * (Math.PI * 0.48);
         ctx.save();
         ctx.translate(padLeft, yTop + 3);
         ctx.rotate(-swingAngle);
-        ctx.strokeStyle = this.gateOpenProgress > 0.2 ? 'rgba(16, 185, 129, 0.65)' : '#f59e0b';
-        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = this.gateOpenProgress > 0.2 ? 'rgba(16, 185, 129, 0.72)' : '#fbbf24';
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(0, laneH - 6);
@@ -1323,10 +1565,10 @@
         ctx.restore();
       }
 
-      // Starting Lights HUD at Start Line
-      this._drawStartingLights(ctx, padLeft - 7, topRail - 10, nowMs);
+      // Starting Lights Gantry above Stall 1
+      this._drawStartingLights(ctx, padLeft - 8, topRail - 11, nowMs);
 
-      // 5. Particles (Dust, Surge Sparks & Cheer Fireworks)
+      // 6. Particles (Turf Clods, Dust, Surge Sparks & Cheer Fireworks)
       this.particles.forEach((p) => {
         const idx = Math.max(0, Math.min(5, (p.horseId || 1) - 1));
         const yMid = topRail + idx * laneH + laneH / 2;
@@ -1336,35 +1578,42 @@
         const px = padLeft + (basePos / 100) * usableW + (p.offsetX || 0);
         const py = yMid + (p.offsetY || 0);
         ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
-        ctx.fillStyle = p.color || theme.particleColor;
+        ctx.fillStyle = p.type === 'clod'
+          ? (theme.clodColor || '#2d5a3b')
+          : (p.color || theme.particleColor);
         ctx.beginPath();
-        ctx.arc(px, py, p.size, 0, Math.PI * 2);
-        ctx.fill();
+        if (p.type === 'clod') {
+          ctx.fillRect(px - p.size / 2, py - p.size / 2, p.size * 1.2, p.size * 0.9);
+        } else {
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
       });
       ctx.globalAlpha = 1;
 
-      // 6. Galloping Horses, Sprint Speed Lines & Silk Jockeys
+      // 7. Galloping Sculpted Thoroughbreds, Surge Draft Lines & Silk Patterned Jockeys
       horses.forEach((h, i) => {
         const yMid = topRail + i * laneH + laneH / 2;
         const posPct = this.visualPositions[h.horseId] || 0;
         const hx = padLeft + (posPct / 100) * usableW;
         const phase = this.stridePhases[h.horseId] || 0;
-        const bob = isRacing ? Math.sin(phase) * 2.3 : 0;
+        const idleBreath = !isRacing ? Math.sin(nowMs * 0.0032 + h.horseId * 1.3) * 0.6 : 0;
+        const bob = isRacing ? Math.sin(phase) * 2.4 : idleBreath;
         const isBacked = backedSet.has(h.horseId);
         const isSelected = h.horseId === this.selectedHorseId;
         const isSurging = isRacing && this.surgingSet.has(h.horseId);
 
-        // Sprint Surge Turbo Speed Lines
+        // Sprint Surge Aero Lines
         if (isSurging) {
           ctx.save();
           for (let s = 0; s < 3; s += 1) {
             const sy = yMid + bob - 5 + s * 5;
-            const len = 18 + ((nowMs * 0.08 + s * 9) % 14);
-            ctx.strokeStyle = s === 1 ? 'rgba(251, 191, 36, 0.85)' : 'rgba(56, 189, 248, 0.65)';
-            ctx.lineWidth = s === 1 ? 2.2 : 1.4;
+            const len = 22 + ((nowMs * 0.09 + s * 10) % 16);
+            ctx.strokeStyle = s === 1 ? 'rgba(251, 191, 36, 0.9)' : 'rgba(56, 189, 248, 0.7)';
+            ctx.lineWidth = s === 1 ? 2.4 : 1.4;
             ctx.beginPath();
-            ctx.moveTo(hx - 18, sy);
-            ctx.lineTo(hx - 18 - len, sy);
+            ctx.moveTo(hx - 20, sy);
+            ctx.lineTo(hx - 20 - len, sy);
             ctx.stroke();
           }
           ctx.restore();
@@ -1372,35 +1621,42 @@
 
         if (isBacked || isSelected) {
           ctx.save();
-          ctx.strokeStyle = isBacked ? '#10b981' : '#d4af37';
-          ctx.lineWidth = isBacked ? 2.2 : 1.4;
+          ctx.strokeStyle = isBacked ? 'rgba(16, 185, 129, 0.78)' : 'rgba(238, 213, 162, 0.65)';
+          ctx.lineWidth = isBacked ? 2.0 : 1.3;
+          ctx.setLineDash(isBacked ? [] : [4, 3]);
           ctx.beginPath();
-          ctx.ellipse(hx - 3, yMid + bob + 1, 24, 13, 0, 0, Math.PI * 2);
+          ctx.ellipse(hx - 2, yMid + bob + 2, 26, Math.min(laneH * 0.44, 15), 0, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         }
 
-        this._drawHorseSilhouette(ctx, hx, yMid + bob, h, phase, isRacing, isSurging);
+        this._drawHorseSilhouette(ctx, hx, yMid + bob, h, phase, isRacing, isSurging, laneH, nowMs);
 
-        // Clear Backed Tag or Selected Pointer next to Horse
         if (isBacked) {
-          ctx.fillStyle = '#10b981';
-          ctx.font = '800 9px Inter, sans-serif';
-          ctx.textAlign = 'left';
+          const badgeX = Math.min(W - 40, hx + 21);
+          ctx.fillStyle = '#065f46';
+          ctx.beginPath();
+          ctx.roundRect(badgeX, yMid - 14, 24, 11, 3);
+          ctx.fill();
+          ctx.strokeStyle = '#34d399';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.fillStyle = '#ecfdf5';
+          ctx.font = '800 7.5px Inter, sans-serif';
+          ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('JIJ', Math.min(W - 36, hx + 18), yMid - 8);
+          ctx.fillText('JIJ', badgeX + 12, yMid - 8.5);
         }
 
-        // Floating Cheer callout banner
         const pulse = this.cheerPulses[h.horseId];
         if (pulse && pulse.until > nowMs) {
           const floatOffset = ((pulse.until - nowMs) / 1600);
           ctx.save();
           ctx.globalAlpha = Math.min(1, floatOffset * 1.4);
           ctx.fillStyle = pulse.color || '#d4af37';
-          ctx.font = '800 10px Inter, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(pulse.label || 'HYPE!', hx - 4, yMid - 15 - (1 - floatOffset) * 8);
+          ctx.font = '800 9.5px Inter, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(pulse.label || 'HYPE!', Math.min(W - 60, hx + 16), yMid - 8 - (1 - floatOffset) * 5);
           ctx.restore();
         }
       });
@@ -1432,65 +1688,80 @@
 
       if (ph === 'BETTING') {
         color = (this.state.timeLeft || 0) <= 5 ? '#ef4444' : '#f59e0b';
-        glow = 'rgba(245, 158, 11, 0.4)';
+        glow = 'rgba(245, 158, 11, 0.45)';
         label = `${Math.max(0, this.state.timeLeft || 0)}s`;
       } else if (ph === 'STARTING') {
         color = '#ef4444';
-        glow = 'rgba(239, 68, 68, 0.75)';
+        glow = 'rgba(239, 68, 68, 0.8)';
         label = 'SET';
       } else if (ph === 'RACING' || ph === 'FINISHED') {
         color = '#10b981';
-        glow = 'rgba(16, 185, 129, 0.65)';
+        glow = 'rgba(16, 185, 129, 0.75)';
         label = 'GO';
       }
 
       const blink = ph === 'STARTING' ? (0.6 + 0.4 * Math.sin(nowMs * 0.02)) : 1;
       ctx.save();
+      ctx.fillStyle = 'rgba(10, 14, 22, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(cx - 22, cy - 11, 44, 15, 4);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
       ctx.globalAlpha = blink;
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.arc(cx - 12, cy - 3.5, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+      ctx.arc(cx - 12, cy - 3.5, 3.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
+      ctx.globalAlpha = 1;
 
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '700 8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(label, cx, cy - 8);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '800 8px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx - 4, cy - 3.5);
+      ctx.restore();
     }
 
-    _drawHorseSilhouette(ctx, hx, hy, horse, phase, isMoving, isSurging = false) {
+    _drawHorseSilhouette(ctx, hx, hy, horse, phase, isMoving, isSurging = false, laneH = 38, nowMs = 0) {
       const coatIdx = Math.max(0, ((Number(horse.horseId) || 1) - 1) % COAT_PALETTE.length);
       const coat = horse.coatColor || COAT_PALETTE[coatIdx];
       const silk = horse.silkColor || '#d4af37';
       const accent = horse.silkAccent || '#ffffff';
-      const legSwing = isMoving ? Math.sin(phase) * 7 : 0;
-      const legOpp = isMoving ? Math.sin(phase + Math.PI) * 7 : 0;
-      const kneeBend = isMoving ? Math.max(0, Math.cos(phase)) * 3.5 : 0;
-      const kneeBendOpp = isMoving ? Math.max(0, Math.cos(phase + Math.PI)) * 3.5 : 0;
+      const pat = horse.silkPattern || 'sash';
+      const sc = Math.max(0.86, Math.min(1.24, laneH / 34));
+
+      const legSwing = isMoving ? Math.sin(phase) * 7.8 : 0;
+      const legOpp = isMoving ? Math.sin(phase + Math.PI) * 7.8 : 0;
+      const kneeBend = isMoving ? Math.max(0, Math.cos(phase)) * 4.2 : 0;
+      const kneeBendOpp = isMoving ? Math.max(0, Math.cos(phase + Math.PI)) * 4.2 : 0;
+      const idleNod = !isMoving ? Math.sin(nowMs * 0.0026 + (horse.horseId || 1)) * 0.9 : 0;
 
       ctx.save();
       ctx.translate(hx, hy);
+      ctx.scale(sc, sc);
 
       // Ground shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
       ctx.beginPath();
-      ctx.ellipse(-3, 12, 14, 3.2, 0, 0, Math.PI * 2);
+      ctx.ellipse(-2, 12.2, 15.5, 3.3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Articulated Fore & Hind Legs (two-segment gallop + white hoof sock)
-      const drawLeg = (hipX, reachX, bendY) => {
-        const kneeX = hipX + reachX * 0.48;
-        const kneeY = 6.8 - bendY * 0.45;
+      // Articulated Fore & Hind Legs (far limbs shaded darker for genuine depth)
+      const drawLeg = (hipX, reachX, bendY, isFar) => {
+        const kneeX = hipX + reachX * 0.52;
+        const kneeY = 6.5 - bendY * 0.45;
         const hoofX = hipX + reachX;
         const hoofY = 11.4 - bendY;
 
-        ctx.strokeStyle = coat;
-        ctx.lineWidth = 2.3;
+        ctx.strokeStyle = isFar ? '#161311' : coat;
+        ctx.lineWidth = isFar ? 2.1 : 2.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(hipX, 2.5);
@@ -1498,66 +1769,140 @@
         ctx.lineTo(hoofX, hoofY);
         ctx.stroke();
 
-        ctx.fillStyle = '#e5e7eb';
+        // White ankle sock + dark hoof tip
+        ctx.fillStyle = isFar ? '#cbd5e1' : '#f8fafc';
         ctx.beginPath();
-        ctx.arc(hoofX, hoofY, 1.3, 0, Math.PI * 2);
+        ctx.arc(hoofX - reachX * 0.08, hoofY - 0.8, 1.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(hoofX, hoofY, 1.35, 0, Math.PI * 2);
         ctx.fill();
       };
 
-      drawLeg(-12, -2 + legSwing, kneeBend);
-      drawLeg(-8, -1 + legOpp, kneeBendOpp);
-      drawLeg(4, 3 + legOpp, kneeBendOpp);
-      drawLeg(7, 4 + legSwing, kneeBend);
+      // Far legs first
+      drawLeg(-12, -2 + legSwing, kneeBend, true);
+      drawLeg(4.5, 3 + legOpp, kneeBendOpp, true);
 
-      // Wind-whipped flowing tail
-      ctx.strokeStyle = '#111827';
-      ctx.lineWidth = 2.6;
+      // Animated wind-whipped tail
+      const tailWave = isMoving ? Math.cos(phase) * 3.4 : Math.sin(nowMs * 0.004 + (horse.horseId || 1)) * 1.1;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.8;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(-15, -1);
-      ctx.quadraticCurveTo(-24, -3 + (isMoving ? Math.cos(phase) * 3 : 0), -28, 3);
+      ctx.moveTo(-15.5, -1.2);
+      ctx.quadraticCurveTo(-24, -4 + tailWave, -29, 3.5 + tailWave * 0.4);
       ctx.stroke();
 
-      // Athletic horse torso
+      // Muscular body + shoulder + hindquarters
       ctx.fillStyle = coat;
       ctx.beginPath();
-      ctx.ellipse(-4, 0, 12.5, 5.6, -0.05, 0, Math.PI * 2);
+      ctx.ellipse(-4, 0, 13.4, 5.8, -0.04, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-11.5, -0.2, 5.2, 0, Math.PI * 2);
+      ctx.arc(4.8, -0.4, 4.9, 0, Math.PI * 2);
       ctx.fill();
 
-      // Extending Neck & Head (lunges lower/forward during surge!)
-      const lungeX = isSurging ? 2 : 0;
+      // Subtle dorsal sheen highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.beginPath();
-      ctx.moveTo(4, -2.5);
-      ctx.lineTo(13 + lungeX, -8.5);
-      ctx.lineTo(17.5 + lungeX, -5);
-      ctx.lineTo(16 + lungeX, -2);
-      ctx.lineTo(8, 2.2);
+      ctx.ellipse(-3.5, -3.2, 9.5, 1.6, -0.04, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Near legs over lower body
+      drawLeg(-8.5, -1 + legOpp, kneeBendOpp, false);
+      drawLeg(7.2, 4.2 + legSwing, kneeBend, false);
+
+      // Extending Neck & Head with ears, muzzle & white forehead blaze
+      const lungeX = isSurging ? 2.6 : 0;
+      const headY = idleNod;
+      ctx.fillStyle = coat;
+      ctx.beginPath();
+      ctx.moveTo(4.2, -2.5);
+      ctx.lineTo(13.2 + lungeX, -9.2 + headY);
+      ctx.lineTo(15.2 + lungeX, -11.5 + headY); // ear tip
+      ctx.lineTo(16.2 + lungeX, -8.5 + headY);
+      ctx.lineTo(19.2 + lungeX, -4.4 + headY);  // muzzle
+      ctx.lineTo(17.5 + lungeX, -1.5 + headY);
+      ctx.lineTo(8.5, 2.5);
       ctx.closePath();
       ctx.fill();
 
-      // Flowing Mane
-      ctx.strokeStyle = '#111827';
-      ctx.lineWidth = 2;
+      // Forehead blaze + Bridle & Reins
+      ctx.strokeStyle = 'rgba(248, 250, 252, 0.85)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.moveTo(5, -3.5);
-      ctx.lineTo(11 + lungeX, -9);
+      ctx.moveTo(15.4 + lungeX, -7.8 + headY);
+      ctx.lineTo(18.0 + lungeX, -4.6 + headY);
       ctx.stroke();
 
-      // Saddlecloth + Distinct Silk Jersey + Accent Stripe
+      ctx.strokeStyle = '#090d14';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(17.2 + lungeX, -2.5 + headY);
+      ctx.lineTo(4.5, -6.2);
+      ctx.stroke();
+
+      // Flowing Mane
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(5, -4);
+      ctx.lineTo(12 + lungeX, -9.6 + headY);
+      ctx.stroke();
+
+      // White Saddlepad with Race Number + Colored Jockey Torso & Unique Silk Pattern
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.roundRect(-11.2, -4.4, 8.8, 6.2, 1.5);
+      ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '800 5.4px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(horse.horseId || 1), -6.8, -1.2);
+
+      // Jockey crouched jersey
       ctx.fillStyle = silk;
       ctx.beginPath();
-      ctx.roundRect(-10, -6.2, 10.5, 6.8, 2);
+      ctx.roundRect(-7.5, -8.4, 9.6, 5.2, 2.2);
       ctx.fill();
 
+      // Silk pattern on jockey
       ctx.fillStyle = accent;
-      ctx.fillRect(-10, -3.5, 10.5, 1.8);
+      if (pat === 'sash') {
+        ctx.fillRect(-6, -8.2, 2.4, 5);
+      } else if (pat === 'stripe') {
+        ctx.fillRect(-4.5, -8.4, 1.8, 5.2);
+      } else if (pat === 'diamond') {
+        ctx.beginPath();
+        ctx.moveTo(-2.7, -8.2);
+        ctx.lineTo(-0.5, -5.8);
+        ctx.lineTo(-2.7, -3.4);
+        ctx.lineTo(-4.9, -5.8);
+        ctx.closePath();
+        ctx.fill();
+      } else if (pat === 'check') {
+        ctx.fillRect(-7, -8.2, 4, 2.4);
+        ctx.fillRect(-3, -5.8, 4, 2.4);
+      } else {
+        ctx.fillRect(-7.5, -6.3, 9.6, 1.7);
+      }
 
-      // Jockey Helmet
+      // Jockey Breeches & Boot
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(-6.5, -3.5, 4.2, 2.8);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(-6.5, -0.8, 2.2, 3.0);
+
+      // Jockey Helmet & Visor
       ctx.fillStyle = silk;
       ctx.beginPath();
-      ctx.arc(-2.5, -9.2, 3.6, 0, Math.PI * 2);
+      ctx.arc(0.5, -10.8, 3.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = accent;
-      ctx.fillRect(-1, -9.8, 4.2, 1.4);
+      ctx.fillRect(1.8, -11.3, 3.8, 1.3);
 
       ctx.restore();
     }

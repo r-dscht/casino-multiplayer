@@ -170,6 +170,20 @@
         <line x1="17.5" y1="13" x2="17.5" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
         <line x1="13" y1="17.5" x2="22" y2="17.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
       </g>
+      <!-- Boulevard Cross Luxury Car & Crossing Icon -->
+      <g id="icon-cross">
+        <line x1="3.5" y1="4" x2="3.5" y2="20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+        <line x1="20.5" y1="4" x2="20.5" y2="20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+        <path d="M6.5 14L8.2 9.2C8.5 8.4 9.2 8 10 8H14C14.8 8 15.5 8.4 15.8 9.2L17.5 14H18.5C19.1 14 19.5 14.4 19.5 15V17C19.5 17.6 19.1 18 18.5 18H17.5V19C17.5 19.6 17.1 20 16.5 20H15.5C14.9 20 14.5 19.6 14.5 19V18H9.5V19C9.5 19.6 9.1 20 8.5 20H7.5C6.9 20 6.5 19.6 6.5 19V18H5.5C4.9 18 4.5 17.6 4.5 17V15C4.5 14.4 4.9 14 5.5 14H6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="8" cy="15.8" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="16" cy="15.8" r="0.9" fill="currentColor" stroke="none"/>
+      </g>
+      <!-- AviaMasters Sleek Jet Fighter -->
+      <g id="icon-avia">
+        <path d="M21.5 2.5L13.5 20.5L10.8 13.8L3.5 11.2L21.5 2.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M21.5 2.5L10.8 13.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M6.2 15.8L4 19.5M9.5 17.4L7.8 20.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </g>
     </defs>
   </svg>
 
@@ -194,6 +208,9 @@
           <button class="game-pill" data-game="hilo" id="pill-hilo" title="Hoger of Lager Kaartspel">Hi-Lo</button>
           <button class="game-pill" data-game="racing" id="pill-racing" title="Monaco Turf Club Paardenrennen">Turf Club</button>
           <button class="game-pill" data-game="mines" id="pill-mines" title="Royal Mines Vault (Diamanten &amp; Bommen)">Mines</button>
+          <button class="game-pill" data-game="cross" id="pill-cross" title="Monte Carlo Boulevard Cross (Oversteken zonder aangereden te worden)">Cross</button>
+          <!-- WIP: AviaMasters tijdelijk verborgen tot latere hervatting -->
+          <button class="game-pill feature-wip-hidden" data-game="avia" id="pill-avia" aria-hidden="true" title="AviaMasters Luchtvaart Arcade (Tot 150x)">AviaMasters</button>
         </div>
       </div>
 
@@ -304,6 +321,14 @@
         <button type="button" class="dock-left-btn" data-game="mines" title="Royal Mines Vault">
           <svg viewBox="0 0 24 24"><use href="#icon-mines"></use></svg>
           <span>Mines</span>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="cross" title="Monte Carlo Boulevard Cross">
+          <svg viewBox="0 0 24 24"><use href="#icon-cross"></use></svg>
+          <span>Cross</span>
+        </button>
+        <button type="button" class="dock-left-btn feature-wip-hidden" data-game="avia" aria-hidden="true" title="AviaMasters Luchtvaart Arcade">
+          <svg viewBox="0 0 24 24"><use href="#icon-avia"></use></svg>
+          <span>Avia</span>
         </button>
       </aside>
       
@@ -1533,16 +1558,19 @@
         </div>
 
         <!-- 8. Multiplayer Feature View: Horse Racing (Monaco Turf Club & Port Hercule Derby) -->
+        <!-- 8. Port Hercule Derby (Horse Racing View) -->
         <div id="racing-view" class="game-view-pane hidden">
           <div class="backlog-game-header glass-panel racing-header-bar">
             <div class="backlog-title-wrap">
-              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><use href="#icon-racing"></use></svg>
+              <div class="racing-crest-badge" aria-hidden="true">
+                <svg class="backlog-header-icon" viewBox="0 0 24 24" width="22" height="22"><use href="#icon-racing"></use></svg>
+              </div>
               <div>
                 <div class="racing-title-line">
                   <span class="backlog-game-title">Monaco Turf Club &amp; Port Hercule Derby</span>
                   <span class="racing-race-badge" id="racing-race-badge">RACE #1</span>
                 </div>
-                <span class="backlog-game-sub">6 Gelijke Paarden • 3.38x Basis + 50% Verliezers Winnaarspot</span>
+                <span class="backlog-game-sub">6 Volbloeden • 1 op 6 Eerlijke Loting • 3.38x Basis + 50% Verliezers Winnaarspot</span>
               </div>
             </div>
             <div class="racing-header-metrics">
@@ -1567,11 +1595,11 @@
 
           <div class="racing-main-stage" id="racing-stage">
             <div class="racing-arena-grid">
-              <!-- Left/Main: Track + Paddock + History -->
+              <!-- Left/Main: Broadcast Strip + Canvas Track + Paddock Grid + History -->
               <div class="racing-track-column">
                 <div class="racing-live-strip glass-panel">
                   <div class="racing-commentary-box">
-                    <span class="commentary-tag">LIVE VERSLAG</span>
+                    <span class="commentary-tag"><span class="live-rec-dot" aria-hidden="true"></span>LIVE VERSLAG</span>
                     <span id="racing-commentary-text">Kies 1 winnaar (3.38x basis + 50% Verliezers Winnaarspot). De klok start bij 1e inzet!</span>
                   </div>
                   <div class="racing-live-top3" id="racing-live-top3"></div>
@@ -1583,7 +1611,9 @@
                   <div id="racing-podium-overlay" class="racing-podium-overlay hidden"></div>
                 </div>
 
-                <div class="racing-paddock-grid" id="racing-paddock-grid"></div>
+                <div class="racing-paddock-section">
+                  <div class="racing-paddock-grid" id="racing-paddock-grid"></div>
+                </div>
 
                 <div class="racing-history-strip glass-panel">
                   <span class="racing-hist-title">LAATSTE WINNAARS</span>
@@ -1591,16 +1621,21 @@
                 </div>
               </div>
 
-              <!-- Right: Single-Ticket Bet Slip & Live Table Feed -->
+              <!-- Right: Luxury Derby Ticket Terminal & Live Feed -->
               <aside class="racing-control-column">
                 <div class="racing-betslip-card glass-panel">
                   <div class="betslip-header">
-                    <h3>Derby Wedticket</h3>
+                    <div>
+                      <h3>Derby Wedticket</h3>
+                      <span class="betslip-sub-caption">Enkelvoudige WIN-selectie</span>
+                    </div>
                     <span class="ticket-count-badge" id="racing-ticket-count">0 / 1 Ticket</span>
                   </div>
 
+                  <div class="racing-runner-spotlight" id="racing-runner-spotlight"></div>
+
                   <div class="racing-select-wrap">
-                    <label for="racing-horse-select" class="racing-label">Geselecteerd Paard (1 op 6 kans)</label>
+                    <label for="racing-horse-select" class="racing-label">Kies Paard (1 op 6 kans)</label>
                     <select id="racing-horse-select" class="racing-select">
                       <option value="1">#1 Prince de Monaco (3.38x + Pot)</option>
                       <option value="2">#2 Azure Mirage (3.38x + Pot)</option>
@@ -1611,13 +1646,11 @@
                     </select>
                   </div>
 
-                  <div class="racing-single-mode-pill">
-                    <span>ENKEL WIN (#1 + WINNAARSPOT)</span>
-                    <strong>3.38x + 50% VERLIEZERS</strong>
-                  </div>
-
                   <div class="racing-bet-wrap">
-                    <label for="racing-bet-amount" class="racing-label">Inzet (10 – 50.000)</label>
+                    <div class="racing-bet-label-row">
+                      <label for="racing-bet-amount" class="racing-label">Inzet (10 – 50.000)</label>
+                      <span class="racing-single-mode-pill"><strong>3.38x + 50% POT</strong></span>
+                    </div>
                     <div class="racing-amount-row">
                       <input type="number" id="racing-bet-amount" value="100" min="10" max="50000" step="10" class="racing-input">
                       <button type="button" class="racing-bet-mod" data-mod="half">1/2</button>
@@ -1638,19 +1671,24 @@
                     Bij winst op #1: <strong>338</strong> fiches basis (3.38x + Winnaarspot)
                   </div>
 
-                  <button type="button" class="btn btn-gold btn-lg racing-submit-btn" id="btn-place-racing-bet">ZET IN OP PAARD #1</button>
-
-                  <div class="racing-cheer-box">
-                    <button type="button" class="btn-racing-cheer" id="btn-racing-cheer">JUICH VOOR PAARD #1</button>
-                    <span class="racing-fair-note">100% Random (1/6): 50% verliezers in Pot (98% RTP).</span>
+                  <div class="racing-actions-stack">
+                    <button type="button" class="btn btn-gold btn-lg racing-submit-btn" id="btn-place-racing-bet">ZET IN OP PAARD #1</button>
+                    <div class="racing-cheer-box">
+                      <button type="button" class="btn-racing-cheer" id="btn-racing-cheer">JUICH VOOR PAARD #1</button>
+                      <span class="racing-fair-note">100% Random (1/6): 50% verliezers in Pot (98% RTP).</span>
+                    </div>
                   </div>
                 </div>
 
                 <div class="racing-tickets-card glass-panel">
-                  <div class="betslip-subhead">Mijn Ticket (Max 1)</div>
-                  <div id="racing-my-tickets" class="racing-my-tickets"></div>
-                  <div class="betslip-subhead" style="margin-top:8px;">Live Tafel Inzetten</div>
-                  <div id="racing-live-bets-feed" class="racing-live-bets-feed"></div>
+                  <div class="racing-tickets-group">
+                    <div class="betslip-subhead">Mijn Actieve Ticket</div>
+                    <div id="racing-my-tickets" class="racing-my-tickets"></div>
+                  </div>
+                  <div class="racing-tickets-group racing-feed-group">
+                    <div class="betslip-subhead">Live Tafel Inzetten</div>
+                    <div id="racing-live-bets-feed" class="racing-live-bets-feed"></div>
+                  </div>
                 </div>
               </aside>
             </div>
@@ -1815,6 +1853,234 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 10. AviaMasters Luchtvaart Arcade View (WIP-verborgen voor latere hervatting) -->
+        <div id="avia-view" class="game-view-pane hidden feature-wip-hidden" aria-hidden="true">
+          <div class="avia-header-bar glass-panel">
+            <div class="avia-title-wrap">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-avia"></use></svg>
+              <div>
+                <span class="avia-game-title">AVIAMASTERS — OBSIDIAN AIR WING</span>
+                <span class="avia-game-sub">Inzet 10 - 50.000 fiches • Tot 150x • 98% RTP</span>
+              </div>
+            </div>
+            <div class="avia-history-strip" id="avia-history-strip" title="Recente AviaMasters Vluchten">
+              <span class="avia-hist-empty">Klaar voor opstijgen</span>
+            </div>
+            <div class="avia-session-pills">
+              <div class="avia-stat-pill">
+                <span class="avia-stat-lbl">Laatste Landing</span>
+                <span class="avia-stat-val" id="avia-last-win">0 F</span>
+              </div>
+              <div class="avia-stat-pill avia-stat-pill-gold">
+                <span class="avia-stat-lbl">Sessiewinst</span>
+                <span class="avia-stat-val" id="avia-session-net">0 F</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="avia-stage glass-panel" id="avia-stage">
+            <canvas id="avia-canvas" class="avia-canvas"></canvas>
+
+            <!-- Top-Left Flight Telemetry -->
+            <div class="avia-hud-telemetry" aria-hidden="true">
+              <div class="avia-tele-item">
+                <span class="avia-tele-lbl">HOOGTE</span>
+                <strong id="avia-hud-alt">0 m</strong>
+              </div>
+              <div class="avia-tele-item">
+                <span class="avia-tele-lbl">SNELHEID</span>
+                <strong id="avia-hud-spd">0 kts</strong>
+              </div>
+              <div class="avia-tele-item">
+                <span class="avia-tele-lbl">RINGS</span>
+                <strong id="avia-hud-combo">0/0</strong>
+              </div>
+            </div>
+
+            <!-- Top-Center Live Dopamine Counter -->
+            <div class="avia-live-counter-box" id="avia-live-counter-box" aria-live="polite">
+              <div class="avia-counter-top-row">
+                <span class="avia-counter-kicker">ACTUELE BUIT</span>
+                <span class="avia-combo-pill hidden" id="avia-combo-badge">STREAK x1</span>
+              </div>
+              <div class="avia-counter-main">
+                <strong id="avia-live-counter">100 F</strong>
+                <span class="avia-counter-mult" id="avia-live-mult">1.0x</span>
+              </div>
+            </div>
+
+            <!-- Top-Right Endless Distance & Carrier Counter -->
+            <div class="avia-progress-box">
+              <div class="avia-endless-stat">
+                <span class="avia-tele-lbl">AFSTAND</span>
+                <strong id="avia-hud-dist">0 m</strong>
+              </div>
+              <div class="avia-endless-stat">
+                <span class="avia-tele-lbl">SCHEPEN</span>
+                <strong id="avia-hud-ship">1</strong>
+              </div>
+            </div>
+
+            <!-- Live Pickup Chain Feed -->
+            <div class="avia-chain-bar" id="avia-chain-bar" aria-live="polite"></div>
+
+            <!-- Dramatic Landing / Splash Stamp -->
+            <div class="avia-result-banner hidden" id="avia-result-banner" aria-live="polite">
+              <span class="avia-result-kicker" id="avia-result-kicker">DEK LANDING GESLAAGD</span>
+              <strong class="avia-result-mult" id="avia-result-mult">4.0x</strong>
+              <span class="avia-result-payout" id="avia-result-payout">+400 fiches</span>
+            </div>
+          </div>
+
+          <!-- Bottom Compact Control Dock -->
+          <div class="avia-controls-dock glass-panel" id="avia-controls-dock">
+            <div class="avia-bet-group">
+              <div class="avia-bet-input-wrap">
+                <label for="avia-bet-input" class="avia-ctrl-lbl">INZET</label>
+                <input type="number" id="avia-bet-input" class="avia-bet-input" value="100" min="10" max="50000" step="10">
+                <div class="avia-mod-btns">
+                  <button type="button" class="btn-avia-mod" id="btn-avia-half">1/2</button>
+                  <button type="button" class="btn-avia-mod" id="btn-avia-double">2x</button>
+                  <button type="button" class="btn-avia-mod btn-avia-max" id="btn-avia-max">MAX</button>
+                </div>
+              </div>
+              <div class="avia-quick-chips" role="group" aria-label="Snel fiches toevoegen">
+                <button type="button" class="btn-avia-chip" data-add="10">+10</button>
+                <button type="button" class="btn-avia-chip" data-add="50">+50</button>
+                <button type="button" class="btn-avia-chip" data-add="100">+100</button>
+                <button type="button" class="btn-avia-chip" data-add="500">+500</button>
+                <button type="button" class="btn-avia-chip" data-add="2500">+2.5K</button>
+              </div>
+            </div>
+
+            <div class="avia-flight-opts">
+              <div class="avia-speed-group" role="group" aria-label="Vluchtsnelheid">
+                <span class="avia-ctrl-lbl">SNELHEID</span>
+                <div class="avia-speed-pills">
+                  <button type="button" class="btn-avia-speed active" data-speed="1x">1x</button>
+                  <button type="button" class="btn-avia-speed" data-speed="2x">2x</button>
+                  <button type="button" class="btn-avia-speed" data-speed="4x">4x</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="avia-launch-wrap">
+              <button type="button" class="btn-avia-fly" id="btn-avia-fly" title="Lanceren (of druk op Spatiebalk)">
+                <span class="avia-fly-main" id="avia-fly-btn-label">VLIEG!</span>
+                <span class="avia-fly-sub" id="avia-fly-btn-sub">INZET: 100 F</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 11. Monte Carlo Boulevard Cross View -->
+        <div id="cross-view" class="game-view-pane hidden">
+          <div class="cross-header-bar glass-panel">
+            <div class="cross-title-wrap">
+              <svg class="backlog-header-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><use href="#icon-cross"></use></svg>
+              <div>
+                <span class="cross-game-title">MONTE CARLO BOULEVARD CROSS</span>
+                <span class="cross-game-sub">Inzet 10 - 50.000 F • Gelijk risico per baan (20% crash / 80% veilig) • 98% RTP</span>
+              </div>
+            </div>
+            <div class="cross-multiplier-strip" id="cross-multiplier-strip" title="Volgende baan multipliers"></div>
+            <div class="cross-session-pills">
+              <div class="cross-stat-pill">
+                <span class="cross-stat-lbl">Laatste Winst</span>
+                <span class="cross-stat-val" id="cross-last-win">0 F</span>
+              </div>
+              <div class="cross-stat-pill cross-stat-pill-gold">
+                <span class="cross-stat-lbl">Sessiewinst</span>
+                <span class="cross-stat-val" id="cross-session-net">0 F</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cross-main-grid">
+            <div class="cross-arena-col">
+              <div class="cross-stage glass-panel" id="cross-stage">
+                <canvas id="cross-canvas" class="cross-canvas"></canvas>
+
+                <div class="cross-hud-badges" aria-hidden="true">
+                  <div class="cross-hud-chip">
+                    <span class="ch-lbl">BAAN</span>
+                    <strong id="cross-hud-lane">0</strong>
+                  </div>
+                  <div class="cross-hud-chip">
+                    <span class="ch-lbl">MULTI</span>
+                    <strong id="cross-hud-mult">1.00x</strong>
+                  </div>
+                  <div class="cross-hud-chip">
+                    <span class="ch-lbl">VOLGENDE</span>
+                    <strong id="cross-hud-next">1.22x</strong>
+                  </div>
+                  <div class="cross-hud-chip cross-hud-chip-gold">
+                    <span class="ch-lbl">POT</span>
+                    <strong id="cross-hud-pot">0 F</strong>
+                  </div>
+                </div>
+
+                <div class="cross-stage-pill" id="cross-stage-pill">KLAAR VOOR OVERSTEEK</div>
+                <div class="cross-result-banner hidden" id="cross-result-banner"></div>
+                <div class="cross-canvas-hint" id="cross-canvas-hint">Kies je inzet en klik op START OVERSTEEK om de boulevard op te gaan</div>
+              </div>
+
+              <div class="cross-controls-dock glass-panel">
+                <div class="cross-stake-group">
+                  <label class="cross-ctrl-lbl" for="cross-bet-input">INZET</label>
+                  <div class="cross-bet-box">
+                    <input type="number" id="cross-bet-input" class="cross-bet-input" min="10" max="50000" step="10" value="100" aria-label="Boulevard Cross inzet">
+                    <span class="cross-bet-unit">F</span>
+                  </div>
+                  <div class="cross-quick-chips">
+                    <button type="button" class="cross-chip-btn" data-cross-chip="50">50</button>
+                    <button type="button" class="cross-chip-btn" data-cross-chip="100">100</button>
+                    <button type="button" class="cross-chip-btn" data-cross-chip="500">500</button>
+                    <button type="button" class="cross-chip-btn" data-cross-chip="1000">1K</button>
+                    <button type="button" class="cross-chip-btn" data-cross-chip="5000">5K</button>
+                    <button type="button" class="cross-chip-btn cross-mod-btn" data-cross-mod="half">1/2</button>
+                    <button type="button" class="cross-chip-btn cross-mod-btn" data-cross-mod="double">2x</button>
+                  </div>
+                </div>
+
+                <div class="cross-action-btns">
+                  <button type="button" id="btn-cross-start" class="btn-cross-primary">START OVERSTEEK</button>
+                  <button type="button" id="btn-cross-step" class="btn-cross-step hidden">
+                    <span class="bcs-title">STAP VOORUIT</span>
+                    <span class="bcs-sub" id="cross-step-sub">Volgende: 1.22x</span>
+                  </button>
+                  <button type="button" id="btn-cross-cashout" class="btn-cross-cashout hidden">
+                    <span>CASH OUT</span>
+                    <strong id="cross-cashout-amount">0 F</strong>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <aside class="cross-side-panel glass-panel" aria-label="Boulevard Cross live salon en historiek">
+              <div class="cross-side-section">
+                <div class="cross-side-hdr">
+                  <span>LIVE IN SALON</span>
+                  <span class="cross-count-badge" id="cross-salon-count">0</span>
+                </div>
+                <div class="cross-salon-list" id="cross-salon-list">
+                  <div class="cross-empty-note">Nog geen andere spelers op de boulevard.</div>
+                </div>
+              </div>
+
+              <div class="cross-side-section cross-history-section">
+                <div class="cross-side-tabs">
+                  <button type="button" class="cross-side-tab active" id="btn-cross-tab-mine">MIJN RITTEN</button>
+                  <button type="button" class="cross-side-tab" id="btn-cross-tab-salon">GROTE WINSTEN</button>
+                </div>
+                <div class="cross-history-list" id="cross-history-list">
+                  <div class="cross-empty-note">Start een oversteek om jouw ritten hier te zien.</div>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
 
@@ -2593,6 +2859,8 @@
   <script src="js/racing.js"></script>
   <script src="js/hilo.js"></script>
   <script src="js/mines.js"></script>
+  <script src="js/cross.js"></script>
+  <script src="js/avia.js"></script>
   <script src="js/lottery.js"></script>
   <script src="js/app.js"></script>
   <script src="js/shell.js"></script>

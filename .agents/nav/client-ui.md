@@ -12,11 +12,13 @@ Alle frontend-code staat in `client/` zonder build-stap of module-bundler; scrip
 - `#slots-view` — 8 floor cabinets + Golden Fever + 5x3 rollen zonder Juich (`client/js/slots.js`, `#slots-fever-box`, `#slots-jackpot-pill`, `#slots-roll-history-list`).
 - `#plinko-view` — Plinko piramide (`client/js/plinko.js`).
 - `#hilo-view` — Solo Ladder + Live Zaal (`client/js/hilo.js`, `#btn-hilo-start`, `#btn-hilo-cashout`, `#hilo-salon-list`).
-- `#racing-view` — Port Hercule Derby (`client/js/racing.js`, `#racing-canvas`, `#racing-winner-pot-val`, `#racing-fixed-odds-val`, `#racing-commentary-text`, `#btn-place-racing-bet`, `#btn-racing-cheer`).
+- `#racing-view` — Port Hercule Derby (`client/js/racing.js`, `#racing-canvas`, `#racing-runner-spotlight`, `#racing-paddock-grid`, `#racing-winner-pot-val`, `#racing-fixed-odds-val`, `#racing-commentary-text`, `#btn-place-racing-bet`, `#btn-racing-cheer`).
 - `#mines-view` — Royal Mines Vault (`client/js/mines.js`, `#mines-board`, `#btn-mines-solo-start`, `#btn-mines-cashout`, `#mines-salon-list`).
+- `#cross-view` — Monte Carlo Boulevard Cross (`client/js/cross.js`, `#cross-canvas`, `#btn-cross-start`, `#btn-cross-step`, `#btn-cross-cashout`, `#cross-salon-list`, `#cross-history-list`).
+- `#avia-view` — AviaMasters Luchtvaart Arcade (`client/js/avia.js`, `#avia-canvas`, `#avia-live-counter`, `#avia-chain-bar`, `#btn-avia-fly`; tijdelijk verborgen met `.feature-wip-hidden` + `AVIA_WIP_ENABLED = false` in `client/js/app.js` zonder CPU-gebruik).
 
 ### Header, HUD & Actieve Modals
-- Master-header ID's: `#pill-roulette`, `#pill-blackjack`, `#pill-poker`, `#pill-crash`, `#pill-slots`, `#pill-plinko`, `#pill-hilo`, `#pill-racing`, `#pill-mines`, `#hud-phase-badge`, `#phase-title`, `#phase-timer`, `#hud-history-strip`.
+- Master-header ID's: `#pill-roulette`, `#pill-blackjack`, `#pill-poker`, `#pill-crash`, `#pill-slots`, `#pill-plinko`, `#pill-hilo`, `#pill-racing`, `#pill-mines`, `#pill-cross`, `#pill-avia` (WIP-verborgen), `#hud-phase-badge`, `#phase-title`, `#phase-timer`, `#hud-history-strip`.
 - Service-HUD & Speler: `#btn-open-lottery` (`#hud-lottery-timer`, `#hud-lottery-pot`), `#btn-open-wheel` (`#hud-wheel-cooldown`), `#btn-open-bank`, `#hud-avatar-disc`, `#hud-player-name`, `#hud-player-chips`, `#btn-toggle-social`.
 - Modals: `#onboarding-modal` (`#input-player-name`, `#input-player-password`, `#btn-enter-table`), `#inside-bets-modal`, `#bank-modal`, `#player-profile-modal`, `#poker-buyin-modal`, `#lottery-modal` (`#lottery-draw-status`, `#lottery-reel-stage`, `#lottery-fx-canvas`, `#lottery-reel-track`, `#lottery-draw-banner`, `#btn-buy-lottery-ticket`).
 - Verborgen WIP-ankers (`.feature-wip-hidden`, intact laten voor tests): `#btn-open-market`, `#btn-open-exchange`, `#market-modal`, `#exchange-modal`, `#racing-modal`, `#gadgets-perks-dock` (`data-perks-hidden="true"`).

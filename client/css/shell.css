@@ -2829,22 +2829,37 @@ html #racing-view .racing-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  background: linear-gradient(135deg, rgba(16, 20, 29, 0.96), rgba(10, 14, 21, 0.94));
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(238, 213, 162, 0.28);
+  background: linear-gradient(135deg, rgba(16, 20, 29, 0.96), rgba(9, 13, 21, 0.96));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+html #racing-view .racing-crest-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(238, 213, 162, 0.2), rgba(16, 185, 129, 0.12));
+  border: 1px solid rgba(238, 213, 162, 0.45);
+  color: #fff2d6;
   flex-shrink: 0;
 }
 
 html #racing-view .racing-title-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
+  flex-wrap: nowrap;
 }
 
 html #racing-view .racing-race-badge {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: #10b981;
@@ -2852,26 +2867,30 @@ html #racing-view .racing-race-badge {
   border: 1px solid rgba(16, 185, 129, 0.4);
   padding: 2px 7px;
   border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 html #racing-view .racing-header-metrics {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 html #racing-view .racing-surface-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 11px;
+  gap: 6px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #e2e8f0;
+  white-space: nowrap;
 }
 
 html #racing-view .surface-dot {
@@ -2911,18 +2930,20 @@ html #racing-view .racing-jp-val {
 html #racing-view .racing-countdown-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
+  gap: 6px;
+  padding: 5px 10px;
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(148, 163, 184, 0.28);
+  white-space: nowrap;
 }
 
 html #racing-view .racing-timer-label {
-  font-size: 0.68rem;
+  font-size: 0.63rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #94a3b8;
+  white-space: nowrap;
 }
 
 html #racing-view .racing-timer-val {
@@ -2985,15 +3006,32 @@ html #racing-view .racing-commentary-box {
 }
 
 html #racing-view .commentary-tag {
-  font-size: 0.64rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #10b981;
+  letter-spacing: 0.07em;
+  color: #6ee7b7;
   background: rgba(16, 185, 129, 0.14);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  padding: 2px 6px;
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  padding: 2px 7px;
   border-radius: 5px;
   flex-shrink: 0;
+}
+
+html #racing-view .live-rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: racingLiveDot 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes racingLiveDot {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.45; transform: scale(0.8); }
 }
 
 html #racing-view #racing-commentary-text {
@@ -3014,7 +3052,7 @@ html #racing-view .live-leader-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
@@ -3023,9 +3061,16 @@ html #racing-view .live-leader-pill {
   color: #f1f5f9;
 }
 
+html #racing-view .live-rank-chip .rank-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  color: #94a3b8;
+}
+
 html #racing-view .live-rank-chip.rank-1 {
-  border-color: rgba(212, 175, 55, 0.65);
-  color: #fde68a;
+  border-color: rgba(238, 213, 162, 0.7);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(212, 175, 55, 0.08));
+  color: #fff2d6;
 }
 
 html #racing-view .rank-dot {
@@ -3036,13 +3081,14 @@ html #racing-view .rank-dot {
 
 html #racing-view .racing-canvas-stage {
   position: relative;
-  flex: 1.15;
-  min-height: 205px;
-  border-radius: 12px;
+  flex: 1.28;
+  min-height: 215px;
+  border-radius: 14px;
   overflow: hidden;
   padding: 0;
-  border: 1px solid rgba(212, 175, 55, 0.25);
+  border: 1px solid rgba(238, 213, 162, 0.34);
   background: #071611;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 html #racing-view #racing-canvas {
@@ -3153,24 +3199,27 @@ html #racing-view .podium-alert.photo-alert {
 html #racing-view .podium-cards-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
   gap: 8px;
 }
 
 html #racing-view .podium-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 9px;
-  padding: 6px 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(10, 14, 22, 0.75));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 8px 6px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 html #racing-view .podium-card.podium-place-1 {
-  border-color: rgba(212, 175, 55, 0.7);
-  background: linear-gradient(180deg, rgba(212, 175, 55, 0.16), rgba(212, 175, 55, 0.04));
+  border-color: rgba(238, 213, 162, 0.8);
+  padding: 12px 6px 9px;
+  background: linear-gradient(180deg, rgba(238, 213, 162, 0.2), rgba(212, 175, 55, 0.06));
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.16);
 }
 
 html #racing-view .podium-rank {
@@ -3180,18 +3229,13 @@ html #racing-view .podium-rank {
   color: #94a3b8;
 }
 
-html #racing-view .podium-place-1 .podium-rank { color: #fbbf24; }
+html #racing-view .podium-place-1 .podium-rank { color: #fde68a; }
 
-html #racing-view .podium-silk {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+html #racing-view .podium-silk-emblem {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 0.78rem;
-  color: #ffffff;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
 }
 
 html #racing-view .podium-horse-name {
@@ -3236,6 +3280,10 @@ html #racing-view .podium-my-result.my-loss {
   color: #cbd5e1;
 }
 
+html #racing-view .racing-paddock-section {
+  flex-shrink: 0;
+}
+
 html #racing-view .racing-paddock-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3244,49 +3292,94 @@ html #racing-view .racing-paddock-grid {
 }
 
 html #racing-view .racing-horse-card {
-  background: rgba(15, 20, 29, 0.92);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, rgba(17, 22, 33, 0.95), rgba(10, 13, 20, 0.96));
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  padding: 7px 9px;
+  border-radius: 11px;
+  padding: 6px 8px 8px 11px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  transition: border-color 0.16s, transform 0.12s, background 0.16s;
+  gap: 4px;
+  transition: border-color 0.16s, transform 0.14s, box-shadow 0.16s, background 0.16s;
+}
+
+html #racing-view .racing-horse-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--horse-silk, #d4af37);
+  opacity: 0.85;
 }
 
 html #racing-view .racing-horse-card:hover {
-  border-color: rgba(212, 175, 55, 0.45);
+  border-color: rgba(238, 213, 162, 0.5);
   transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 html #racing-view .racing-horse-card.selected {
-  border-color: #d4af37;
-  background: linear-gradient(145deg, rgba(212, 175, 55, 0.14), rgba(15, 20, 29, 0.96));
-  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
-}
-
-html #racing-view .racing-horse-card.is-golden {
-  border-color: #f59e0b;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.28);
+  border-color: #eed5a2;
+  background: linear-gradient(145deg, rgba(238, 213, 162, 0.14), rgba(13, 17, 27, 0.98));
+  box-shadow: 0 0 0 1px rgba(238, 213, 162, 0.38), 0 8px 20px rgba(0, 0, 0, 0.42);
 }
 
 html #racing-view .horse-card-top {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 html #racing-view .horse-silk-badge {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 28px;
+  height: 27px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 0.78rem;
   flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+html #racing-view .horse-coat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+html #racing-view .horse-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.63rem;
+  color: #94a3b8;
+}
+
+html #racing-view .horse-live-progress-track {
+  position: absolute;
+  left: 4px;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html #racing-view .horse-live-progress-fill {
+  height: 100%;
+  transition: width 0.12s linear;
+  border-radius: 0 2px 2px 0;
+}
+
+html #racing-view .horse-pot-share-badge.is-base {
+  color: #64748b;
+  font-family: inherit;
+  font-weight: 600;
 }
 
 html #racing-view .horse-identity {
@@ -3387,6 +3480,13 @@ html #racing-view .horse-card-footer {
   justify-content: space-between;
   gap: 6px;
   min-height: 18px;
+}
+
+html #racing-view .horse-footer-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 html #racing-view .horse-supporters {
@@ -3523,7 +3623,147 @@ html #racing-view .betslip-header {
 html #racing-view .betslip-header h3 {
   margin: 0;
   font-size: 0.88rem;
+  color: #fff2d6;
+}
+
+html #racing-view .betslip-sub-caption {
+  display: block;
+  font-size: 0.62rem;
+  color: #8a94a6;
+  margin-top: 1px;
+}
+
+html #racing-view .racing-runner-spotlight {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px 7px 12px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.05), rgba(8, 12, 18, 0.9));
+  border: 1px solid rgba(238, 213, 162, 0.26);
+}
+
+html #racing-view .racing-runner-spotlight::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--spotlight-silk, #eed5a2);
+}
+
+html #racing-view .spotlight-silk-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+html #racing-view .spotlight-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+html #racing-view .spotlight-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
   color: #f8fafc;
+}
+
+html #racing-view .spotlight-title-row strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html #racing-view .spotlight-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+html #racing-view .spotlight-odds-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(238, 213, 162, 0.16);
+  border: 1px solid rgba(238, 213, 162, 0.42);
+  color: #fff2d6;
+  flex-shrink: 0;
+}
+
+html #racing-view .racing-bet-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+html #racing-view .payout-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+html #racing-view .payout-metric {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 6px;
+  padding: 3px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+html #racing-view .payout-metric .pm-label {
+  font-size: 0.56rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+html #racing-view .payout-metric .pm-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.71rem;
+  color: #f8fafc;
+}
+
+html #racing-view .payout-metric .pm-val.is-pot {
+  color: #6ee7b7;
+}
+
+html #racing-view .payout-metric .pm-val.is-total {
+  color: #fff2d6;
+}
+
+html #racing-view .racing-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+html #racing-view .racing-tickets-card {
+  gap: 7px;
+}
+
+html #racing-view .racing-tickets-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+html #racing-view .racing-feed-group {
+  flex: 1;
+  min-height: 0;
 }
 
 html #racing-view .ticket-count-badge {
@@ -3613,6 +3853,19 @@ html #racing-view .racing-chip-preset {
   font-size: 0.68rem;
   font-weight: 700;
   cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+
+html #racing-view .racing-bet-mod:hover,
+html #racing-view .racing-chip-preset:hover {
+  border-color: rgba(238, 213, 162, 0.55);
+  color: #fff2d6;
+}
+
+html #racing-view .racing-chip-preset.active {
+  background: rgba(238, 213, 162, 0.22);
+  border-color: rgba(238, 213, 162, 0.78);
+  color: #fff2d6;
 }
 
 html #racing-view .racing-presets-row {
@@ -3622,12 +3875,12 @@ html #racing-view .racing-presets-row {
 }
 
 html #racing-view .racing-potential-box {
-  font-size: 0.73rem;
+  font-size: 0.71rem;
   color: #cbd5e1;
-  background: rgba(16, 185, 129, 0.09);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 8px;
-  padding: 6px 9px;
+  background: linear-gradient(155deg, rgba(16, 185, 129, 0.11), rgba(10, 14, 21, 0.92));
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 9px;
+  padding: 6px 8px;
 }
 
 html #racing-view .racing-potential-box .crown-hint {
@@ -3784,11 +4037,27 @@ html #racing-view .feed-detail {
 }
 
 @media (max-height: 820px) {
-  html #racing-view.active { gap: 5px; padding: 6px 12px; }
-  html #racing-view .racing-header-bar { padding: 6px 12px; }
-  html #racing-view .racing-canvas-stage { min-height: 170px; }
-  html #racing-view .racing-horse-card { padding: 5px 7px; gap: 3px; }
-  html #racing-view .racing-betslip-card { padding: 8px 10px; gap: 6px; }
+  html #racing-view.active { gap: 5px; padding: 5px 12px 6px; }
+  html #racing-view .racing-header-bar { padding: 5px 12px; }
+  html #racing-view .backlog-game-sub { display: none; }
+  html #racing-view .racing-canvas-stage { min-height: 165px; }
+  html #racing-view .racing-horse-card { padding: 5px 8px 6px 11px; gap: 3px; }
+  html #racing-view .racing-control-column { gap: 5px; }
+  html #racing-view .racing-betslip-card { padding: 6px 9px; gap: 4px; }
+  html #racing-view .racing-runner-spotlight { padding: 4px 7px 4px 10px; }
+  html #racing-view .racing-select-wrap .racing-label { display: none; }
+  html #racing-view .racing-select,
+  html #racing-view .racing-input { padding: 5px 8px; font-size: 0.74rem; }
+  html #racing-view .racing-chip-preset,
+  html #racing-view .racing-bet-mod { padding: 3px 6px; }
+  html #racing-view .racing-submit-btn { padding: 7px 10px; font-size: 0.78rem; }
+  html #racing-view .btn-racing-cheer { padding: 4px 8px; font-size: 0.69rem; }
+  html #racing-view .racing-tickets-card { padding: 6px 9px; gap: 4px; overflow-y: auto; }
+}
+
+@media (max-width: 1180px) {
+  html #racing-view .racing-header-bar { flex-wrap: wrap; }
+  html #racing-view .racing-header-metrics { flex-wrap: wrap; }
 }
 
 @media (max-width: 1024px) {
@@ -3803,6 +4072,17 @@ html #racing-view .feed-detail {
     padding-bottom: 18px;
   }
   html #racing-view .racing-header-bar { flex-wrap: wrap; }
+  html #racing-view .racing-header-metrics { flex-wrap: wrap; width: 100%; }
+  html #racing-view .racing-live-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  html #racing-view .racing-commentary-box { width: 100%; }
+  html #racing-view .racing-live-top3 {
+    flex-wrap: wrap;
+    width: 100%;
+  }
   html #racing-view .racing-arena-grid {
     display: flex;
     flex-direction: column;
@@ -3861,21 +4141,20 @@ html #racing-view .podium-alert.pot-alert {
 }
 
 html #racing-view .racing-single-mode-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 2px 7px;
+  border-radius: 6px;
   background: rgba(212, 175, 55, 0.14);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  font-size: 0.7rem;
+  border: 1px solid rgba(212, 175, 55, 0.38);
+  font-size: 0.62rem;
   font-weight: 800;
   color: #fde68a;
 }
 
 html #racing-view .racing-single-mode-pill strong {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82rem;
+  font-size: 0.64rem;
   color: #fbbf24;
 }
 
@@ -3896,19 +4175,20 @@ html #racing-view .horse-backed-tag {
 
 html #racing-view .racing-event-banner {
   position: absolute;
-  top: 12px;
+  top: 52%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 7px 15px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(212, 175, 55, 0.7);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(238, 213, 162, 0.78);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.58);
   z-index: 6;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 html #racing-view .racing-event-banner.hidden {
@@ -3934,6 +4214,1267 @@ html #racing-view .racing-event-banner .event-text {
   color: #f8fafc;
 }
 
+/* ==========================================================================
+   AviaMasters Arcade View (#avia-view)
+   ========================================================================== */
+
+html #avia-view.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+html #avia-view .avia-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+html #avia-view .avia-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+html #avia-view .avia-game-title {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #eed5a2;
+  line-height: 1.1;
+}
+
+html #avia-view .avia-game-sub {
+  display: block;
+  font-size: 0.65rem;
+  color: rgba(203, 213, 225, 0.75);
+}
+
+html #avia-view .avia-history-strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+html #avia-view .avia-hist-empty {
+  font-size: 0.68rem;
+  color: rgba(203, 213, 225, 0.55);
+  font-style: italic;
+}
+
+html #avia-view .avia-hist-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html #avia-view .avia-hist-pill.is-splash {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+html #avia-view .avia-hist-pill.is-low {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+html #avia-view .avia-hist-pill.is-win {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #6ee7b7;
+}
+
+html #avia-view .avia-hist-pill.is-mega {
+  background: rgba(250, 204, 21, 0.2);
+  border-color: rgba(250, 204, 21, 0.7);
+  color: #fde047;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.25);
+}
+
+html #avia-view .avia-session-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+html #avia-view .avia-stat-pill {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+html #avia-view .avia-stat-pill-gold {
+  border-color: rgba(212, 175, 55, 0.38);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+html #avia-view .avia-stat-lbl {
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+html #avia-view .avia-stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+html #avia-view .avia-stat-val.is-positive { color: #34d399; }
+html #avia-view .avia-stat-val.is-negative { color: #f87171; }
+
+html #avia-view .avia-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(238, 213, 162, 0.24);
+  background: #060b16;
+  contain: layout paint;
+}
+
+html #avia-view .avia-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html #avia-view .avia-hud-telemetry {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+html #avia-view .avia-tele-item {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(8, 12, 22, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html #avia-view .avia-tele-lbl {
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+html #avia-view .avia-tele-item strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: #e2e8f0;
+}
+
+html #avia-view .avia-live-counter-box {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px 18px;
+  border-radius: 12px;
+  background: rgba(10, 14, 24, 0.84);
+  border: 1px solid rgba(238, 213, 162, 0.38);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.52);
+  pointer-events: none;
+  z-index: 5;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html #avia-view .avia-live-counter-box.tone-win {
+  border-color: rgba(52, 211, 153, 0.8);
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.35);
+}
+
+html #avia-view .avia-live-counter-box.tone-gold {
+  border-color: rgba(250, 204, 21, 0.92);
+  box-shadow: 0 0 28px rgba(250, 204, 21, 0.45);
+}
+
+html #avia-view .avia-live-counter-box.tone-rocket {
+  border-color: rgba(239, 68, 68, 0.85);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+}
+
+html #avia-view .avia-live-counter-box.tone-pop {
+  animation: aviaCounterPop 0.26s ease-out;
+}
+
+@keyframes aviaCounterPop {
+  0% { transform: translateX(-50%) scale(1.16); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+html #avia-view .avia-counter-kicker {
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(238, 213, 162, 0.78);
+}
+
+html #avia-view .avia-counter-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+html #avia-view .avia-counter-main strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.24rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+html #avia-view .avia-counter-mult {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fde047;
+}
+
+html #avia-view .avia-progress-box {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+html #avia-view .avia-endless-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(8, 12, 22, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  min-width: 58px;
+}
+
+html #avia-view .avia-endless-stat strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: #eed5a2;
+}
+
+html #avia-view .avia-counter-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html #avia-view .avia-combo-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.56rem;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  color: #0b0f19;
+  letter-spacing: 0.06em;
+}
+
+html #avia-view .avia-combo-pill.hidden { display: none; }
+
+html #avia-view .avia-chain-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(6, 11, 22, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  z-index: 4;
+  max-width: 90%;
+  overflow: hidden;
+}
+
+html #avia-view .avia-chain-bar:empty { display: none; }
+
+html #avia-view .avia-chain-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+html #avia-view .avia-chain-pill.is-start {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+html #avia-view .avia-chain-pill.is-add {
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid rgba(52, 211, 153, 0.55);
+  color: #6ee7b7;
+}
+
+html #avia-view .avia-chain-pill.is-mult {
+  background: rgba(250, 204, 21, 0.22);
+  border: 1px solid rgba(253, 224, 71, 0.75);
+  color: #fde047;
+}
+
+html #avia-view .avia-chain-pill.is-rocket {
+  background: rgba(239, 68, 68, 0.24);
+  border: 1px solid rgba(248, 113, 113, 0.65);
+  color: #fca5a5;
+}
+
+html #avia-view .avia-result-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 28px;
+  border-radius: 16px;
+  background: rgba(12, 16, 26, 0.94);
+  border: 1.5px solid rgba(52, 211, 153, 0.85);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 8;
+  animation: aviaBannerPop 0.24s ease-out;
+}
+
+html #avia-view .avia-result-banner.hidden { display: none; }
+
+html #avia-view .avia-result-banner.banner-mega {
+  background: linear-gradient(140deg, rgba(16, 18, 28, 0.96), rgba(66, 44, 12, 0.95));
+  border-color: rgba(250, 204, 21, 0.92);
+  box-shadow: 0 0 36px rgba(250, 204, 21, 0.45), 0 12px 34px rgba(0, 0, 0, 0.7);
+}
+
+html #avia-view .avia-result-banner.banner-splash {
+  border-color: rgba(239, 68, 68, 0.82);
+  box-shadow: 0 0 26px rgba(239, 68, 68, 0.35), 0 12px 34px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes aviaBannerPop {
+  from { opacity: 0; transform: translate(-50%, -44%) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+html #avia-view .avia-result-kicker {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #cbd5e1;
+}
+
+html #avia-view .avia-result-banner.banner-mega .avia-result-kicker { color: #fde047; }
+html #avia-view .avia-result-banner.banner-splash .avia-result-kicker { color: #fca5a5; }
+
+html #avia-view .avia-result-mult {
+  font-family: 'Cinzel', serif;
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1.05;
+}
+
+html #avia-view .avia-result-payout {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #34d399;
+}
+
+html #avia-view .avia-result-banner.banner-splash .avia-result-payout {
+  color: #f87171;
+}
+
+html #avia-view .avia-controls-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+}
+
+html #avia-view .avia-bet-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+html #avia-view .avia-bet-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html #avia-view .avia-ctrl-lbl {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(238, 213, 162, 0.82);
+}
+
+html #avia-view .avia-bet-input {
+  width: 88px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(238, 213, 162, 0.32);
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+html #avia-view .avia-mod-btns,
+html #avia-view .avia-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+html #avia-view .btn-avia-mod,
+html #avia-view .btn-avia-chip,
+html #avia-view .btn-avia-speed,
+html #avia-view .btn-avia-skip {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+html #avia-view .btn-avia-mod:hover,
+html #avia-view .btn-avia-chip:hover,
+html #avia-view .btn-avia-speed:hover {
+  border-color: rgba(238, 213, 162, 0.55);
+  color: #fde68a;
+}
+
+html #avia-view .btn-avia-max {
+  color: #fde68a;
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+html #avia-view .avia-flight-opts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+html #avia-view .avia-speed-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+html #avia-view .avia-speed-pills {
+  display: flex;
+  gap: 5px;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html #avia-view .btn-avia-speed.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.36), rgba(245, 158, 11, 0.24));
+  border-color: #eed5a2;
+  color: #fff2d6;
+}
+
+html #avia-view .avia-launch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+html #avia-view .btn-avia-fly {
+  min-width: 158px;
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid #fde68a;
+  background: linear-gradient(135deg, #d4af37, #b45309);
+  color: #0b0f19;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(212, 175, 55, 0.35);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+}
+
+html #avia-view .btn-avia-fly:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(250, 204, 21, 0.5);
+}
+
+html #avia-view .btn-avia-fly:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+html #avia-view .avia-fly-main {
+  font-family: 'Cinzel', serif;
+  font-size: 0.96rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+}
+
+html #avia-view .avia-fly-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+@media (max-height: 820px) {
+  html #avia-view.active { gap: 6px; padding: 6px 12px; }
+  html #avia-view .avia-header-bar { padding: 5px 10px; min-height: 38px; }
+  html #avia-view .avia-controls-dock { padding: 6px 10px; }
+  html #avia-view .avia-stage { min-height: 180px; }
+}
+
+@media (max-width: 759px) {
+  html #avia-view.active {
+    padding: 6px;
+    gap: 6px;
+    overflow-y: auto;
+  }
+  html #avia-view .avia-header-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  html #avia-view .avia-history-strip {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+  html #avia-view .avia-stage {
+    min-height: 260px;
+  }
+  html #avia-view .avia-hud-telemetry {
+    top: auto;
+    bottom: 8px;
+    left: 8px;
+    gap: 5px;
+  }
+  html #avia-view .avia-tele-item {
+    padding: 3px 7px;
+  }
+  html #avia-view .avia-live-counter-box {
+    top: 8px;
+    padding: 4px 14px;
+  }
+  html #avia-view .avia-progress-box { display: none; }
+  html #avia-view .avia-chain-bar {
+    bottom: auto;
+    top: 56px;
+    max-width: 94%;
+  }
+  html #avia-view .avia-controls-dock {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  html #avia-view .avia-bet-input-wrap,
+  html #avia-view .avia-quick-chips,
+  html #avia-view .avia-flight-opts,
+  html #avia-view .avia-launch-wrap {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  html #avia-view .btn-avia-fly {
+    flex: 1;
+  }
+}
 
 
 
+
+
+
+/* ==========================================================================
+   Monte Carlo Boulevard Cross (#cross-view)
+   ========================================================================== */
+
+html #cross-view.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+html #cross-view .cross-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+html #cross-view .cross-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+html #cross-view .cross-game-title {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #eed5a2;
+  line-height: 1.1;
+}
+
+html #cross-view .cross-game-sub {
+  display: block;
+  font-size: 0.65rem;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+html #cross-view .cross-multiplier-strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+html #cross-view .cross-ladder-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 20, 32, 0.82);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  flex-shrink: 0;
+}
+
+html #cross-view .cross-ladder-pill .cl-lane {
+  color: rgba(212, 175, 55, 0.85);
+  font-weight: 700;
+}
+
+html #cross-view .cross-ladder-pill .cl-mult {
+  font-weight: 800;
+}
+
+html #cross-view .cross-ladder-pill.is-next {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: #e5c158;
+  color: #fef08a;
+}
+
+html #cross-view .cross-session-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+html #cross-view .cross-stat-pill {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: rgba(12, 16, 26, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+html #cross-view .cross-stat-pill-gold {
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+html #cross-view .cross-stat-lbl {
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.65);
+}
+
+html #cross-view .cross-stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+html #cross-view .cross-main-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 10px;
+}
+
+html #cross-view .cross-arena-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+html #cross-view .cross-stage {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0d1018;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  contain: layout paint;
+}
+
+html #cross-view .cross-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  contain: layout paint;
+}
+
+html #cross-view .cross-hud-badges {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+html #cross-view .cross-hud-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px;
+  border-radius: 9px;
+  background: rgba(11, 14, 23, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html #cross-view .cross-hud-chip-gold {
+  border-color: rgba(212, 175, 55, 0.52);
+  background: rgba(28, 23, 12, 0.9);
+}
+
+html #cross-view .cross-hud-chip .ch-lbl {
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  color: rgba(203, 213, 225, 0.72);
+}
+
+html #cross-view .cross-hud-chip strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: #f8fafc;
+}
+
+html #cross-view .cross-hud-chip-gold strong {
+  color: #f5d060;
+}
+
+html #cross-view .cross-stage-pill {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(11, 14, 23, 0.88);
+  border: 1px solid rgba(212, 175, 55, 0.36);
+  color: #e2e8f0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+html #cross-view .cross-stage-pill.active {
+  border-color: #34d399;
+  color: #6ee7b7;
+}
+
+html #cross-view .cross-stage-pill.crashed {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+html #cross-view .cross-result-banner {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  z-index: 3;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+html #cross-view .cross-result-win {
+  background: rgba(6, 78, 59, 0.94);
+  border: 1px solid #34d399;
+  color: #ecfdf5;
+}
+
+html #cross-view .cross-result-loss {
+  background: rgba(127, 29, 29, 0.94);
+  border: 1px solid #f87171;
+  color: #fef2f2;
+}
+
+html #cross-view .cross-canvas-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(11, 14, 23, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.66rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+html #cross-view .cross-controls-dock {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: 12px;
+}
+
+html #cross-view .cross-stake-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+html #cross-view .cross-ctrl-lbl {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #d4af37;
+}
+
+html #cross-view .cross-bet-box {
+  display: flex;
+  align-items: center;
+  background: rgba(9, 12, 20, 0.9);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 8px;
+  padding: 0 8px;
+}
+
+html #cross-view .cross-bet-input {
+  width: 78px;
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 6px 2px;
+  outline: none;
+}
+
+html #cross-view .cross-bet-unit {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d4af37;
+}
+
+html #cross-view .cross-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+html #cross-view .cross-chip-btn {
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+html #cross-view .cross-chip-btn:hover:not(:disabled) {
+  border-color: #d4af37;
+  color: #fef08a;
+}
+
+html #cross-view .cross-chip-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+html #cross-view .cross-action-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+html #cross-view .btn-cross-primary,
+html #cross-view .btn-cross-step,
+html #cross-view .btn-cross-cashout {
+  border: none;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 9px 18px;
+  letter-spacing: 0.04em;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+html #cross-view .btn-cross-primary {
+  background: linear-gradient(135deg, #d4af37, #f5d060);
+  color: #130e04;
+  font-size: 0.82rem;
+  min-width: 175px;
+}
+
+html #cross-view .btn-cross-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #10b981, #34d399);
+  color: #051b11;
+  min-width: 168px;
+  padding: 6px 16px;
+}
+
+html #cross-view .btn-cross-step .bcs-title {
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
+html #cross-view .btn-cross-step .bcs-sub {
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.88;
+}
+
+html #cross-view .btn-cross-cashout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  color: #fffbeb;
+  min-width: 128px;
+  padding: 6px 14px;
+}
+
+html #cross-view .btn-cross-cashout span {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+}
+
+html #cross-view .btn-cross-cashout strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.84rem;
+}
+
+html #cross-view .btn-cross-primary:disabled,
+html #cross-view .btn-cross-step:disabled,
+html #cross-view .btn-cross-cashout:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+html #cross-view .cross-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html #cross-view .cross-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 0 0 42%;
+}
+
+html #cross-view .cross-history-section {
+  flex: 1;
+}
+
+html #cross-view .cross-side-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: #d4af37;
+}
+
+html #cross-view .cross-count-badge {
+  background: rgba(212, 175, 55, 0.2);
+  color: #fef08a;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+}
+
+html #cross-view .cross-side-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+html #cross-view .cross-side-tab {
+  padding: 5px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html #cross-view .cross-side-tab.active {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: #d4af37;
+  color: #fef08a;
+}
+
+html #cross-view .cross-salon-list,
+html #cross-view .cross-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+html #cross-view .cross-salon-row,
+html #cross-view .cross-hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(15, 20, 32, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.7rem;
+}
+
+html #cross-view .cross-player-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+html #cross-view .cross-player-name,
+html #cross-view .cross-hist-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e2e8f0;
+}
+
+html #cross-view .cross-player-state {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+html #cross-view .cross-player-state.is-live {
+  color: #34d399;
+  font-weight: 700;
+}
+
+html #cross-view .cross-hist-row.win .cross-hist-val {
+  color: #34d399;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+html #cross-view .cross-hist-row.loss .cross-hist-val {
+  color: #f87171;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+html #cross-view .cross-empty-note {
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.72);
+  font-style: italic;
+  padding: 6px 2px;
+}
+
+@media (max-width: 960px) {
+  html #cross-view.active {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 10px;
+  }
+  html #cross-view .cross-header-bar {
+    flex-wrap: wrap;
+  }
+  html #cross-view .cross-multiplier-strip {
+    display: none;
+  }
+  html #cross-view .cross-main-grid {
+    grid-template-columns: 1fr;
+    flex: none;
+  }
+  html #cross-view .cross-stage {
+    flex: none;
+    height: 300px;
+    min-height: 280px;
+  }
+  html #cross-view .cross-controls-dock {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  html #cross-view .cross-stake-group {
+    justify-content: space-between;
+  }
+  html #cross-view .cross-action-btns {
+    width: 100%;
+  }
+  html #cross-view .cross-action-btns button {
+    flex: 1;
+    min-width: 0;
+  }
+  html #cross-view .cross-side-panel {
+    max-height: 260px;
+  }
+  html #cross-view .cross-canvas-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  html #cross-view .cross-title-wrap {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  html #cross-view .cross-game-sub {
+    font-size: 0.6rem;
+    white-space: normal;
+    line-height: 1.25;
+  }
+  html #cross-view .cross-hud-badges {
+    top: 6px;
+    left: 6px;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  html #cross-view .cross-hud-chip {
+    padding: 3px 6px;
+  }
+  html #cross-view .cross-stage-pill {
+    display: none;
+  }
+  html #cross-view .cross-result-banner {
+    font-size: 0.72rem;
+    padding: 6px 12px;
+    max-width: 92%;
+    white-space: normal;
+    text-align: center;
+  }
+}

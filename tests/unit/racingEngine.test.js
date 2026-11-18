@@ -504,4 +504,55 @@ describe('Racing Guardrails (Zero Audio, Zero Emoji) & Client Controller Export'
     });
     assert.equal(ctrl.hasActiveBets(), false);
   });
+
+  it('renders SVG jockey silks, runner spotlight, stepped 2-1-3 podium, MAX balance cap from ui.myPlayer, and keeps zero emojis across full #racing-view', () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '../../client/index.html'), 'utf8');
+    const startIdx = indexHtml.indexOf('id="racing-view"');
+    const endIdx = indexHtml.indexOf('id="mines-view"');
+    assert.ok(startIdx !== -1 && endIdx > startIdx);
+    const fullRacingHtml = indexHtml.slice(startIdx, endIdx);
+
+    assert.ok(fullRacingHtml.includes('id="racing-runner-spotlight"'), 'Spotlight container must exist');
+    assert.equal(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}]/u.test(fullRacingHtml), false, 'Full #racing-view must have zero emojis');
+    assert.equal(/AudioContext|webkitAudioContext|<audio|new Audio\(/i.test(fullRacingHtml), false, 'Full #racing-view must have zero audio');
+
+    const spotlightEl = { innerHTML: '', style: { setProperty: () => {} } };
+    const paddockEl = { innerHTML: '', querySelector: () => null };
+    const payoutEl = { innerHTML: '' };
+    const podiumEl = { innerHTML: '', classList: { add: () => {}, remove: () => {}, contains: () => true } };
+    const betInputEl = { value: '100' };
+
+    const ctrl = new CasinoRacing({
+      network: { on: () => {}, racingPlaceBet: () => {} },
+      ui: { myPlayer: { id: 'p1', chips: 3754 }, setNavigationLocked: () => {} },
+    });
+    ctrl.els = {
+      runnerSpotlight: spotlightEl,
+      paddockGrid: paddockEl,
+      potentialPayout: payoutEl,
+      podiumOverlay: podiumEl,
+      betAmountInput: betInputEl,
+    };
+
+    ctrl.selectHorse(2);
+    assert.ok(spotlightEl.innerHTML.includes('<svg class="racing-silk-svg"'), 'Spotlight renders custom SVG silk jersey');
+    assert.ok(spotlightEl.innerHTML.includes('Azure Mirage'));
+    assert.ok(paddockEl.innerHTML.includes('horse-live-progress-fill'), 'Paddock cards render live race progress track');
+    assert.ok(payoutEl.innerHTML.includes('payout-metrics-grid'), 'Betslip renders 3-column payout breakdown');
+
+    ctrl._applyBetModifier('max');
+    assert.equal(ctrl.betAmount, 3750, 'MAX modifier caps cleanly at rounded player chips');
+
+    ctrl._showPodiumOverlay({
+      raceId: 9,
+      winOdds: 3.38,
+      podium: [
+        { horseId: 4, name: 'Belle Epoque Royal', rank: 1, silkColor: '#059669', finishTimeMs: 12450 },
+        { horseId: 1, name: 'Prince de Monaco', rank: 2, silkColor: '#e11d48', finishTimeMs: 12610 },
+        { horseId: 6, name: 'Riviera Lightning', rank: 3, silkColor: '#ec4899', finishTimeMs: 12800 },
+      ],
+    }, null);
+    assert.ok(podiumEl.innerHTML.indexOf('podium-place-2') < podiumEl.innerHTML.indexOf('podium-place-1'));
+    assert.ok(podiumEl.innerHTML.indexOf('podium-place-1') < podiumEl.innerHTML.indexOf('podium-place-3'));
+  });
 });

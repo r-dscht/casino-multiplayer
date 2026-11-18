@@ -17,6 +17,8 @@ const SlotsEngine = require('./game/slotsEngine');
 const RacingEngine = require('./game/racingEngine');
 const HiloEngine = require('./game/hiloEngine');
 const MinesEngine = require('./game/minesEngine');
+const AviaEngine = require('./game/aviaEngine');
+const CrossEngine = require('./game/crossEngine');
 const LotteryEngine = require('./game/lotteryEngine');
 
 /**
@@ -46,7 +48,7 @@ function sanitizeHtml(str) {
  * @param {Object} [racingEngine=null]
  * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, reason?: string, message?: string }}
  */
-function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null, racingEngine = null, hiloEngine = null, minesEngine = null) {
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null, racingEngine = null, hiloEngine = null, minesEngine = null, crossEngine = null) {
   if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
     return {
       allowed: false,
@@ -147,6 +149,16 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
       amount: typeof minesEngine.getActiveBetTotal === 'function' ? minesEngine.getActiveBetTotal(playerId) : 0,
       reason: 'Je hebt een actieve Mines Kluis ronde openstaan. Cash uit of rond de kluis eerst af.',
       message: 'Active bet present on Mines.'
+    };
+  }
+  if (crossEngine && typeof crossEngine.hasActiveBets === 'function' && crossEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Cross',
+      amount: typeof crossEngine.getActiveBetTotal === 'function' ? crossEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je hebt een actieve Boulevard Cross oversteek openstaan. Cash eerst uit of maak je ronde af.',
+      message: 'Active bet present on Boulevard Cross.'
     };
   }
   return { allowed: true };
@@ -268,6 +280,9 @@ function setupSocket(httpServer, options = {}) {
 
   const plinkoEngine = new PlinkoEngine({ playerManager, bankManager });
   io.plinkoEngine = plinkoEngine;
+
+  const aviaEngine = new AviaEngine({ playerManager, bankManager });
+  io.aviaEngine = aviaEngine;
 
   const slotsEngine = new SlotsEngine({ playerManager, bankManager });
   io.slotsEngine = slotsEngine;
@@ -564,6 +579,69 @@ function setupSocket(httpServer, options = {}) {
   });
 
   // -------------------------------------------------------------------------
+  // Monte Carlo Boulevard Cross (Unlimited lanes, uniform 20% crash / 80% win)
+  // -------------------------------------------------------------------------
+  const crossEngine = new CrossEngine({ playerManager, bankManager });
+  io.crossEngine = crossEngine;
+  crossEngine.start();
+
+  function emitCrossRepayments(playerId, playerName, repayments, modeLabel = 'Boulevard Cross') {
+    if (!Array.isArray(repayments) || repayments.length === 0) return;
+    repayments.forEach((rep) => {
+      broadcastChatMessage({
+        sender: 'BANK',
+        color: '#10b981',
+        text: `[BANK] ${playerName} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via ${modeLabel}.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'table',
+        table: 'cross'
+      });
+      const lender = playerManager.getPlayerById(rep.lenderId);
+      if (lender) {
+        emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+        emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+      }
+      const borrower = playerManager.getPlayerById(playerId);
+      if (borrower) {
+        emitToPlayer(borrower.id, 'chips_update', { chips: borrower.chips });
+        emitToPlayer(borrower.id, 'bank_update', bankManager.getPlayerBankData(borrower.id));
+      }
+    });
+  }
+
+  crossEngine.on('salon_update', () => {
+    const pub = crossEngine.getPublicState(null);
+    io.emit('cross_salon_update', {
+      salonPlayers: pub.salonPlayers,
+      recentWins: pub.recentWins
+    });
+  });
+
+  crossEngine.on('big_moment', (payload) => {
+    if (!payload) return;
+    const msgText = `[CROSS] ${payload.playerName} cashte ${payload.payout.toLocaleString()} fiches (${Number(payload.multiplier).toFixed(2)}x) na ${payload.lane} banen op Monte Carlo Boulevard!`;
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'cross'
+    });
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: msgText,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'global',
+      table: 'all'
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Casino Staatsloterij (30-minute cycle, 100% pot payout, 0% house edge)
   // -------------------------------------------------------------------------
   const lotteryOptions = (options && options.lotteryOptions && typeof options.lotteryOptions === 'object')
@@ -733,6 +811,16 @@ function setupSocket(httpServer, options = {}) {
         amount: typeof minesEngine.getActiveBetTotal === 'function' ? minesEngine.getActiveBetTotal(playerId) : 0,
         reason: 'Je hebt een actieve Mines Kluis ronde openstaan. Cash uit of rond de kluis eerst af.',
         message: 'Active bet present on Mines.'
+      };
+    }
+    if (crossEngine && typeof crossEngine.hasActiveBets === 'function' && crossEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Cross',
+        amount: typeof crossEngine.getActiveBetTotal === 'function' ? crossEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je hebt een actieve oversteek op Monte Carlo Boulevard lopen. Cash uit of maak je oversteek eerst af.',
+        message: 'Active bet present on Boulevard Cross.'
       };
     }
     return { allowed: true };
@@ -1373,6 +1461,8 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('racing_state', racingEngine.getPublicState(player.id));
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
+      socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      socket.emit('avia_state', aviaEngine.getState());
       socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
         resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
       }));
@@ -1507,6 +1597,8 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('racing_state', racingEngine.getPublicState(player.id));
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
+      socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      socket.emit('avia_state', aviaEngine.getState());
       socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
         resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
       }));
@@ -2093,6 +2185,13 @@ function setupSocket(httpServer, options = {}) {
         socket.emit('mines_state', minesEngine.getPublicState(player.id));
       }
 
+      if (player.location !== 'CROSS') {
+        crossEngine.leaveSalon(player.id);
+      } else {
+        crossEngine.joinSalon(player.id);
+        socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      }
+
       socket.emit('game_switched', {
         game: player.currentGame,
         location: player.location,
@@ -2176,6 +2275,13 @@ function setupSocket(httpServer, options = {}) {
       } else {
         minesEngine.joinSalon(player.id);
         socket.emit('mines_state', minesEngine.getPublicState(player.id));
+      }
+
+      if (player.location !== 'CROSS') {
+        crossEngine.leaveSalon(player.id);
+      } else {
+        crossEngine.joinSalon(player.id);
+        socket.emit('cross_state', crossEngine.getPublicState(player.id));
       }
 
       socket.emit('game_switched', {
@@ -2793,6 +2899,90 @@ function setupSocket(httpServer, options = {}) {
       }
     });
 
+    // 8c-2. Single-Player AviaMasters Arcade Flight Protocol
+    socket.on('avia_join', () => {
+      socket.emit('avia_state', aviaEngine.getState());
+    });
+
+    socket.on('avia_fly', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'avia_fly', 10, 2000)) {
+        const msg = 'Te snel achter elkaar opstijgen — wacht een momentje.';
+        socket.emit('avia_fly_rejected', { code: 'RATE_LIMITED', reason: msg });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: msg });
+        return;
+      }
+
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const msg = 'Log eerst in om AviaMasters te spelen.';
+        socket.emit('avia_fly_rejected', { code: 'PLAYER_NOT_FOUND', reason: msg });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: msg });
+        return;
+      }
+
+      const res = aviaEngine.startFlight(player.id, payload || {});
+      if (!res.ok) {
+        socket.emit('avia_fly_rejected', { code: res.code, reason: res.error });
+        socket.emit('error_msg', { code: res.code, message: res.error });
+        return;
+      }
+
+      socket.emit('avia_fly_accepted', {
+        flight: res.flight,
+        newChips: res.newChips,
+        stats: res.stats,
+        recentFlights: res.recentFlights
+      });
+
+      io.emit('avia_flight_logged', {
+        recentFlights: res.recentFlights
+      });
+
+      emitToPlayer(player.id, 'chips_update', {
+        chips: res.newChips,
+        source: 'avia',
+        aviaDelayed: true
+      });
+      broadcastPlayersUpdate();
+      io.emit('global_leaderboard_update', playerManager.getGlobalLeaderboard());
+
+      if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+        res.repayments.forEach((rep) => {
+          broadcastChatMessage({
+            sender: 'BANK',
+            color: '#10b981',
+            text: `[BANK] ${player.name} heeft ${rep.amount.toLocaleString()} fiches afgelost aan ${rep.lenderName} via winstinhouding.${rep.isFullyRepaid ? ' (Schuld volledig voldaan!)' : ''}`,
+            timestamp: Date.now(),
+            isSystem: true,
+            scope: 'table',
+            table: 'avia'
+          });
+
+          const lender = playerManager.getPlayerById(rep.lenderId);
+          if (lender) {
+            emitToPlayer(lender.id, 'chips_update', { chips: lender.chips });
+            emitToPlayer(lender.id, 'bank_update', bankManager.getPlayerBankData(lender.id));
+          }
+          emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
+        });
+      }
+
+      if (res.flight.landed && (res.flight.finalMultiplier >= 12 || res.flight.profit >= 2500)) {
+        const isMega = res.flight.finalMultiplier >= 40 || res.flight.profit >= 10000;
+        broadcastChatMessage({
+          sender: 'CASINO',
+          color: '#d4af37',
+          text: isMega
+            ? `[AIR WING] ${player.name} landde ${res.flight.finalMultiplier}x bij AviaMasters (+${res.flight.profit.toLocaleString()} fiches)!`
+            : `[AVIAMASTERS] ${player.name} pakte een ${res.flight.finalMultiplier}x landing (+${res.flight.profit.toLocaleString()} fiches)!`,
+          timestamp: Date.now(),
+          isSystem: true,
+          scope: 'global',
+          table: 'all'
+        });
+      }
+    });
+
     // 8d. Multiplayer Grand Sovereign Slots Protocol
     socket.on('slots_join', (payload = {}) => {
       const player = playerManager.getPlayerBySocket(socket.id);
@@ -3251,6 +3441,106 @@ function setupSocket(httpServer, options = {}) {
     });
 
     // -----------------------------------------------------------------------
+    // 8h. Monte Carlo Boulevard Cross Protocol
+    // -----------------------------------------------------------------------
+    function requireCrossPlayer(rejectEvent, actionLabel) {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const reason = `Log eerst in om ${actionLabel}.`;
+        socket.emit(rejectEvent, { code: 'PLAYER_NOT_FOUND', reason });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: reason });
+        return null;
+      }
+      return player;
+    }
+
+    socket.on('cross_join', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (player) {
+        crossEngine.joinSalon(player.id);
+        socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      } else {
+        socket.emit('cross_state', crossEngine.getPublicState(null));
+      }
+    });
+
+    socket.on('cross_start', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'cross_action', 18, 2000)) {
+        const reason = 'Rustig aan — je start te snel achter elkaar.';
+        socket.emit('cross_rejected', { code: 'RATE_LIMITED', reason });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: reason });
+        return;
+      }
+      const player = requireCrossPlayer('cross_rejected', 'een Boulevard oversteek te starten');
+      if (!player) return;
+
+      const res = crossEngine.startRun(player.id, payload);
+      if (!res.ok) {
+        socket.emit('cross_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+
+      socket.emit('cross_started', res);
+      if (typeof res.newChips === 'number') {
+        socket.emit('chips_update', { chips: res.newChips, source: 'cross_start' });
+      }
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('cross_step', () => {
+      if (!checkRateLimit(socket.id, 'cross_action', 18, 2000)) {
+        const reason = 'Rustig aan — te veel stappen tegelijk.';
+        socket.emit('cross_rejected', { code: 'RATE_LIMITED', reason });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: reason });
+        return;
+      }
+      const player = requireCrossPlayer('cross_rejected', 'vooruit te stappen');
+      if (!player) return;
+
+      const res = crossEngine.stepForward(player.id);
+      if (!res.ok) {
+        socket.emit('cross_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+
+      socket.emit('cross_step_result', res);
+      if (res.hit || res.autoCashedOut) {
+        if (typeof res.newChips === 'number') {
+          socket.emit('chips_update', { chips: res.newChips, source: res.hit ? 'cross_hit' : 'cross_cap_cashout' });
+        }
+        if (Array.isArray(res.repayments) && res.repayments.length > 0) {
+          emitCrossRepayments(player.id, player.name, res.repayments, 'Boulevard Cross');
+        }
+        broadcastPlayersUpdate();
+      }
+    });
+
+    socket.on('cross_cashout', () => {
+      if (!checkRateLimit(socket.id, 'cross_action', 18, 2000)) {
+        const reason = 'Rustig aan — te veel acties tegelijk.';
+        socket.emit('cross_rejected', { code: 'RATE_LIMITED', reason });
+        socket.emit('error_msg', { code: 'RATE_LIMITED', message: reason });
+        return;
+      }
+      const player = requireCrossPlayer('cross_rejected', 'uit te cashen');
+      if (!player) return;
+
+      const res = crossEngine.cashout(player.id);
+      if (!res.ok) {
+        socket.emit('cross_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+
+      socket.emit('cross_cashout_result', res);
+      socket.emit('chips_update', { chips: res.newChips, source: 'cross_cashout' });
+      emitCrossRepayments(player.id, player.name, res.repayments, 'Boulevard Cross');
+      broadcastPlayersUpdate();
+    });
+
+    // -----------------------------------------------------------------------
     // 8e. Casino Staatsloterij (10-minute cycle, 0% rake)
     // -----------------------------------------------------------------------
     socket.on('lottery_get_state', () => {
@@ -3318,15 +3608,18 @@ function setupSocket(httpServer, options = {}) {
     // 9. disconnect
     socket.on('disconnect', () => {
       rateLimitBuckets.delete(`${socket.id}:plinko_drop`);
+      rateLimitBuckets.delete(`${socket.id}:avia_fly`);
       rateLimitBuckets.delete(`${socket.id}:slots_spin`);
       rateLimitBuckets.delete(`${socket.id}:racing_place_bet`);
       rateLimitBuckets.delete(`${socket.id}:hilo_action`);
       rateLimitBuckets.delete(`${socket.id}:mines_action`);
+      rateLimitBuckets.delete(`${socket.id}:cross_action`);
       rateLimitBuckets.delete(`${socket.id}:lottery_buy`);
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
         hiloEngine.leaveSalon(player.id);
         minesEngine.leaveSalon(player.id);
+        crossEngine.leaveSalon(player.id);
         if (slotsEngine.leaveMachine(player.id)) {
           broadcastSlotsFloor();
         }
@@ -3395,6 +3688,7 @@ function setupSocket(httpServer, options = {}) {
     racingEngine,
     hiloEngine,
     minesEngine,
+    crossEngine,
     lotteryEngine,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
@@ -3405,6 +3699,7 @@ function setupSocket(httpServer, options = {}) {
       racingEngine.stop();
       hiloEngine.stop();
       minesEngine.stop();
+      crossEngine.stop();
       lotteryEngine.stop();
       for (const tbl of blackjackTables.values()) {
         tbl.stop();

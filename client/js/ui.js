@@ -1344,6 +1344,10 @@
           MINES_BET: ['SHARED INZET', 'phase-betting'],
           MINES_PLAY: ['KLUIS LIVE', 'phase-player-turns'],
           MINES_REVEAL: ['KLUIS ONTHULD', 'phase-payout'],
+          AVIA_READY: ['AVIA KLAAR', 'phase-betting'],
+          AVIA_FLYING: ['IN VLUCHT', 'phase-spinning'],
+          CROSS_READY: ['BOULEVARD KLAAR', 'phase-betting'],
+          CROSS_ACTIVE: ['OP DE WEG', 'phase-spinning'],
           READY: ['ACTIEF', 'phase-betting']
         };
         const mapped = phaseMap[phase];
@@ -1577,6 +1581,10 @@
         this.elements.labelChatTable.textContent = 'Hi-Lo Salon';
       } else if (curTable === 'mines') {
         this.elements.labelChatTable.textContent = 'Mines Zaal';
+      } else if (curTable === 'cross') {
+        this.elements.labelChatTable.textContent = 'Boulevard Cross';
+      } else if (curTable === 'avia') {
+        this.elements.labelChatTable.textContent = 'AviaMasters';
       } else if (curTable === 'poker_2') {
         this.elements.labelChatTable.textContent = 'Poker Tafel 2';
       } else if (curTable.startsWith('poker')) {
@@ -1611,6 +1619,10 @@
           this.elements.chatInput.placeholder = 'Typ een bericht in Hi-Lo Salon...';
         } else if (curTable === 'mines') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Mines Zaal...';
+        } else if (curTable === 'cross') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Boulevard Cross...';
+        } else if (curTable === 'avia') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in AviaMasters...';
         } else if (curTable === 'poker_2') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Poker Tafel 2...';
         } else if (curTable.startsWith('poker')) {
@@ -1647,6 +1659,8 @@
             (curTable === 'racing' && itemTable === 'racing') ||
             (curTable === 'hilo' && itemTable === 'hilo') ||
             (curTable === 'mines' && itemTable === 'mines') ||
+            (curTable === 'cross' && itemTable === 'cross') ||
+            (curTable === 'avia' && itemTable === 'avia') ||
             (curTable === 'roulette' && itemTable === 'roulette')
           );
           item.style.display = matches ? '' : 'none';
@@ -2669,6 +2683,8 @@
       const isHilo = g === 'hilo';
       const isRacing = g === 'racing';
       const isMines = g === 'mines';
+      const isCross = g === 'cross';
+      const isAvia = g === 'avia';
       const isBacklog = false;
 
       if (isRoulette) {
@@ -2707,7 +2723,9 @@
         'plinko-view': isPlinko,
         'hilo-view': isHilo,
         'racing-view': isRacing,
-        'mines-view': isMines
+        'mines-view': isMines,
+        'cross-view': isCross,
+        'avia-view': isAvia
       };
       Object.entries(backlogViews).forEach(([id, active]) => {
         const v = (typeof document !== 'undefined') ? document.getElementById(id) : null;
@@ -2737,7 +2755,9 @@
         'pill-plinko': isPlinko,
         'pill-hilo': isHilo,
         'pill-racing': isRacing,
-        'pill-mines': isMines
+        'pill-mines': isMines,
+        'pill-cross': isCross,
+        'pill-avia': isAvia
       };
       Object.entries(backlogPills).forEach(([id, active]) => {
         const p = (typeof document !== 'undefined') ? document.getElementById(id) : null;

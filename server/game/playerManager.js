@@ -1107,7 +1107,7 @@ class PlayerManager {
     let cleanLoc = 'ROULETTE';
     if (typeof location === 'string') {
       const upper = location.trim().toUpperCase();
-      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES'].includes(upper)) {
+      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'].includes(upper)) {
         cleanLoc = upper;
       }
     }
@@ -1146,7 +1146,7 @@ class PlayerManager {
     player.currentGame = cleanGame;
 
     const upper = cleanGame.toUpperCase();
-    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES'].includes(upper) ? upper : 'ROULETTE';
+    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'].includes(upper) ? upper : 'ROULETTE';
 
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
       const acc = this.accounts.get(player.usernameKey);

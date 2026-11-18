@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let racing = null;
   let hilo = null;
   let mines = null;
+  let cross = null;
 
   function getActiveBetGame() {
     if (currentActiveBets.length > 0) return 'Roulette';
@@ -66,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (mines && typeof mines.hasActiveBets === 'function' && mines.hasActiveBets()) {
       return 'Mines';
+    }
+    if (cross && typeof cross.hasActiveBets === 'function' && cross.hasActiveBets()) {
+      return 'Cross';
     }
     return null;
   }
@@ -136,6 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
         roomTable = 'hilo';
       } else if (currentActiveGame === 'Mines' || currentActiveGame === 'MINES') {
         roomTable = 'mines';
+      } else if (currentActiveGame === 'Cross' || currentActiveGame === 'CROSS') {
+        roomTable = 'cross';
+      } else if (currentActiveGame === 'Avia' || currentActiveGame === 'AVIA') {
+        roomTable = 'avia';
       }
       network.sendChat(text, scope, roomTable);
     },
@@ -230,6 +238,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // 5h-2. Monte Carlo Boulevard Cross Controller
+  if (typeof CasinoCross !== 'undefined') {
+    cross = new CasinoCross({ network, ui });
+    cross.init();
+    if (typeof window !== 'undefined') {
+      window.crossInstance = cross;
+    }
+  }
+
+  // 5h-3. AviaMasters Arcade Flight Controller (tijdelijk gepauzeerd voor latere hervatting -> 0 CPU)
+  const AVIA_WIP_ENABLED = false;
+  let avia = null;
+  if (AVIA_WIP_ENABLED && typeof CasinoAvia !== 'undefined') {
+    avia = new CasinoAvia({ network, ui });
+    avia.init();
+    if (typeof window !== 'undefined') {
+      window.aviaInstance = avia;
+    }
+  }
+
   // 5i. Initialize Casino Staatsloterij Controller
   let lottery = null;
   if (typeof CasinoLottery !== 'undefined') {
@@ -306,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (activeLower === 'racing') network.racingJoin();
       else if (activeLower === 'hilo') network.hiloJoin();
       else if (activeLower === 'mines') network.minesJoin();
+      else if (activeLower === 'cross') network.crossJoin();
+      else if (activeLower === 'avia' && AVIA_WIP_ENABLED) network.aviaJoin();
     }
     if (lottery && typeof network.requestLotteryState === 'function') {
       network.requestLotteryState();
@@ -554,7 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (bank) bank.updateConnectedPlayers(players);
       const me = players.find(p => p.id === ui.myPlayer.id);
       if (me) {
-        if (!bank || !bank.isWheelSpinning) {
+        const deferAvia = !!(avia && (avia.isFlightAnimating || avia.isFlightPending));
+        if (deferAvia) {
+          avia.pendingFinalChips = me.chips;
+        } else if (!bank || !bank.isWheelSpinning) {
           ui.myPlayer.chips = me.chips;
           ui.updatePlayerHUD();
         }
@@ -648,7 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const GAME_VIEW_NAMES = new Set([
-    'roulette', 'blackjack', 'poker', 'crash', 'plinko', 'slots', 'racing', 'hilo', 'mines'
+    'roulette', 'blackjack', 'poker', 'crash', 'plinko', 'slots', 'racing', 'hilo', 'mines', 'cross'
   ]);
 
   function deactivateInactiveViews(targetKey) {
@@ -666,6 +699,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (targetKey !== 'mines' && mines && typeof mines.onViewDeactivated === 'function') {
       mines.onViewDeactivated();
+    }
+    if (targetKey !== 'cross' && cross && typeof cross.onViewDeactivated === 'function') {
+      cross.onViewDeactivated();
+    }
+    if (targetKey !== 'avia' && avia && typeof avia.onViewDeactivated === 'function') {
+      avia.onViewDeactivated();
     }
   }
 
@@ -782,6 +821,34 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.updatePhase('MINES_READY', 0, 'SOLO');
       }
       if (announce) ui.showToast('Je speelt nu Royal Mines Vault', 'info');
+    } else if (key === 'cross') {
+      currentActiveGame = 'Cross';
+      ui.switchGameView('cross');
+      if (syncPresence) network.setGamePresence('CROSS');
+      if (joinPrimaryTables || joinAuxiliary) network.crossJoin();
+      ui.switchChatScope('table');
+      if (cross) {
+        cross.onViewActivated();
+      } else {
+        ui.updatePhase('CROSS_READY', 0, 'SOLO');
+      }
+      if (announce) ui.showToast('Je speelt nu Monte Carlo Boulevard Cross', 'info');
+    } else if (key === 'avia') {
+      if (!AVIA_WIP_ENABLED) {
+        activateGameView('roulette', { syncPresence, joinPrimaryTables, joinAuxiliary, announce: false });
+        return;
+      }
+      currentActiveGame = 'Avia';
+      ui.switchGameView('avia');
+      if (syncPresence) network.setGamePresence('AVIA');
+      if (joinPrimaryTables || joinAuxiliary) network.aviaJoin();
+      ui.switchChatScope('table');
+      if (avia) {
+        avia.onViewActivated();
+      } else {
+        ui.updatePhase('AVIA_READY', 0, 'SOLO');
+      }
+      if (announce) ui.showToast('Je speelt nu AviaMasters Luchtvaart Arcade', 'info');
     }
   }
 
@@ -1603,6 +1670,10 @@ document.addEventListener('DOMContentLoaded', () => {
   network.on('chips_update', (data) => {
     if (data && typeof data.chips === 'number') {
       if (data.wheelDelayed && bank && bank.isWheelSpinning) {
+        return;
+      }
+      if (data.aviaDelayed && avia && (avia.isFlightAnimating || avia.isFlightPending)) {
+        avia.pendingFinalChips = data.chips;
         return;
       }
       ui.myPlayer.chips = data.chips;

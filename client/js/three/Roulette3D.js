@@ -589,6 +589,14 @@
         }
       }
 
+      // Skip expensive 3D WebGL draw calls while Roulette view is hidden in another game tab
+      const roulettePane = this.container && typeof this.container.closest === 'function'
+        ? this.container.closest('#roulette-view')
+        : null;
+      if (roulettePane && roulettePane.classList && roulettePane.classList.contains('hidden')) {
+        return;
+      }
+
       this.renderer.render(this.scene, this.camera);
     }
 

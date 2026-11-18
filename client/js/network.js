@@ -330,11 +330,13 @@
         'crash_bet_rejected',
         'crash_cashout_rejected',
         'plinko_drop_rejected',
+        'avia_fly_rejected',
         'slots_spin_rejected',
         'racing_bet_rejected',
         'racing_cheer_rejected',
         'hilo_rejected',
         'mines_rejected',
+        'cross_rejected',
         'lottery_rejected',
         'bj_seat_error',
         'bj_bet_rejected',
@@ -856,6 +858,26 @@
         this.emitInternal('plinko_drop_rejected', data);
       });
 
+      // Single-Player AviaMasters Protocol Events
+      this.socket.on('avia_state', (data) => {
+        this.emitInternal('avia_state', data);
+      });
+
+      this.socket.on('avia_fly_accepted', (data) => {
+        if (data && typeof data.newChips === 'number') {
+          this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+        }
+        this.emitInternal('avia_fly_accepted', data);
+      });
+
+      this.socket.on('avia_fly_rejected', (data) => {
+        this.emitInternal('avia_fly_rejected', data);
+      });
+
+      this.socket.on('avia_flight_logged', (data) => {
+        this.emitInternal('avia_flight_logged', data);
+      });
+
       // Multiplayer Grand Sovereign Slots Protocol Events
       this.socket.on('slots_state', (data) => {
         this.emitInternal('slots_state', data);
@@ -989,6 +1011,24 @@
         'mines_shared_finished'
       ];
       minesEvents.forEach((evt) => {
+        this.socket.on(evt, (data) => {
+          if (data && typeof data.newChips === 'number') {
+            this.saveClientBackup({ chips: data.newChips, stats: data.stats });
+          }
+          this.emitInternal(evt, data);
+        });
+      });
+
+      // Monte Carlo Boulevard Cross Events
+      const crossEvents = [
+        'cross_state',
+        'cross_salon_update',
+        'cross_rejected',
+        'cross_started',
+        'cross_step_result',
+        'cross_cashout_result'
+      ];
+      crossEvents.forEach((evt) => {
         this.socket.on(evt, (data) => {
           if (data && typeof data.newChips === 'number') {
             this.saveClientBackup({ chips: data.newChips, stats: data.stats });
@@ -1643,6 +1683,23 @@
     }
 
     /**
+     * Requests initial AviaMasters state and recent flight log.
+     */
+    aviaJoin() {
+      if (!this.socket) return;
+      this.socket.emit('avia_join', {});
+    }
+
+    /**
+     * Launches an authoritative AviaMasters arcade flight.
+     * @param {{ amount: number, speed?: '1x'|'2x'|'4x' }} payload
+     */
+    aviaFly(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('avia_fly', payload);
+    }
+
+    /**
      * Joins the Slots floor (auto-assigning an open cabinet or preferred machineId).
      * @param {number|null} [machineId]
      */
@@ -1777,6 +1834,26 @@
     minesSharedCashout() {
       if (!this.socket) return;
       this.socket.emit('mines_shared_cashout', {});
+    }
+
+    crossJoin() {
+      if (!this.socket) return;
+      this.socket.emit('cross_join', {});
+    }
+
+    crossStart(payload = {}) {
+      if (!this.socket) return;
+      this.socket.emit('cross_start', payload);
+    }
+
+    crossStep() {
+      if (!this.socket) return;
+      this.socket.emit('cross_step', {});
+    }
+
+    crossCashout() {
+      if (!this.socket) return;
+      this.socket.emit('cross_cashout', {});
     }
 
     requestLotteryState() {
