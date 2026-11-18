@@ -83,6 +83,7 @@ class LotteryEngine extends EventEmitter {
     this.participants = new Map();
 
     this.loadedFromDisk = false;
+    this._restoredFromClientBackup = false;
     this._saveTimer = null;
     this._isRunning = false;
 
@@ -430,6 +431,7 @@ class LotteryEngine extends EventEmitter {
       pot: this.pot,
       startTicket: firstTicketNum,
       endTicket: lastTicketNum,
+      ticketSeq: this.ticketSeq,
       totalTickets: this.totalTickets,
       remainingChips: updatedPlayer.chips,
       stats: updatedPlayer.stats ? { ...updatedPlayer.stats } : null,
@@ -446,7 +448,116 @@ class LotteryEngine extends EventEmitter {
   hasPendingOfflineOutcome() { return false; }
   acknowledgeOfflineWin() { return false; }
   acknowledgeOfflineOutcome() { return false; }
-  restoreFromBackup() { return { restored: false, drawExecuted: false, resolvedRoundId: null }; }
+
+  /**
+   * Restores Krasloten progressive pot, ticket counters, recent wins, and personal history
+   * from a client localStorage backup after an ephemeral server redeploy (`git push`).
+   * @param {Object|null} player
+   * @param {Object|null} backup
+   * @returns {{ restored: boolean, drawExecuted: boolean, resolvedRoundId: null }}
+   */
+  restoreFromBackup(player, backup) {
+    if (!backup || typeof backup !== 'object') {
+      return { restored: false, drawExecuted: false, resolvedRoundId: null };
+    }
+
+    let restored = false;
+    const backupPot = Number(backup.pot);
+    const backupTickets = Math.max(0, Math.floor(Number(backup.totalTickets) || 0));
+    const backupLoss = Math.max(0, Math.floor(Number(backup.totalLossContributions) || 0));
+    const backupSeq = Math.max(0, Math.floor(Number(backup.ticketSeq || backup.roundId) || 0));
+
+    const shouldRestorePot = Number.isFinite(backupPot) &&
+      backupPot >= RESET_FLOOR_POT &&
+      (
+        backupTickets > this.totalTickets ||
+        (backupTickets === this.totalTickets && backupLoss > this.totalLossContributions) ||
+        (!this.loadedFromDisk && this.totalTickets === 0 && this.totalLossContributions === 0 && backupPot !== this.initialPot)
+      );
+
+    if (shouldRestorePot) {
+      const freshDelta = (!this._restoredFromClientBackup && this.totalTickets === 0)
+        ? Math.max(0, this.pot - this.initialPot)
+        : 0;
+      this.pot = Math.max(RESET_FLOOR_POT, Math.floor(backupPot) + freshDelta);
+      this.totalTickets = Math.max(this.totalTickets, backupTickets);
+      this.ticketSeq = Math.max(this.ticketSeq, this.totalTickets, backupSeq);
+      this.totalLossContributions = Math.max(this.totalLossContributions, backupLoss);
+      this._restoredFromClientBackup = true;
+      restored = true;
+    }
+
+    if (Array.isArray(backup.history) && backup.history.length > 0) {
+      const seen = new Set(
+        this.history.map((h) => `${Number(h && (h.ticketNumber || h.roundId)) || 0}:${String((h && h.winnerName) || '').trim().toLowerCase()}`)
+      );
+      let historyChanged = false;
+      for (const entry of backup.history) {
+        if (!entry || typeof entry !== 'object') continue;
+        const tNum = Number(entry.ticketNumber || entry.roundId) || 0;
+        const wName = String(entry.winnerName || '').trim();
+        const potWon = Number(entry.potWon) || 0;
+        if (!wName || potWon <= 0) continue;
+        const key = `${tNum}:${wName.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        this.history.push({
+          ...entry,
+          roundId: Number(entry.roundId) || tNum,
+          ticketNumber: tNum,
+          winnerName: wName,
+          potWon,
+          timestamp: Number(entry.timestamp) || Date.now()
+        });
+        historyChanged = true;
+      }
+      if (historyChanged) {
+        this.history.sort((a, b) => (Number(b.ticketNumber || b.timestamp) || 0) - (Number(a.ticketNumber || a.timestamp) || 0));
+        if (this.history.length > HISTORY_LIMIT) {
+          this.history.length = HISTORY_LIMIT;
+        }
+        if (!this.lastDraw && this.history.length > 0) {
+          this.lastDraw = this.history[0];
+        }
+        restored = true;
+      }
+    }
+
+    const pKey = this._getPlayerKey(player);
+    if (pKey && Array.isArray(backup.myHistory) && backup.myHistory.length > 0) {
+      const existingList = this.personalHistory.get(pKey) || [];
+      const backupCount = Math.max(
+        backup.myHistory.length,
+        Math.floor(Number(backup.mySummary && backup.mySummary.tickets) || 0)
+      );
+      if (backupCount > existingList.length) {
+        const seenPersonal = new Set(
+          existingList.map((t) => String((t && (t.ticketId || t.ticketNumber)) || ''))
+        );
+        const merged = [...existingList];
+        for (const item of backup.myHistory) {
+          if (!item || typeof item !== 'object') continue;
+          const k = String(item.ticketId || item.ticketNumber || '');
+          if (k && seenPersonal.has(k)) continue;
+          if (k) seenPersonal.add(k);
+          merged.push({ ...item });
+        }
+        merged.sort((a, b) => (Number(b.ticketNumber || b.timestamp) || 0) - (Number(a.ticketNumber || a.timestamp) || 0));
+        this.personalHistory.set(pKey, merged.slice(0, PERSONAL_HISTORY_LIMIT));
+        restored = true;
+      }
+    }
+
+    if (restored) {
+      this.saveStateSync();
+    }
+
+    return {
+      restored,
+      drawExecuted: false,
+      resolvedRoundId: null
+    };
+  }
 
   /**
    * Computes current live prize preview for each tier based on `this.pot`.
@@ -478,6 +589,7 @@ class LotteryEngine extends EventEmitter {
       mode: 'KRASLOTEN',
       isPersonal: Boolean(player),
       roundId: this.ticketSeq + 1,
+      ticketSeq: this.ticketSeq,
       phase: PHASES.READY,
       secondsRemaining: 600,
       roundEndsAt: 0,

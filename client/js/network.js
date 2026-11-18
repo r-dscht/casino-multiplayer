@@ -25,12 +25,18 @@
       this._reauthInFlight = false;
       this._lastReauthAt = 0;
       this.handlers = new Map();
-      this.initialBuildHash = null;
-      this.initialBootId = null;
+      const bootVer = (typeof window !== 'undefined' && window.__CASINO_VERSION__ && typeof window.__CASINO_VERSION__ === 'object')
+        ? window.__CASINO_VERSION__
+        : null;
+      this.initialBuildHash = bootVer && bootVer.buildHash ? String(bootVer.buildHash) : null;
+      this.initialBootId = bootVer && bootVer.bootId ? String(bootVer.bootId) : null;
       this._pendingVersionReload = null;
       this._versionReloadTimer = null;
       this._disconnectBannerTimer = null;
       this._versionPollTimer = null;
+      this._heartbeatPollTimer = null;
+      this._lastVersionCheckAt = 0;
+      this._versionListenersBound = false;
       this._isReloadingPage = false;
     }
 
@@ -226,19 +232,109 @@
           const raw = localStorage.getItem('casino_lottery_backup');
           if (!raw) return null;
           const parsed = JSON.parse(raw);
-          const stake = (parsed && parsed.activeStake && typeof parsed.activeStake === 'object')
-            ? parsed.activeStake
-            : null;
-          if (!stake) return null;
-          if (!Number.isInteger(stake.roundId) || stake.roundId < 1) return null;
-          if (!Number.isInteger(stake.tickets) || stake.tickets < 1) return null;
-          if (!Number.isInteger(stake.totalSpent) || stake.totalSpent <= 0) return null;
-          if (typeof stake.roundEndsAt !== 'number' || !Number.isFinite(stake.roundEndsAt) || stake.roundEndsAt <= 0) return null;
-          if (stake.savedAt && (Date.now() - stake.savedAt) > 7 * 24 * 60 * 60 * 1000) return null;
-          return { ...stake };
+          if (!parsed || typeof parsed !== 'object') return null;
+          if (parsed.savedAt && (Date.now() - parsed.savedAt) > 7 * 24 * 60 * 60 * 1000) return null;
+
+          const result = {};
+          if (typeof parsed.pot === 'number' && Number.isFinite(parsed.pot)) {
+            result.pot = Math.floor(parsed.pot);
+            if (typeof parsed.totalTickets === 'number') result.totalTickets = parsed.totalTickets;
+            if (typeof parsed.totalLossContributions === 'number') result.totalLossContributions = parsed.totalLossContributions;
+            if (typeof parsed.ticketSeq === 'number') result.ticketSeq = parsed.ticketSeq;
+            if (Array.isArray(parsed.history)) result.history = parsed.history;
+            if (parsed.mySummary && typeof parsed.mySummary === 'object') result.mySummary = parsed.mySummary;
+            if (Array.isArray(parsed.myHistory)) result.myHistory = parsed.myHistory;
+            if (parsed.playerName) result.playerName = parsed.playerName;
+            if (parsed.playerId) result.playerId = parsed.playerId;
+            if (parsed.savedAt) result.savedAt = parsed.savedAt;
+          }
+
+          const stake = (parsed.activeStake && typeof parsed.activeStake === 'object') ? parsed.activeStake : null;
+          if (
+            stake &&
+            Number.isInteger(stake.roundId) && stake.roundId >= 1 &&
+            Number.isInteger(stake.tickets) && stake.tickets >= 1 &&
+            Number.isInteger(stake.totalSpent) && stake.totalSpent > 0 &&
+            typeof stake.roundEndsAt === 'number' && Number.isFinite(stake.roundEndsAt) && stake.roundEndsAt > 0
+          ) {
+            result.activeStake = { ...stake };
+          }
+
+          return Object.keys(result).length > 0 ? result : null;
         }
       } catch (e) {}
       return null;
+    }
+
+    /**
+     * Persists shared Krasloten pot, history, and personal stats in localStorage
+     * so ephemeral server deploys (`git push`) do not wipe the progressive pot.
+     * @param {Object} data
+     */
+    saveKraslotenBackup(data) {
+      if (!data || typeof data !== 'object') return;
+      if (typeof data.pot !== 'number' || !Number.isFinite(data.pot)) return;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          let parsed = {};
+          const raw = localStorage.getItem('casino_lottery_backup');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p && typeof p === 'object') parsed = p;
+          }
+          parsed.pot = Math.floor(data.pot);
+          if (typeof data.totalTickets === 'number' && Number.isFinite(data.totalTickets)) {
+            parsed.totalTickets = Math.max(0, Math.floor(data.totalTickets));
+          }
+          if (typeof data.totalLossContributions === 'number' && Number.isFinite(data.totalLossContributions)) {
+            parsed.totalLossContributions = Math.max(0, Math.floor(data.totalLossContributions));
+          }
+          const seq = typeof data.ticketSeq === 'number'
+            ? data.ticketSeq
+            : (typeof data.endTicket === 'number'
+              ? data.endTicket
+              : (typeof data.roundId === 'number' ? Math.max(0, data.roundId - 1) : parsed.ticketSeq));
+          if (typeof seq === 'number' && Number.isFinite(seq)) {
+            parsed.ticketSeq = Math.max(0, Math.floor(seq));
+          }
+          if (Array.isArray(data.history)) {
+            parsed.history = data.history.slice(0, 12);
+          }
+          const isPersonal = data.isPersonal !== false;
+          if (isPersonal && (data.mySummary || Array.isArray(data.myHistory))) {
+            parsed.playerId = data.playerId || this.myPlayerId || parsed.playerId || null;
+            parsed.playerName = data.playerName || (this._lastAuthPayload && this._lastAuthPayload.name) || parsed.playerName || null;
+            if (data.mySummary && typeof data.mySummary === 'object') {
+              parsed.mySummary = data.mySummary;
+            }
+            if (Array.isArray(data.myHistory)) {
+              parsed.myHistory = data.myHistory.slice(0, 20);
+            }
+          }
+          parsed.savedAt = Date.now();
+          localStorage.setItem('casino_lottery_backup', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    }
+
+    _buildLotteryBackupPayload(ownerName) {
+      const b = this.getLotteryBackup();
+      if (!b) return null;
+      const sameUser = !b.playerName || !ownerName ||
+        String(b.playerName).trim().toLowerCase() === String(ownerName).trim().toLowerCase();
+      const payload = {};
+      if (typeof b.pot === 'number') payload.pot = b.pot;
+      if (typeof b.totalTickets === 'number') payload.totalTickets = b.totalTickets;
+      if (typeof b.totalLossContributions === 'number') payload.totalLossContributions = b.totalLossContributions;
+      if (typeof b.ticketSeq === 'number') payload.ticketSeq = b.ticketSeq;
+      if (Array.isArray(b.history)) payload.history = b.history;
+      if (sameUser) {
+        if (b.activeStake) payload.activeStake = b.activeStake;
+        if (b.mySummary) payload.mySummary = b.mySummary;
+        if (Array.isArray(b.myHistory)) payload.myHistory = b.myHistory;
+        if (b.playerName) payload.playerName = b.playerName;
+      }
+      return Object.keys(payload).length > 0 ? payload : null;
     }
 
     /**
@@ -340,6 +436,8 @@
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000
       });
+
+      this._startConnectedVersionHeartbeat();
 
       this.socket.on('connect', () => {
         this.isConnected = true;
@@ -1165,18 +1263,24 @@
           if (data && typeof data.remainingChips === 'number') {
             this.saveClientBackup({ chips: data.remainingChips });
           }
-          if (evt === 'lottery_buy_ack' && data && data.ok && data.mySummary && data.mySummary.tickets > 0) {
-            this.saveLotteryStakeBackup({
-              roundId: data.roundId,
-              roundEndsAt: data.roundEndsAt || 0,
-              tickets: data.mySummary.tickets,
-              totalSpent: data.mySummary.totalSpent,
-              playerId: data.playerId || this.myPlayerId,
-              playerName: data.playerName || (this._lastAuthPayload && this._lastAuthPayload.name) || null
-            });
+          if (evt === 'lottery_buy_ack' && data && data.ok) {
+            this.saveKraslotenBackup(data);
+            if (data.mySummary && data.mySummary.tickets > 0) {
+              this.saveLotteryStakeBackup({
+                roundId: data.roundId,
+                roundEndsAt: data.roundEndsAt || 0,
+                tickets: data.mySummary.tickets,
+                totalSpent: data.mySummary.totalSpent,
+                playerId: data.playerId || this.myPlayerId,
+                playerName: data.playerName || (this._lastAuthPayload && this._lastAuthPayload.name) || null
+              });
+            }
           } else if (evt === 'lottery_draw_result' && data && Number.isInteger(data.roundId)) {
             this.clearLotteryStakeBackup(data.roundId);
           } else if (evt === 'lottery_state' && data && typeof data === 'object') {
+            if (typeof data.pot === 'number') {
+              this.saveKraslotenBackup(data);
+            }
             const stake = this.getLotteryBackup();
             const settledList = Array.isArray(data.settledRoundIds) ? data.settledRoundIds : [];
             const inHistory = Array.isArray(data.history) && stake && data.history.some(h => h && Number(h.roundId) === Number(stake.roundId));
@@ -1274,13 +1378,10 @@
         ? payload.password
         : ((this._lastAuthPayload && this._lastAuthPayload.password) || null);
       this._lastAuthPayload = { sessionToken: token, name, color, password };
-      const lotBackup = this.getLotteryBackup();
       const storedName = (typeof localStorage !== 'undefined'
         ? (localStorage.getItem('casino_player_name') || localStorage.getItem('roulette_player_name'))
         : null);
       const authUser = name || storedName || null;
-      const sameLotteryUser = !lotBackup || !lotBackup.playerName || !authUser ||
-        lotBackup.playerName.trim().toLowerCase() === authUser.trim().toLowerCase();
       this.socket.emit('auth_session', {
         sessionToken: token,
         name,
@@ -1288,7 +1389,7 @@
         password,
         clientBackup: this.getClientBackup(),
         bankBackup: this.getBankBackup(),
-        lotteryBackup: sameLotteryUser ? lotBackup : null,
+        lotteryBackup: this._buildLotteryBackupPayload(authUser),
         leaderboardBackup: this.getLeaderboardBackup()
       });
     }
@@ -1313,15 +1414,12 @@
       // Only attach clientBackup if it belongs to the same username (or no username is in backup)
       const sameUser = !backup || !backup.name || !playerProfile.name ||
         backup.name.trim().toLowerCase() === playerProfile.name.trim().toLowerCase();
-      const lotBackup = this.getLotteryBackup();
-      const sameLotteryUser = !lotBackup || !lotBackup.playerName || !playerProfile.name ||
-        lotBackup.playerName.trim().toLowerCase() === playerProfile.name.trim().toLowerCase();
       this.socket.emit('join_table', {
         ...playerProfile,
         sessionToken: token,
         clientBackup: sameUser ? backup : null,
         bankBackup: sameUser ? this.getBankBackup() : null,
-        lotteryBackup: sameLotteryUser ? lotBackup : null,
+        lotteryBackup: this._buildLotteryBackupPayload(playerProfile.name),
         leaderboardBackup: this.getLeaderboardBackup()
       });
     }
@@ -2066,6 +2164,40 @@
       }
     }
 
+    _startConnectedVersionHeartbeat() {
+      if (typeof fetch !== 'function' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+        return;
+      }
+      const checkNow = async () => {
+        if (this._isReloadingPage) return;
+        const now = Date.now();
+        if ((now - this._lastVersionCheckAt) < 1500) return;
+        this._lastVersionCheckAt = now;
+        try {
+          const res = await fetch(`/api/version?t=${now}`, { cache: 'no-store' });
+          if (!res.ok) return;
+          const json = await res.json();
+          if (json && (json.bootId || json.buildHash)) {
+            this.handleServerVersion(json);
+          }
+        } catch (e) {}
+      };
+      if (!this._heartbeatPollTimer) {
+        this._heartbeatPollTimer = setInterval(checkNow, 8000);
+      }
+      if (!this._versionListenersBound) {
+        this._versionListenersBound = true;
+        window.addEventListener('focus', checkNow);
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+              checkNow();
+            }
+          });
+        }
+      }
+    }
+
     _startVersionPolling() {
       if (this._versionPollTimer || typeof fetch !== 'function') return;
       const poll = async () => {
@@ -2074,7 +2206,7 @@
           return;
         }
         try {
-          const res = await fetch('/api/version', { cache: 'no-store' });
+          const res = await fetch(`/api/version?t=${Date.now()}`, { cache: 'no-store' });
           if (!res.ok) return;
           const json = await res.json();
           if (json && (json.bootId || json.buildHash)) {
@@ -2092,7 +2224,7 @@
     _performSafePageReload(versionInfo) {
       if (this._isReloadingPage) return false;
       const bootKey = versionInfo && (versionInfo.bootId || versionInfo.buildHash)
-        ? String(versionInfo.bootId || versionInfo.buildHash)
+        ? `${versionInfo.bootId || ''}:${versionInfo.buildHash || ''}`
         : '';
       try {
         if (bootKey && typeof sessionStorage !== 'undefined') {
@@ -2111,8 +2243,19 @@
       }
       this.emitInternal('version_reloading', versionInfo || {});
       setTimeout(() => {
-        if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function') {
-          window.location.reload();
+        if (typeof window !== 'undefined' && window.location) {
+          const nextVer = (versionInfo && (versionInfo.buildHash || versionInfo.bootId)) || String(Date.now());
+          try {
+            if (typeof window.location.href === 'string' && window.location.href.startsWith('http') && typeof window.location.replace === 'function') {
+              const u = new URL(window.location.href);
+              u.searchParams.set('v', String(nextVer));
+              window.location.replace(u.toString());
+              return;
+            }
+          } catch (e) {}
+          if (typeof window.location.reload === 'function') {
+            window.location.reload();
+          }
         }
       }, 600);
       return true;

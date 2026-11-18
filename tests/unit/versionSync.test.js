@@ -73,6 +73,11 @@ describe('Live Deploy Detection, No-Cache Headers & Safe Auto-Reload', () => {
       assert.equal(res.status, 200);
       assert.ok(String(res.headers['cache-control']).includes('no-store'), `${asset} missing no-store`);
       assert.equal(res.headers.pragma, 'no-cache', `${asset} missing Pragma: no-cache`);
+      if (asset === '/') {
+        assert.ok(res.body.includes(`js/network.js?v=${info.buildHash}`), 'index.html missing ?v= cache-buster');
+        assert.ok(res.body.includes(`css/shell.css?v=${info.buildHash}`), 'index.html missing CSS ?v= cache-buster');
+        assert.ok(res.body.includes('window.__CASINO_VERSION__='), 'index.html missing __CASINO_VERSION__');
+      }
     }
   });
 
@@ -138,7 +143,7 @@ describe('Live Deploy Detection, No-Cache Headers & Safe Auto-Reload', () => {
       assert.equal(net.handleServerVersion({ buildHash: 'bbb222', bootId: 'boot_2' }), true);
       assert.equal(events[0][0], 'mismatch');
       assert.equal(net._performSafePageReload({ buildHash: 'bbb222', bootId: 'boot_2' }), true);
-      assert.equal(store.get('casino_reloaded_boot_id'), 'boot_2');
+      assert.equal(store.get('casino_reloaded_boot_id'), 'boot_2:bbb222');
       assert.equal(store.get('casino_updated_toast'), '1');
 
       // Second call for exact same boot_2 must be blocked by loop guard

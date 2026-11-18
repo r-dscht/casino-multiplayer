@@ -10,6 +10,10 @@ const path = require('path');
 const crypto = require('crypto');
 
 const CLIENT_DIR = path.join(__dirname, '..', 'client');
+const GIT_DIR_CANDIDATES = [
+  path.join(__dirname, '..', '.git'),
+  path.join(__dirname, '..', '..', '.git')
+];
 
 function collectFilesSorted(dir, acc = []) {
   if (!fs.existsSync(dir)) return acc;
@@ -28,6 +32,28 @@ function collectFilesSorted(dir, acc = []) {
   return acc;
 }
 
+function hashGitHead(hash) {
+  for (const gitDir of GIT_DIR_CANDIDATES) {
+    try {
+      const headPath = path.join(gitDir, 'HEAD');
+      if (!fs.existsSync(headPath)) continue;
+      const headContent = fs.readFileSync(headPath, 'utf8').trim();
+      hash.update('git-head\0');
+      hash.update(headContent);
+      hash.update('\0');
+      if (headContent.startsWith('ref:')) {
+        const refRel = headContent.slice(4).trim();
+        const refPath = path.join(gitDir, refRel);
+        if (fs.existsSync(refPath)) {
+          hash.update(fs.readFileSync(refPath, 'utf8').trim());
+          hash.update('\0');
+        }
+      }
+      break;
+    } catch (err) {}
+  }
+}
+
 function computeClientBuildHash() {
   const hash = crypto.createHash('sha256');
   try {
@@ -39,6 +65,7 @@ function computeClientBuildHash() {
       hash.update(fs.readFileSync(filePath));
       hash.update('\0');
     }
+    hashGitHead(hash);
   } catch (err) {
     hash.update(String(Date.now()));
   }
@@ -46,13 +73,23 @@ function computeClientBuildHash() {
 }
 
 const startedAt = Date.now();
-const buildHash = computeClientBuildHash();
-const bootId = `boot_${startedAt}_${crypto.randomBytes(4).toString('hex')}`;
+let cachedBuildHash = computeClientBuildHash();
+let lastHashCheckAt = Date.now();
+let currentBootId = `boot_${startedAt}_${crypto.randomBytes(4).toString('hex')}`;
 
 function getVersionInfo() {
+  const now = Date.now();
+  if ((now - lastHashCheckAt) >= 1000) {
+    lastHashCheckAt = now;
+    const freshHash = computeClientBuildHash();
+    if (freshHash && freshHash !== cachedBuildHash) {
+      cachedBuildHash = freshHash;
+      currentBootId = `boot_${now}_${crypto.randomBytes(4).toString('hex')}`;
+    }
+  }
   return {
-    buildHash,
-    bootId,
+    buildHash: cachedBuildHash,
+    bootId: currentBootId,
     startedAt
   };
 }

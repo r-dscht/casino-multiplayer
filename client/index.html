@@ -2750,18 +2750,23 @@
 
             <!-- Right: Buy Card & Controls -->
             <div class="lottery-buy-card glass-panel">
-              <div class="lottery-section-title">Kraslot Trekken (1.000 F)</div>
-              <div class="lottery-qty-row">
+              <div class="lottery-section-title">1 Kraslot Trekken (1.000 F)</div>
+              <div class="lottery-qty-row hidden">
                 <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-dec" aria-label="Minder loten">-</button>
-                <input type="number" id="lottery-qty-input" class="lottery-qty-input" min="1" max="25" step="1" value="1" aria-label="Aantal krasloten">
+                <input type="number" id="lottery-qty-input" class="lottery-qty-input" min="1" max="1" step="1" value="1" aria-label="Aantal krasloten">
                 <button type="button" class="btn btn-secondary btn-sm lottery-step-btn" id="btn-lottery-qty-inc" aria-label="Meer loten">+</button>
               </div>
-              <div class="lottery-presets-row">
+              <div class="lottery-presets-row hidden">
                 <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="1">1 (1K)</button>
                 <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="3">3 (3K)</button>
                 <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="5">5 (5K)</button>
                 <button type="button" class="btn-quick-chip lottery-preset-btn" data-preset="10">10 (10K)</button>
                 <button type="button" class="btn-quick-chip chip-all lottery-preset-btn" data-preset="max">MAX</button>
+              </div>
+
+              <div class="scratch-live-meter" id="scratch-live-meter">
+                <span class="slm-label">Huidig kraslot</span>
+                <strong class="slm-val" id="scratch-live-meter-val">Klaar (0 / 9 vakjes)</strong>
               </div>
 
               <div class="lottery-preview-box">

@@ -235,7 +235,7 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
     }
   });
 
-  it('K7: supports smooth partial cell scratching, single-cell reveals, and deferred suspense payouts', () => {
+  it('K7: enforces 1-card-at-a-time scratching, requires 9/9 cells without mid-drag cutoff, shows live dopamine cues, and defers payouts', async () => {
     const handlers = {};
     const mockNetwork = {
       isConnected: true,
@@ -246,6 +246,8 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
     };
     let hudUpdates = 0;
     const toasts = [];
+    const drawStatus = { className: '', textContent: '' };
+    const btnBuy = { disabled: false, textContent: '', classList: { toggle: () => {} } };
     const mockUi = {
       myPlayer: { id: 'p1', chips: 10000 },
       updatePlayerHUD: () => { hudUpdates += 1; },
@@ -253,6 +255,11 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
     };
 
     const ctrl = new CasinoLottery({ network: mockNetwork, ui: mockUi });
+    ctrl.el.drawStatus = drawStatus;
+    ctrl.el.btnBuy = btnBuy;
+    ctrl.setQuantity(10);
+    assert.equal(ctrl.getSelectedQuantity(), 1);
+
     const sampleGrid = Array.from({ length: 9 }, (_, i) => ({
       index: i,
       badge: i < 3 ? 'GOUD' : 'STER',
@@ -279,11 +286,17 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
       }
     });
 
-    // While foil is unrevealed, payout is held back so HUD doesn't spoil win
+    // While foil is unrevealed, payout is held back so HUD doesn't spoil win and buy button is locked
     assert.equal(ctrl.isScratchRevealed, false);
     assert.equal(mockUi.myPlayer.chips, 9000);
     assert.equal(ctrl._pendingFinalChips, 11750);
     assert.equal(ctrl.state.mySummary.totalWon, 0);
+    assert.equal(btnBuy.disabled, true);
+
+    // Buying a second card while active card is unscratched is rejected with toast
+    ctrl.submitBuy();
+    assert.equal(ctrl.isScratchRevealed, false);
+    assert.ok(toasts.some((t) => t.msg.includes('huidige kraslot')));
 
     // Incoming lottery_state with history is queued until card is scratched open
     handlers.lottery_state({
@@ -297,28 +310,106 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
     assert.equal(ctrl.state.myHistory.length, 0);
     assert.ok(ctrl._deferredState);
 
-    // Scratching 3 sub-points within cell 0 reveals cell 0 without revealing full ticket
-    ctrl._eraseFoilBrush(20, 20, 360, 270, null);
-    ctrl._eraseFoilBrush(55, 25, 360, 270, { x: 20, y: 20 });
-    ctrl._eraseFoilBrush(85, 55, 360, 270, { x: 55, y: 25 });
+    // Rubbing across all 4x4 sub-zones inside cell 0 (diagonal sweeps) opens cell 0 after >= 9 zones
+    ctrl._eraseFoilBrush(10, 10, 360, 270, null);
+    assert.equal(ctrl._revealedCells.has(0), false);
+    ctrl._eraseFoilBrush(110, 80, 360, 270, { x: 10, y: 10 });
+    ctrl._eraseFoilBrush(10, 80, 360, 270, { x: 110, y: 80 });
+    ctrl._eraseFoilBrush(110, 10, 360, 270, { x: 10, y: 80 });
+    ctrl._eraseFoilBrush(60, 10, 360, 270, { x: 60, y: 80 });
     assert.equal(ctrl._revealedCells.has(0), true);
     assert.equal(ctrl.isScratchRevealed, false);
     assert.equal(mockUi.myPlayer.chips, 9000);
 
-    // Revealing cells 1..5 keeps suspense intact; cell 6 (7th overall) auto-reveals card
-    for (let idx = 1; idx <= 5; idx += 1) {
+    // Cell 1 triggers 2/3 match dopamine status ("SPANNING! 2x GOUD"), cell 2 triggers 3/3 match ("PRIJS GEVONDEN!")
+    ctrl._revealSingleCell(1, 360, 270);
+    assert.ok(drawStatus.textContent.includes('2x GOUD'));
+    ctrl._revealSingleCell(2, 360, 270);
+    assert.ok(drawStatus.textContent.includes('3x GOUD'));
+
+    // Cells 3..7 keep card open for scratching; cell 8 while pointer is still dragging does NOT cut off mid-scratch
+    for (let idx = 3; idx <= 7; idx += 1) {
       ctrl._revealSingleCell(idx, 360, 270);
       assert.equal(ctrl.isScratchRevealed, false);
     }
-    ctrl._revealSingleCell(6, 360, 270);
+    ctrl._isScratchingPointer = true;
+    ctrl._revealSingleCell(8, 360, 270);
+    assert.equal(ctrl._revealedCells.size, 9);
+    assert.equal(ctrl.isScratchRevealed, false);
+
+    // Releasing pointer triggers settle reveal and flushes payout + history cleanly
+    ctrl._isScratchingPointer = false;
+    ctrl._scheduleScratchComplete(40);
+    await new Promise((resolve) => setTimeout(resolve, 90));
 
     assert.equal(ctrl.isScratchRevealed, true);
+    assert.equal(btnBuy.disabled, false);
     assert.equal(mockUi.myPlayer.chips, 11750);
     assert.equal(ctrl._pendingFinalChips, null);
     assert.equal(ctrl._deferredState, null);
     assert.equal(ctrl.state.pot, 8250);
     assert.equal(ctrl.state.myHistory.length, 1);
     assert.ok(hudUpdates >= 2);
-    assert.equal(toasts.length, 1);
+  });
+
+  it('K8: persists Krasloten pot & history in client backup and restores across ephemeral server restarts', () => {
+    const store = new Map();
+    const prevStorage = global.localStorage;
+    global.localStorage = {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k)
+    };
+
+    try {
+      const CasinoNetwork = require('../../client/js/network');
+      const net = new CasinoNetwork();
+      net._lastAuthPayload = { name: 'KrasSpeler' };
+
+      net.saveKraslotenBackup({
+        mode: 'KRASLOTEN',
+        isPersonal: true,
+        roundId: 15,
+        ticketSeq: 14,
+        pot: 18450,
+        totalTickets: 14,
+        totalLossContributions: 320,
+        mySummary: { tickets: 2, totalSpent: 2000, totalWon: 500 },
+        myHistory: [
+          { ticketId: 'krs_14', ticketNumber: 14, tierId: 'MISS', payout: 0, cost: 1000, timestamp: 200 },
+          { ticketId: 'krs_13', ticketNumber: 13, tierId: 'CONSOLATION_500', payout: 500, cost: 1000, timestamp: 100 }
+        ],
+        history: [
+          { roundId: 13, ticketNumber: 13, winnerName: 'KrasSpeler', tierLabel: '500 F', potWon: 500, timestamp: 100 }
+        ]
+      });
+
+      const payloadSame = net._buildLotteryBackupPayload('KrasSpeler');
+      const payloadOther = net._buildLotteryBackupPayload('AndereSpeler');
+      assert.equal(payloadSame.pot, 18450);
+      assert.equal(payloadSame.myHistory.length, 2);
+      assert.equal(payloadOther.pot, 18450);
+      assert.equal(payloadOther.myHistory, undefined);
+
+      // Fresh LotteryEngine after git push / redeploy without disk persistence
+      const pmFresh = new PlayerManager({ storagePath: false });
+      const engineFresh = new LotteryEngine(pmFresh, { storagePath: false });
+      const player = pmFresh.registerPlayer('s1', { name: 'KrasSpeler', color: '#D4AF37' });
+      const res = engineFresh.restoreFromBackup(player, payloadSame);
+
+      assert.equal(res.restored, true);
+      assert.equal(engineFresh.pot, 18450);
+      assert.equal(engineFresh.totalTickets, 14);
+      assert.equal(engineFresh.totalLossContributions, 320);
+      assert.equal(engineFresh.ticketSeq, 14);
+      assert.equal(engineFresh.history.length, 1);
+      const stateAfter = engineFresh.getPublicState(player.id);
+      assert.equal(stateAfter.myHistory.length, 2);
+      assert.equal(stateAfter.mySummary.totalWon, 500);
+      engineFresh.stop();
+    } finally {
+      if (prevStorage === undefined) delete global.localStorage;
+      else global.localStorage = prevStorage;
+    }
   });
 });

@@ -90,6 +90,8 @@
       this._deferredMySummary = null;
       this._deferredState = null;
       this._activePointerId = null;
+      this._pendingFinishTimer = null;
+      this._activeFlakes = 0;
 
       this._cacheElements();
       this._bindEvents();
@@ -119,6 +121,8 @@
         reelTrack: byId('lottery-reel-track'),
         btnRevealAll: byId('btn-scratch-reveal-all'),
         drawBanner: byId('lottery-draw-banner'),
+        liveMeter: byId('scratch-live-meter'),
+        liveMeterVal: byId('scratch-live-meter-val'),
         qtyInput: byId('lottery-qty-input'),
         btnQtyDec: byId('btn-lottery-qty-dec'),
         btnQtyInc: byId('btn-lottery-qty-inc'),
@@ -247,12 +251,20 @@
             }
           }
         }
+
+        if (this._revealedCells.size >= 9 && !this.isScratchRevealed) {
+          this._scheduleScratchComplete(450);
+        }
       };
 
       canvas.addEventListener('pointerdown', (e) => {
         if (!this.activeTicket || this.isScratchRevealed || !this._foilReady) return;
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (this._pendingFinishTimer) {
+          clearTimeout(this._pendingFinishTimer);
+          this._pendingFinishTimer = null;
+        }
 
         const rect = canvas.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
@@ -468,6 +480,10 @@
         totalPayout: Number(ack.totalPayout) || 0,
         remainingChips: ack.remainingChips
       };
+      if (this._pendingFinishTimer) {
+        clearTimeout(this._pendingFinishTimer);
+        this._pendingFinishTimer = null;
+      }
       this.isScratchRevealed = false;
       this._isScratchingPointer = false;
       this._lastScratchPt = null;
@@ -478,6 +494,10 @@
 
       if (this.el.roundId) {
         this.el.roundId.textContent = String(ticket.ticketNumber || this.state.roundId);
+      }
+      if (this.el.liveMeterVal) {
+        this.el.liveMeterVal.className = 'slm-val';
+        this.el.liveMeterVal.textContent = '0 / 9 vakjes open';
       }
       if (this.el.drawStatus) {
         this.el.drawStatus.className = 'lottery-draw-status';
@@ -651,18 +671,130 @@
 
       const lx = Math.min(0.999, Math.max(0, (px / Math.max(1, w)) * 3 - col));
       const ly = Math.min(0.999, Math.max(0, (py / Math.max(1, h)) * 3 - row));
-      const sx = Math.min(2, Math.max(0, Math.floor(lx * 3)));
-      const sy = Math.min(2, Math.max(0, Math.floor(ly * 3)));
+      const sx = Math.min(3, Math.max(0, Math.floor(lx * 4)));
+      const sy = Math.min(3, Math.max(0, Math.floor(ly * 4)));
       if (this._scratchedCellPoints && this._scratchedCellPoints[cellIdx]) {
         this._scratchedCellPoints[cellIdx].add(`${sx},${sy}`);
-        if (!this._revealedCells.has(cellIdx) && this._scratchedCellPoints[cellIdx].size >= 3) {
+        if (!this._revealedCells.has(cellIdx) && this._scratchedCellPoints[cellIdx].size >= 9) {
           this._revealSingleCell(cellIdx, w, h);
         }
       }
+    }
 
-      const zx = Math.min(4, Math.max(0, Math.floor((px / Math.max(1, w)) * 5)));
-      const zy = Math.min(4, Math.max(0, Math.floor((py / Math.max(1, h)) * 5)));
-      this._scratchedZones.add(`${zx},${zy}`);
+    _spawnFoilFlake(x, y) {
+      const stage = this.el.reelStage;
+      if (!stage || typeof document === 'undefined' || typeof stage.appendChild !== 'function') return;
+      if (this._activeFlakes >= 16) return;
+      this._activeFlakes += 1;
+      const flake = document.createElement('div');
+      flake.className = 'scratch-foil-flake';
+      flake.style.left = `${Math.round(x + 10)}px`;
+      flake.style.top = `${Math.round(y + 10)}px`;
+      const dx = Math.round((Math.random() - 0.5) * 34);
+      const dy = Math.round(-8 - Math.random() * 20);
+      flake.style.setProperty('--fx-dx', `${dx}px`);
+      flake.style.setProperty('--fx-dy', `${dy}px`);
+      stage.appendChild(flake);
+      setTimeout(() => {
+        this._activeFlakes = Math.max(0, this._activeFlakes - 1);
+        if (flake.parentNode) flake.parentNode.removeChild(flake);
+      }, 380);
+    }
+
+    _scheduleScratchComplete(delayMs = 450) {
+      if (this._isScratchingPointer || !this.activeTicket || this.isScratchRevealed) return;
+      if (this._pendingFinishTimer) {
+        clearTimeout(this._pendingFinishTimer);
+      }
+      this._pendingFinishTimer = setTimeout(() => {
+        this._pendingFinishTimer = null;
+        if (this.activeTicket && !this.isScratchRevealed && !this._isScratchingPointer) {
+          this.revealScratchCard(true);
+        }
+      }, delayMs);
+    }
+
+    _updateLiveScratchDopamine() {
+      if (!this.activeTicket || !Array.isArray(this.activeTicket.grid)) return;
+      const opened = this._revealedCells.size;
+      const groups = new Map();
+
+      for (const idx of this._revealedCells) {
+        const cell = this.activeTicket.grid[idx];
+        if (!cell) continue;
+        const key = String(cell.badge || cell.symbolName || idx);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(idx);
+      }
+
+      const winnerSet = new Set();
+      const nearSet = new Set();
+      let winnerCell = null;
+      let nearCell = null;
+
+      for (const idxs of groups.values()) {
+        if (idxs.length >= 3) {
+          idxs.forEach((i) => winnerSet.add(i));
+          if (!winnerCell) winnerCell = this.activeTicket.grid[idxs[0]];
+        } else if (idxs.length === 2) {
+          idxs.forEach((i) => nearSet.add(i));
+          if (!nearCell) nearCell = this.activeTicket.grid[idxs[0]];
+        }
+      }
+
+      if (this.el.reelTrack && typeof this.el.reelTrack.querySelectorAll === 'function') {
+        const tiles = this.el.reelTrack.querySelectorAll('.scratch-cell');
+        tiles.forEach((tile) => {
+          const i = parseInt(tile.getAttribute('data-cell-idx'), 10);
+          if (tile.classList) {
+            tile.classList.toggle('is-winner', winnerSet.has(i));
+            tile.classList.toggle('is-near-match', !winnerSet.has(i) && nearSet.has(i));
+          }
+        });
+      }
+
+      if (opened >= 9) {
+        if (this.el.drawStatus) {
+          this.el.drawStatus.className = winnerCell ? 'lottery-draw-status is-winner' : 'lottery-draw-status is-near';
+          this.el.drawStatus.textContent = winnerCell
+            ? `3x ${winnerCell.badge} (${winnerCell.label}) GEVONDEN! Lot wordt onthuld...`
+            : 'Alle 9 vakjes open — resultaat wordt onthuld...';
+        }
+        if (this.el.liveMeterVal) {
+          this.el.liveMeterVal.className = winnerCell ? 'slm-val is-win' : 'slm-val is-near';
+          this.el.liveMeterVal.textContent = winnerCell ? `3x ${winnerCell.badge}! (9/9)` : '9 / 9 vakjes open';
+        }
+        return;
+      }
+
+      if (winnerCell) {
+        if (this.el.drawStatus) {
+          this.el.drawStatus.className = 'lottery-draw-status is-winner';
+          this.el.drawStatus.textContent = `PRIJS GEVONDEN! 3x ${winnerCell.badge} (${winnerCell.label}) — kras de laatste vakjes open!`;
+        }
+        if (this.el.liveMeterVal) {
+          this.el.liveMeterVal.className = 'slm-val is-win';
+          this.el.liveMeterVal.textContent = `3x ${winnerCell.badge}! (${opened}/9)`;
+        }
+      } else if (nearCell) {
+        if (this.el.drawStatus) {
+          this.el.drawStatus.className = 'lottery-draw-status is-near';
+          this.el.drawStatus.textContent = `SPANNING! 2x ${nearCell.badge} (${nearCell.label}) GEVONDEN — NOG 1 VOOR WINST!`;
+        }
+        if (this.el.liveMeterVal) {
+          this.el.liveMeterVal.className = 'slm-val is-near';
+          this.el.liveMeterVal.textContent = `BIJNA! 2x ${nearCell.badge} (${opened}/9)`;
+        }
+      } else {
+        if (this.el.drawStatus) {
+          this.el.drawStatus.className = 'lottery-draw-status';
+          this.el.drawStatus.textContent = `Lot #${this.activeTicket.ticketNumber} — ${opened} / 9 vakjes open (zoek 3 dezelfde!)`;
+        }
+        if (this.el.liveMeterVal) {
+          this.el.liveMeterVal.className = 'slm-val';
+          this.el.liveMeterVal.textContent = `${opened} / 9 vakjes open`;
+        }
+      }
     }
 
     _revealSingleCell(cellIdx, w = 380, h = 260) {
@@ -694,14 +826,11 @@
         }
       }
 
-      if (this._revealedCells.size >= 7) {
-        this.revealScratchCard(true);
-        return;
-      }
+      this._updateLiveScratchDopamine();
+      this.renderBuyPreview();
 
-      if (this.el.drawStatus) {
-        this.el.drawStatus.className = 'lottery-draw-status';
-        this.el.drawStatus.textContent = `Lot #${this.activeTicket.ticketNumber} — ${this._revealedCells.size} / 9 vakjes open (zoek 3 dezelfde!)`;
+      if (this._revealedCells.size >= 9) {
+        this._scheduleScratchComplete(450);
       }
     }
 
@@ -719,21 +848,25 @@
             ctx.beginPath();
             ctx.moveTo(prevPt.x, prevPt.y);
             ctx.lineTo(x, y);
-            ctx.lineWidth = 48;
+            ctx.lineWidth = 28;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.stroke();
           }
           ctx.beginPath();
-          ctx.arc(x, y, 24, 0, Math.PI * 2);
+          ctx.arc(x, y, 14, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
       }
 
+      if (prevPt && Math.hypot(x - prevPt.x, y - prevPt.y) >= 8) {
+        this._spawnFoilFlake(x, y);
+      }
+
       if (prevPt) {
         const dist = Math.hypot(x - prevPt.x, y - prevPt.y);
-        const steps = Math.max(1, Math.ceil(dist / 14));
+        const steps = Math.max(1, Math.ceil(dist / 8));
         for (let s = 1; s <= steps; s += 1) {
           const t = s / steps;
           this._markScratchPoint(
@@ -747,14 +880,14 @@
       } else {
         this._markScratchPoint(x, y, w, h);
       }
-
-      if (!this.isScratchRevealed && (this._revealedCells.size >= 7 || this._scratchedZones.size >= 16)) {
-        this.revealScratchCard(true);
-      }
     }
 
     revealScratchCard(animateClear = true) {
       if (!this.activeTicket || this.isScratchRevealed) return;
+      if (this._pendingFinishTimer) {
+        clearTimeout(this._pendingFinishTimer);
+        this._pendingFinishTimer = null;
+      }
       this.isScratchRevealed = true;
       this._foilReady = false;
       this._isScratchingPointer = false;
@@ -778,6 +911,11 @@
 
       const batch = this.activeBatchSummary || { count: 1, totalCost: TICKET_PRICE, totalPayout: this.activeTicket.payout };
       const wonAmount = batch.count > 1 ? batch.totalPayout : this.activeTicket.payout;
+
+      if (this.el.liveMeterVal) {
+        this.el.liveMeterVal.className = wonAmount > 0 ? 'slm-val is-win' : 'slm-val';
+        this.el.liveMeterVal.textContent = wonAmount > 0 ? `GEWONNEN: +${wonAmount.toLocaleString()} F` : 'Klaar — nieuw lot beschikbaar';
+      }
 
       if (this.el.drawStatus) {
         this.el.drawStatus.className = wonAmount > 0 ? 'lottery-draw-status is-winner' : 'lottery-draw-status';
@@ -828,28 +966,20 @@
     }
 
     getSelectedQuantity() {
-      const raw = this.el.qtyInput ? parseInt(this.el.qtyInput.value, 10) : 1;
-      if (!Number.isInteger(raw) || raw < 1) return 1;
-      return Math.min(MAX_PER_REQUEST, raw);
+      return 1;
     }
 
-    setQuantity(count) {
-      const clean = Math.max(1, Math.min(MAX_PER_REQUEST, parseInt(count, 10) || 1));
-      if (this.el.qtyInput) this.el.qtyInput.value = clean;
+    setQuantity() {
+      if (this.el.qtyInput) this.el.qtyInput.value = 1;
       this.renderBuyPreview();
     }
 
-    adjustQuantity(delta) {
-      this.setQuantity(this.getSelectedQuantity() + delta);
+    adjustQuantity() {
+      this.setQuantity(1);
     }
 
     setMaxAffordableQuantity() {
-      const chips = (this.ui && this.ui.myPlayer && typeof this.ui.myPlayer.chips === 'number')
-        ? this.ui.myPlayer.chips
-        : 0;
-      const price = this.state.ticketPrice || TICKET_PRICE;
-      const maxCount = Math.max(1, Math.min(MAX_PER_REQUEST, Math.floor(chips / price)));
-      this.setQuantity(maxCount);
+      this.setQuantity(1);
     }
 
     _startBuyTimeout() {
@@ -930,6 +1060,13 @@
         return;
       }
 
+      if (this.activeTicket && !this.isScratchRevealed) {
+        if (this.ui && typeof this.ui.showToast === 'function') {
+          this.ui.showToast('Kras eerst je huidige kraslot helemaal open!', 'error');
+        }
+        return;
+      }
+
       const totalCost = count * (this.state.ticketPrice || TICKET_PRICE);
       const chips = (this.ui && this.ui.myPlayer && typeof this.ui.myPlayer.chips === 'number')
         ? this.ui.myPlayer.chips
@@ -939,11 +1076,6 @@
           this.ui.showToast(`Onvoldoende fiches (nodig: ${totalCost.toLocaleString()} F).`, 'error');
         }
         return;
-      }
-
-      // If previous ticket wasn't scratched yet, auto-reveal it before loading next card
-      if (this.activeTicket && !this.isScratchRevealed) {
-        this.revealScratchCard(true);
       }
 
       this._isBuying = true;
@@ -1035,9 +1167,15 @@
         this.el.previewOdds.textContent = '32.00%';
       }
       if (this.el.btnBuy && !this._isBuying) {
-        this.el.btnBuy.textContent = count === 1
-          ? `KOOP 1 KRASLOT (${cost.toLocaleString()} F)`
-          : `KOOP ${count} KRASLOTEN (${cost.toLocaleString()} F)`;
+        if (this.activeTicket && !this.isScratchRevealed) {
+          this.el.btnBuy.disabled = true;
+          this.el.btnBuy.textContent = `KRAS EERST DIT LOT OPEN (${this._revealedCells.size}/9)`;
+        } else {
+          this.el.btnBuy.disabled = false;
+          this.el.btnBuy.textContent = count === 1
+            ? `KOOP 1 KRASLOT (${cost.toLocaleString()} F)`
+            : `KOOP ${count} KRASLOTEN (${cost.toLocaleString()} F)`;
+        }
       }
 
       const my = this.state.mySummary || {};

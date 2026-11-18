@@ -651,6 +651,24 @@ function setupSocket(httpServer, options = {}) {
   const lotteryEngine = new LotteryEngine(playerManager, { bankManager, ...lotteryOptions });
   io.lotteryEngine = lotteryEngine;
 
+  let lastKnownVersion = getVersionInfo();
+  const versionWatchTimer = setInterval(() => {
+    try {
+      const current = getVersionInfo();
+      if (current.buildHash !== lastKnownVersion.buildHash || current.bootId !== lastKnownVersion.bootId) {
+        lastKnownVersion = current;
+        io.emit('server_updating', {
+          ...current,
+          message: 'Nieuwe casino-update gedetecteerd — pagina wordt automatisch ververst...'
+        });
+        io.emit('server_version', current);
+      }
+    } catch (e) {}
+  }, 4000);
+  if (typeof versionWatchTimer.unref === 'function') {
+    versionWatchTimer.unref();
+  }
+
   function emitPersonalizedLotteryStates() {
     const baseState = lotteryEngine.getPublicState(null);
     io.emit('lottery_state', baseState);
@@ -3730,6 +3748,7 @@ function setupSocket(httpServer, options = {}) {
       });
     },
     stop: () => {
+      clearInterval(versionWatchTimer);
       engine.stop();
       crashEngine.stop();
       slotsEngine.stop();
