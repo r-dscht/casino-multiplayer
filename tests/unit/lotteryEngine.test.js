@@ -234,4 +234,91 @@ describe('LotteryEngine — Monte Carlo Gouden Krasloten Unit Suite', () => {
       assert.equal(bannedRe.test(src), false, `Banned brand term found in ${rel}`);
     }
   });
+
+  it('K7: supports smooth partial cell scratching, single-cell reveals, and deferred suspense payouts', () => {
+    const handlers = {};
+    const mockNetwork = {
+      isConnected: true,
+      isAuthenticated: true,
+      on: (evt, fn) => { handlers[evt] = fn; },
+      buyLotteryTickets: () => {},
+      requestLotteryState: () => {}
+    };
+    let hudUpdates = 0;
+    const toasts = [];
+    const mockUi = {
+      myPlayer: { id: 'p1', chips: 10000 },
+      updatePlayerHUD: () => { hudUpdates += 1; },
+      showToast: (msg, type) => { toasts.push({ msg, type }); }
+    };
+
+    const ctrl = new CasinoLottery({ network: mockNetwork, ui: mockUi });
+    const sampleGrid = Array.from({ length: 9 }, (_, i) => ({
+      index: i,
+      badge: i < 3 ? 'GOUD' : 'STER',
+      label: i < 3 ? '25%' : 'X',
+      symbolName: i < 3 ? '3x GOUD' : 'Ster',
+      color: '#f59e0b',
+      isWinningCell: i < 3
+    }));
+
+    handlers.lottery_buy_ack({
+      ok: true,
+      count: 1,
+      totalCost: 1000,
+      totalPayout: 2750,
+      remainingChips: 11750,
+      mySummary: { tickets: 1, totalSpent: 1000, totalWon: 2750 },
+      ticket: {
+        ticketNumber: 42,
+        won: true,
+        payout: 2750,
+        tierId: 'POT_25',
+        tierLabel: '25% POT',
+        grid: sampleGrid
+      }
+    });
+
+    // While foil is unrevealed, payout is held back so HUD doesn't spoil win
+    assert.equal(ctrl.isScratchRevealed, false);
+    assert.equal(mockUi.myPlayer.chips, 9000);
+    assert.equal(ctrl._pendingFinalChips, 11750);
+    assert.equal(ctrl.state.mySummary.totalWon, 0);
+
+    // Incoming lottery_state with history is queued until card is scratched open
+    handlers.lottery_state({
+      mode: 'KRASLOTEN',
+      pot: 8250,
+      totalTickets: 1,
+      mySummary: { tickets: 1, totalSpent: 1000, totalWon: 2750 },
+      myHistory: [{ ticketNumber: 42, won: true, payout: 2750 }],
+      history: [{ playerName: 'Tester', payout: 2750 }]
+    });
+    assert.equal(ctrl.state.myHistory.length, 0);
+    assert.ok(ctrl._deferredState);
+
+    // Scratching 3 sub-points within cell 0 reveals cell 0 without revealing full ticket
+    ctrl._eraseFoilBrush(20, 20, 360, 270, null);
+    ctrl._eraseFoilBrush(55, 25, 360, 270, { x: 20, y: 20 });
+    ctrl._eraseFoilBrush(85, 55, 360, 270, { x: 55, y: 25 });
+    assert.equal(ctrl._revealedCells.has(0), true);
+    assert.equal(ctrl.isScratchRevealed, false);
+    assert.equal(mockUi.myPlayer.chips, 9000);
+
+    // Revealing cells 1..5 keeps suspense intact; cell 6 (7th overall) auto-reveals card
+    for (let idx = 1; idx <= 5; idx += 1) {
+      ctrl._revealSingleCell(idx, 360, 270);
+      assert.equal(ctrl.isScratchRevealed, false);
+    }
+    ctrl._revealSingleCell(6, 360, 270);
+
+    assert.equal(ctrl.isScratchRevealed, true);
+    assert.equal(mockUi.myPlayer.chips, 11750);
+    assert.equal(ctrl._pendingFinalChips, null);
+    assert.equal(ctrl._deferredState, null);
+    assert.equal(ctrl.state.pot, 8250);
+    assert.equal(ctrl.state.myHistory.length, 1);
+    assert.ok(hudUpdates >= 2);
+    assert.equal(toasts.length, 1);
+  });
 });

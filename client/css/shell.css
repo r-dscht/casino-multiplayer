@@ -5549,9 +5549,14 @@ html .scratch-stage {
 }
 
 html .scratch-foil-canvas {
-  cursor: crosshair;
+  cursor: grab;
   pointer-events: auto;
   z-index: 8;
+  touch-action: none;
+}
+
+html .scratch-foil-canvas:active {
+  cursor: grabbing;
 }
 
 html .scratch-grid-3x3 {
@@ -5578,6 +5583,12 @@ html .scratch-placeholder-note {
   border-radius: 10px;
 }
 
+@keyframes scratchCellPop {
+  0% { transform: scale(0.92); filter: brightness(1.35); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
 html .scratch-cell {
   display: flex;
   flex-direction: column;
@@ -5590,6 +5601,12 @@ html .scratch-cell {
   padding: 6px;
   text-align: center;
   user-select: none;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html .scratch-cell.is-cell-revealed {
+  animation: scratchCellPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  border-color: rgba(245, 196, 81, 0.42);
 }
 
 html .scratch-cell.is-winner {

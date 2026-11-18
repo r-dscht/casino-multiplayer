@@ -3599,7 +3599,14 @@ function setupSocket(httpServer, options = {}) {
         return;
       }
 
-      socket.emit('chips_update', { chips: res.remainingChips, source: 'lottery' });
+      const totalPayout = Number(res.totalPayout) || 0;
+      const preWinChips = Math.max(0, res.remainingChips - totalPayout);
+      socket.emit('chips_update', {
+        chips: res.remainingChips,
+        preWinChips,
+        totalPayout,
+        source: 'lottery'
+      });
       if (Array.isArray(res.repayments) && res.repayments.length > 0) {
         emitToPlayer(player.id, 'bank_update', bankManager.getPlayerBankData(player.id));
       }

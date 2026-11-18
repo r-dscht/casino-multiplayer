@@ -80,6 +80,16 @@
       this._isScratchingPointer = false;
       this._foilReady = false;
       this._scratchedZones = new Set();
+      this._lastScratchPt = null;
+      this._scratchStartPt = null;
+      this._scratchDownTime = 0;
+      this._scratchMovedPx = 0;
+      this._scratchedCellPoints = Array.from({ length: 9 }, () => new Set());
+      this._revealedCells = new Set();
+      this._pendingFinalChips = null;
+      this._deferredMySummary = null;
+      this._deferredState = null;
+      this._activePointerId = null;
 
       this._cacheElements();
       this._bindEvents();
@@ -184,35 +194,108 @@
       const canvas = this.el.fxCanvas;
       if (!canvas) return;
 
-      const scratchAt = (e) => {
+      const toLocalPt = (ev, rect) => ({
+        x: ev.clientX - rect.left,
+        y: ev.clientY - rect.top
+      });
+
+      const scratchMove = (ev) => {
         if (!this.activeTicket || this.isScratchRevealed || !this._foilReady) return;
         const rect = canvas.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        this._eraseFoilBrush(x, y, rect.width, rect.height);
+
+        const pts = typeof ev.getCoalescedEvents === 'function' ? ev.getCoalescedEvents() : null;
+        const samples = pts && pts.length > 0 ? pts : [ev];
+        for (let i = 0; i < samples.length; i += 1) {
+          const pt = toLocalPt(samples[i], rect);
+          if (this._lastScratchPt) {
+            this._scratchMovedPx += Math.hypot(pt.x - this._lastScratchPt.x, pt.y - this._lastScratchPt.y);
+          }
+          this._eraseFoilBrush(pt.x, pt.y, rect.width, rect.height, this._lastScratchPt);
+          this._lastScratchPt = pt;
+          if (this.isScratchRevealed) break;
+        }
+      };
+
+      const endScratch = (ev) => {
+        if (!this._isScratchingPointer) return;
+        const elapsed = Date.now() - this._scratchDownTime;
+        const isTap = (!ev || ev.type === 'pointerup') && elapsed < 260 && this._scratchMovedPx < 14;
+        const pointerId = this._activePointerId;
+
+        this._isScratchingPointer = false;
+        this._lastScratchPt = null;
+        this._activePointerId = null;
+
+        if (pointerId !== null && typeof canvas.releasePointerCapture === 'function') {
+          try {
+            if (!canvas.hasPointerCapture || canvas.hasPointerCapture(pointerId)) {
+              canvas.releasePointerCapture(pointerId);
+            }
+          } catch (err) {}
+        }
+
+        if (isTap && this.activeTicket && !this.isScratchRevealed && this._foilReady && ev) {
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            const x = ev.clientX - rect.left;
+            const y = ev.clientY - rect.top;
+            if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+              const col = Math.min(2, Math.max(0, Math.floor((x / rect.width) * 3)));
+              const row = Math.min(2, Math.max(0, Math.floor((y / rect.height) * 3)));
+              this._revealSingleCell(row * 3 + col, rect.width, rect.height);
+            }
+          }
+        }
       };
 
       canvas.addEventListener('pointerdown', (e) => {
-        if (!this.activeTicket || this.isScratchRevealed) return;
+        if (!this.activeTicket || this.isScratchRevealed || !this._foilReady) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const pt = toLocalPt(e, rect);
+
         this._isScratchingPointer = true;
-        if (typeof canvas.setPointerCapture === 'function') {
-          try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        this._scratchDownTime = Date.now();
+        this._scratchStartPt = pt;
+        this._lastScratchPt = pt;
+        this._scratchMovedPx = 0;
+        this._activePointerId = e.pointerId !== undefined ? e.pointerId : null;
+
+        if (this._activePointerId !== null && typeof canvas.setPointerCapture === 'function') {
+          try { canvas.setPointerCapture(this._activePointerId); } catch (err) {}
         }
-        scratchAt(e);
+        this._eraseFoilBrush(pt.x, pt.y, rect.width, rect.height, null);
       });
 
       canvas.addEventListener('pointermove', (e) => {
-        if (!this._isScratchingPointer) return;
-        scratchAt(e);
+        if (!this.activeTicket || this.isScratchRevealed || !this._foilReady) return;
+        if (!this._isScratchingPointer) {
+          if (e.pointerType === 'mouse' && (e.buttons & 1) === 1) {
+            this._isScratchingPointer = true;
+            this._scratchDownTime = Date.now();
+            this._scratchMovedPx = 20;
+            this._lastScratchPt = null;
+          } else {
+            return;
+          }
+        } else if (e.pointerType === 'mouse' && e.buttons === 0) {
+          endScratch(e);
+          return;
+        }
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        scratchMove(e);
       });
 
-      const endScratch = () => {
-        this._isScratchingPointer = false;
-      };
       canvas.addEventListener('pointerup', endScratch);
       canvas.addEventListener('pointercancel', endScratch);
-      canvas.addEventListener('pointerleave', endScratch);
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('pointerup', endScratch);
+        window.addEventListener('pointercancel', endScratch);
+      }
     }
 
     _bindNetworkEvents() {
@@ -227,18 +310,45 @@
         this._clearBuyLock(false);
         this._pendingBuy = null;
         if (!ack) {
-          this.renderBuyPreview();
+          if ((!this.activeTicket || this.isScratchRevealed) && this._deferredState) {
+            const st = this._deferredState;
+            this._deferredState = null;
+            this.applyState(st);
+          } else {
+            this.renderBuyPreview();
+          }
           return;
         }
-        if (typeof ack.remainingChips === 'number' && this.ui && this.ui.myPlayer) {
-          this.ui.myPlayer.chips = ack.remainingChips;
-          this.ui.updatePlayerHUD();
-        }
-        if (ack.mySummary) {
-          this.state.mySummary = ack.mySummary;
+        const totalPayout = Number(ack.totalPayout) || 0;
+        if (ack.ticket && totalPayout > 0 && typeof ack.remainingChips === 'number') {
+          const preWinChips = Math.max(0, ack.remainingChips - totalPayout);
+          this._pendingFinalChips = ack.remainingChips;
+          this._deferredMySummary = ack.mySummary || null;
+          if (this.ui && this.ui.myPlayer) {
+            this.ui.myPlayer.chips = preWinChips;
+            if (typeof this.ui.updatePlayerHUD === 'function') {
+              this.ui.updatePlayerHUD();
+            }
+          }
+        } else {
+          this._pendingFinalChips = null;
+          this._deferredMySummary = null;
+          if (typeof ack.remainingChips === 'number' && this.ui && this.ui.myPlayer) {
+            this.ui.myPlayer.chips = ack.remainingChips;
+            if (typeof this.ui.updatePlayerHUD === 'function') {
+              this.ui.updatePlayerHUD();
+            }
+          }
+          if (ack.mySummary) {
+            this.state.mySummary = ack.mySummary;
+          }
         }
         if (ack.ticket) {
           this._loadInteractiveScratchCard(ack.ticket, ack);
+        } else if ((!this.activeTicket || this.isScratchRevealed) && this._deferredState) {
+          const st = this._deferredState;
+          this._deferredState = null;
+          this.applyState(st);
         } else {
           this.renderBuyPreview();
         }
@@ -302,17 +412,38 @@
         this.network.requestLotteryState();
       }
       this.renderAll();
-      if (this.activeTicket && !this.isScratchRevealed) {
+      if (this.activeTicket && !this.isScratchRevealed && !this._foilReady) {
         this._paintGoldFoil();
       }
     }
 
     close() {
       if (!this.el.modal) return;
+      if (this.activeTicket && !this.isScratchRevealed) {
+        this.revealScratchCard(true);
+      }
       this.el.modal.classList.add('hidden');
     }
 
     applyState(data) {
+      if (this._isBuying || (this.activeTicket && !this.isScratchRevealed)) {
+        const hasPersonal = data.isPersonal !== false;
+        const base = this._deferredState || this.state;
+        this._deferredState = {
+          ...base,
+          ...data,
+          ticketPrice: typeof data.ticketPrice === 'number' ? data.ticketPrice : base.ticketPrice,
+          pot: typeof data.pot === 'number' ? data.pot : base.pot,
+          totalTickets: typeof data.totalTickets === 'number' ? data.totalTickets : base.totalTickets,
+          totalLossContributions: typeof data.totalLossContributions === 'number' ? data.totalLossContributions : base.totalLossContributions,
+          prizeTiers: Array.isArray(data.prizeTiers) ? data.prizeTiers : base.prizeTiers,
+          mySummary: hasPersonal && data.mySummary ? data.mySummary : base.mySummary,
+          myHistory: hasPersonal && Array.isArray(data.myHistory) ? data.myHistory : base.myHistory,
+          history: Array.isArray(data.history) ? data.history : base.history
+        };
+        return;
+      }
+
       const hasPersonal = data.isPersonal !== false;
       this.state = {
         ...this.state,
@@ -338,7 +469,11 @@
         remainingChips: ack.remainingChips
       };
       this.isScratchRevealed = false;
+      this._isScratchingPointer = false;
+      this._lastScratchPt = null;
       this._scratchedZones.clear();
+      this._revealedCells.clear();
+      this._scratchedCellPoints = Array.from({ length: 9 }, () => new Set());
       this._foilReady = false;
 
       if (this.el.roundId) {
@@ -347,8 +482,8 @@
       if (this.el.drawStatus) {
         this.el.drawStatus.className = 'lottery-draw-status';
         this.el.drawStatus.textContent = this.activeBatchSummary.count > 1
-          ? `Lot #${ticket.ticketNumber} (+${this.activeBatchSummary.count - 1} extra) — Veeg het goud weg of klik KRAS ALLES OPEN!`
-          : `Lot #${ticket.ticketNumber} klaar! Veeg over het gouden folie en zoek 3 dezelfde symbolen!`;
+          ? `Lot #${ticket.ticketNumber} (+${this.activeBatchSummary.count - 1} extra) — Kras of tik een vakje open!`
+          : `Lot #${ticket.ticketNumber} klaar! Sleep over de gouden vakjes of tik om open te krassen!`;
       }
       if (this.el.drawBanner) {
         this.el.drawBanner.className = 'lottery-draw-banner hidden';
@@ -383,6 +518,55 @@
       }).join('');
     }
 
+    _getCellCanvasRect(cellIdx, w, h) {
+      const col = cellIdx % 3;
+      const row = Math.floor(cellIdx / 3);
+      const canvas = this.el.fxCanvas;
+      const stage = this.el.reelStage;
+      if (canvas && stage && typeof stage.querySelector === 'function') {
+        const cellEl = stage.querySelector(`.scratch-cell[data-cell-idx="${cellIdx}"]`);
+        if (cellEl && typeof cellEl.getBoundingClientRect === 'function' && typeof canvas.getBoundingClientRect === 'function') {
+          const cRect = canvas.getBoundingClientRect();
+          const tRect = cellEl.getBoundingClientRect();
+          if (cRect.width > 0 && cRect.height > 0 && tRect.width > 0 && tRect.height > 0) {
+            return {
+              x: tRect.left - cRect.left,
+              y: tRect.top - cRect.top,
+              cw: tRect.width,
+              ch: tRect.height
+            };
+          }
+        }
+      }
+      const pad = 10;
+      const gap = 8;
+      const innerW = Math.max(60, w - pad * 2);
+      const innerH = Math.max(60, h - pad * 2);
+      const cellW = (innerW - gap * 2) / 3;
+      const cellH = (innerH - gap * 2) / 3;
+      return {
+        x: pad + col * (cellW + gap),
+        y: pad + row * (cellH + gap),
+        cw: cellW,
+        ch: cellH
+      };
+    }
+
+    _drawRoundedRectPath(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
     _paintGoldFoil() {
       const canvas = this.el.fxCanvas;
       const stage = this.el.reelStage;
@@ -404,67 +588,167 @@
       ctx.scale(dpr, dpr);
       ctx.globalCompositeOperation = 'source-over';
 
-      // Brushed champagne-gold metallic foil gradient
-      const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, '#a67c2e');
-      grad.addColorStop(0.28, '#eed5a2');
-      grad.addColorStop(0.55, '#c99b3b');
-      grad.addColorStop(0.82, '#f5d98a');
-      grad.addColorStop(1, '#8c661c');
-      ctx.fillStyle = grad;
+      // Dark champagne-gold outer card base
+      const baseGrad = ctx.createLinearGradient(0, 0, w, h);
+      baseGrad.addColorStop(0, '#5a4318');
+      baseGrad.addColorStop(0.5, '#7c5d22');
+      baseGrad.addColorStop(1, '#493511');
+      ctx.fillStyle = baseGrad;
       ctx.fillRect(0, 0, w, h);
 
-      // Crisp 3x3 foil cell guides & brushed diagonal lines
-      ctx.strokeStyle = 'rgba(20, 15, 6, 0.22)';
-      ctx.lineWidth = 2;
-      const colW = w / 3;
-      const rowH = h / 3;
-      for (let i = 1; i <= 2; i += 1) {
-        ctx.beginPath();
-        ctx.moveTo(colW * i, 0);
-        ctx.lineTo(colW * i, h);
-        ctx.stroke();
+      // Embossed metallic gold foil tiles aligned to the 3x3 cells
+      for (let i = 0; i < 9; i += 1) {
+        const box = this._getCellCanvasRect(i, w, h);
+        const tileGrad = ctx.createLinearGradient(box.x, box.y, box.x + box.cw, box.y + box.ch);
+        tileGrad.addColorStop(0, '#b3862f');
+        tileGrad.addColorStop(0.32, '#f3d999');
+        tileGrad.addColorStop(0.62, '#c89833');
+        tileGrad.addColorStop(0.88, '#fae29e');
+        tileGrad.addColorStop(1, '#986e1f');
 
-        ctx.beginPath();
-        ctx.moveTo(0, rowH * i);
-        ctx.lineTo(w, rowH * i);
-        ctx.stroke();
-      }
+        ctx.save();
+        this._drawRoundedRectPath(ctx, box.x, box.y, box.cw, box.ch, 10);
+        ctx.fillStyle = tileGrad;
+        ctx.fill();
+        ctx.clip();
 
-      // Foil watermark text in each cell
-      ctx.fillStyle = 'rgba(30, 22, 7, 0.55)';
-      ctx.font = '800 12px "Inter", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (let r = 0; r < 3; r += 1) {
-        for (let c = 0; c < 3; c += 1) {
-          ctx.fillText('KRAS HIER', colW * (c + 0.5), rowH * (r + 0.5));
+        // Subtle brushed metallic sheen stripes
+        ctx.strokeStyle = 'rgba(255, 250, 224, 0.16)';
+        ctx.lineWidth = 6;
+        for (let sx = -box.ch; sx < box.cw + box.ch; sx += 18) {
+          ctx.beginPath();
+          ctx.moveTo(box.x + sx, box.y + box.ch);
+          ctx.lineTo(box.x + sx + box.ch * 0.7, box.y);
+          ctx.stroke();
         }
+        ctx.restore();
+
+        // Beveled inner rim
+        this._drawRoundedRectPath(ctx, box.x + 1, box.y + 1, Math.max(4, box.cw - 2), Math.max(4, box.ch - 2), 9);
+        ctx.strokeStyle = 'rgba(255, 246, 210, 0.42)';
+        ctx.lineWidth = 1.25;
+        ctx.stroke();
+
+        // Foil label inside tile
+        ctx.fillStyle = 'rgba(34, 23, 5, 0.72)';
+        ctx.font = '800 11px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('KRAS OPEN', box.x + box.cw / 2, box.y + box.ch / 2 + 5);
+
+        ctx.fillStyle = 'rgba(34, 23, 5, 0.36)';
+        ctx.font = '700 9px "JetBrains Mono", monospace';
+        ctx.fillText(`#${i + 1}`, box.x + box.cw / 2, box.y + box.ch / 2 - 11);
       }
       ctx.restore();
       this._foilReady = true;
     }
 
-    _eraseFoilBrush(x, y, w, h) {
-      const canvas = this.el.fxCanvas;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    _markScratchPoint(px, py, w, h) {
+      const col = Math.min(2, Math.max(0, Math.floor((px / Math.max(1, w)) * 3)));
+      const row = Math.min(2, Math.max(0, Math.floor((py / Math.max(1, h)) * 3)));
+      const cellIdx = row * 3 + col;
 
-      const dpr = canvas.width / Math.max(1, w);
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.beginPath();
-      ctx.arc(x, y, 26, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      const lx = Math.min(0.999, Math.max(0, (px / Math.max(1, w)) * 3 - col));
+      const ly = Math.min(0.999, Math.max(0, (py / Math.max(1, h)) * 3 - row));
+      const sx = Math.min(2, Math.max(0, Math.floor(lx * 3)));
+      const sy = Math.min(2, Math.max(0, Math.floor(ly * 3)));
+      if (this._scratchedCellPoints && this._scratchedCellPoints[cellIdx]) {
+        this._scratchedCellPoints[cellIdx].add(`${sx},${sy}`);
+        if (!this._revealedCells.has(cellIdx) && this._scratchedCellPoints[cellIdx].size >= 3) {
+          this._revealSingleCell(cellIdx, w, h);
+        }
+      }
 
-      // Coarse 5x5 grid coverage check for instant, zero-CPU completion detection
-      const zx = Math.min(4, Math.max(0, Math.floor((x / w) * 5)));
-      const zy = Math.min(4, Math.max(0, Math.floor((y / h) * 5)));
+      const zx = Math.min(4, Math.max(0, Math.floor((px / Math.max(1, w)) * 5)));
+      const zy = Math.min(4, Math.max(0, Math.floor((py / Math.max(1, h)) * 5)));
       this._scratchedZones.add(`${zx},${zy}`);
-      if (this._scratchedZones.size >= 14) {
+    }
+
+    _revealSingleCell(cellIdx, w = 380, h = 260) {
+      if (!this.activeTicket || this.isScratchRevealed) return;
+      if (!Number.isInteger(cellIdx) || cellIdx < 0 || cellIdx > 8) return;
+      if (this._revealedCells.has(cellIdx)) return;
+
+      this._revealedCells.add(cellIdx);
+
+      const canvas = this.el.fxCanvas;
+      if (canvas) {
+        const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+        if (ctx) {
+          const box = this._getCellCanvasRect(cellIdx, w, h);
+          const dpr = canvas.width / Math.max(1, w);
+          ctx.save();
+          ctx.scale(dpr, dpr);
+          ctx.globalCompositeOperation = 'destination-out';
+          this._drawRoundedRectPath(ctx, box.x - 4, box.y - 4, box.cw + 8, box.ch + 8, 12);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      if (this.el.reelTrack && typeof this.el.reelTrack.querySelector === 'function') {
+        const tile = this.el.reelTrack.querySelector(`.scratch-cell[data-cell-idx="${cellIdx}"]`);
+        if (tile && tile.classList) {
+          tile.classList.add('is-cell-revealed');
+        }
+      }
+
+      if (this._revealedCells.size >= 7) {
+        this.revealScratchCard(true);
+        return;
+      }
+
+      if (this.el.drawStatus) {
+        this.el.drawStatus.className = 'lottery-draw-status';
+        this.el.drawStatus.textContent = `Lot #${this.activeTicket.ticketNumber} — ${this._revealedCells.size} / 9 vakjes open (zoek 3 dezelfde!)`;
+      }
+    }
+
+    _eraseFoilBrush(x, y, w, h, prevPt = null) {
+      if (!this.activeTicket || this.isScratchRevealed) return;
+      const canvas = this.el.fxCanvas;
+      if (canvas && typeof canvas.getContext === 'function') {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const dpr = canvas.width / Math.max(1, w);
+          ctx.save();
+          ctx.scale(dpr, dpr);
+          ctx.globalCompositeOperation = 'destination-out';
+          if (prevPt) {
+            ctx.beginPath();
+            ctx.moveTo(prevPt.x, prevPt.y);
+            ctx.lineTo(x, y);
+            ctx.lineWidth = 48;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+          }
+          ctx.beginPath();
+          ctx.arc(x, y, 24, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      if (prevPt) {
+        const dist = Math.hypot(x - prevPt.x, y - prevPt.y);
+        const steps = Math.max(1, Math.ceil(dist / 14));
+        for (let s = 1; s <= steps; s += 1) {
+          const t = s / steps;
+          this._markScratchPoint(
+            prevPt.x + (x - prevPt.x) * t,
+            prevPt.y + (y - prevPt.y) * t,
+            w,
+            h
+          );
+          if (this.isScratchRevealed) return;
+        }
+      } else {
+        this._markScratchPoint(x, y, w, h);
+      }
+
+      if (!this.isScratchRevealed && (this._revealedCells.size >= 7 || this._scratchedZones.size >= 16)) {
         this.revealScratchCard(true);
       }
     }
@@ -473,6 +757,11 @@
       if (!this.activeTicket || this.isScratchRevealed) return;
       this.isScratchRevealed = true;
       this._foilReady = false;
+      this._isScratchingPointer = false;
+      this._lastScratchPt = null;
+      for (let i = 0; i < 9; i += 1) {
+        this._revealedCells.add(i);
+      }
 
       if (animateClear && this.el.fxCanvas) {
         const ctx = this.el.fxCanvas.getContext('2d');
@@ -512,6 +801,29 @@
 
       if (this.ui && typeof this.ui.showToast === 'function' && wonAmount > 0) {
         this.ui.showToast(`Kraslot gewonnen: +${wonAmount.toLocaleString()} fiches!`, 'success');
+      }
+
+      if (typeof this._pendingFinalChips === 'number') {
+        const finalChips = this._pendingFinalChips;
+        this._pendingFinalChips = null;
+        if (this.ui && this.ui.myPlayer) {
+          this.ui.myPlayer.chips = finalChips;
+          if (typeof this.ui.updatePlayerHUD === 'function') {
+            this.ui.updatePlayerHUD();
+          }
+        }
+      }
+      if (this._deferredMySummary) {
+        this.state.mySummary = this._deferredMySummary;
+        this._deferredMySummary = null;
+      }
+      if (this._deferredState) {
+        const deferred = this._deferredState;
+        this._deferredState = null;
+        this.applyState(deferred);
+      } else {
+        this.renderBuyPreview();
+        this.renderHistoryLists();
       }
     }
 
@@ -570,7 +882,13 @@
         }
       }
       if (restoreBtn) {
-        this.renderBuyPreview();
+        if ((!this.activeTicket || this.isScratchRevealed) && this._deferredState) {
+          const st = this._deferredState;
+          this._deferredState = null;
+          this.applyState(st);
+        } else {
+          this.renderBuyPreview();
+        }
       }
     }
 

@@ -644,8 +644,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const me = players.find(p => p.id === ui.myPlayer.id);
       if (me) {
         const deferAvia = !!(avia && (avia.isFlightAnimating || avia.isFlightPending));
+        const deferLottery = !!(lottery && lottery.activeTicket && !lottery.isScratchRevealed && lottery._pendingFinalChips !== null);
         if (deferAvia) {
           avia.pendingFinalChips = me.chips;
+        } else if (deferLottery) {
+          lottery._pendingFinalChips = me.chips;
         } else if (!bank || !bank.isWheelSpinning) {
           ui.myPlayer.chips = me.chips;
           ui.updatePlayerHUD();
@@ -1733,6 +1736,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (data.aviaDelayed && avia && (avia.isFlightAnimating || avia.isFlightPending)) {
         avia.pendingFinalChips = data.chips;
+        return;
+      }
+      if (
+        data.source === 'lottery' &&
+        Number(data.totalPayout) > 0 &&
+        typeof data.preWinChips === 'number' &&
+        lottery &&
+        (lottery._isBuying || (lottery.activeTicket && !lottery.isScratchRevealed))
+      ) {
+        lottery._pendingFinalChips = data.chips;
+        ui.myPlayer.chips = data.preWinChips;
+        ui.updatePlayerHUD();
+        if (bank) bank.updateBankData(bank.currentBankData);
+        lottery.renderBuyPreview();
         return;
       }
       ui.myPlayer.chips = data.chips;
