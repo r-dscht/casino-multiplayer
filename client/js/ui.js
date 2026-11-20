@@ -1591,6 +1591,8 @@
         this.elements.labelChatTable.textContent = 'Mines Zaal';
       } else if (curTable === 'cross') {
         this.elements.labelChatTable.textContent = 'Boulevard Cross';
+      } else if (curTable === 'vaults') {
+        this.elements.labelChatTable.textContent = 'Kluizenroof';
       } else if (curTable === 'avia') {
         this.elements.labelChatTable.textContent = 'AviaMasters';
       } else if (curTable === 'poker_2') {
@@ -1629,6 +1631,8 @@
           this.elements.chatInput.placeholder = 'Typ een bericht in Mines Zaal...';
         } else if (curTable === 'cross') {
           this.elements.chatInput.placeholder = 'Typ een bericht in Boulevard Cross...';
+        } else if (curTable === 'vaults') {
+          this.elements.chatInput.placeholder = 'Typ een bericht in Kluizenroof...';
         } else if (curTable === 'avia') {
           this.elements.chatInput.placeholder = 'Typ een bericht in AviaMasters...';
         } else if (curTable === 'poker_2') {
@@ -2692,6 +2696,7 @@
       const isRacing = g === 'racing';
       const isMines = g === 'mines';
       const isCross = g === 'cross';
+      const isVaults = g === 'vaults';
       const isAvia = g === 'avia';
       const isBacklog = false;
 
@@ -2733,6 +2738,7 @@
         'racing-view': isRacing,
         'mines-view': isMines,
         'cross-view': isCross,
+        'vaults-view': isVaults,
         'avia-view': isAvia
       };
       Object.entries(backlogViews).forEach(([id, active]) => {
@@ -2765,6 +2771,7 @@
         'pill-racing': isRacing,
         'pill-mines': isMines,
         'pill-cross': isCross,
+        'pill-vaults': isVaults,
         'pill-avia': isAvia
       };
       Object.entries(backlogPills).forEach(([id, active]) => {

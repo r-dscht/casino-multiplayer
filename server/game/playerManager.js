@@ -1211,7 +1211,7 @@ class PlayerManager {
     let cleanLoc = 'ROULETTE';
     if (typeof location === 'string') {
       const upper = location.trim().toUpperCase();
-      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'].includes(upper)) {
+      if (['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS', 'VAULTS'].includes(upper)) {
         cleanLoc = upper;
       }
     }
@@ -1250,7 +1250,7 @@ class PlayerManager {
     player.currentGame = cleanGame;
 
     const upper = cleanGame.toUpperCase();
-    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'].includes(upper) ? upper : 'ROULETTE';
+    player.location = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS', 'VAULTS'].includes(upper) ? upper : 'ROULETTE';
 
     if (player.usernameKey && this.accounts.has(player.usernameKey)) {
       const acc = this.accounts.get(player.usernameKey);
@@ -1598,7 +1598,7 @@ class PlayerManager {
           ? entry.currentGame.trim().slice(0, 24)
           : 'Roulette');
       const upperLoc = rawGame.toUpperCase();
-      const allowedLocs = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS'];
+      const allowedLocs = ['LOBBY', 'ROULETTE', 'BLACKJACK', 'POKER', 'CRASH', 'PLINKO', 'SLOTS', 'RACING', 'HILO', 'MINES', 'AVIA', 'CROSS', 'VAULTS'];
       const cleanLoc = allowedLocs.includes(upperLoc) ? upperLoc : 'ROULETTE';
       const now = Date.now();
       const record = {

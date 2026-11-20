@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let hilo = null;
   let mines = null;
   let cross = null;
+  let vaults = null;
 
   function getActiveBetGame() {
     if (currentActiveBets.length > 0) return 'Roulette';
@@ -70,6 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (cross && typeof cross.hasActiveBets === 'function' && cross.hasActiveBets()) {
       return 'Cross';
+    }
+    if (vaults && typeof vaults.hasActiveBets === 'function' && vaults.hasActiveBets()) {
+      return 'Vaults';
     }
     return null;
   }
@@ -244,6 +248,15 @@ document.addEventListener('DOMContentLoaded', () => {
     cross.init();
     if (typeof window !== 'undefined') {
       window.crossInstance = cross;
+    }
+  }
+
+  // 5h-2b. Monte Carlo Kluizenroof Controller (Multiplayer Vault Elimination)
+  if (typeof CasinoVaults !== 'undefined') {
+    vaults = new CasinoVaults({ network, ui });
+    vaults.init();
+    if (typeof window !== 'undefined') {
+      window.vaultsInstance = vaults;
     }
   }
 
@@ -743,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const GAME_VIEW_NAMES = new Set([
-    'roulette', 'blackjack', 'poker', 'crash', 'plinko', 'slots', 'racing', 'hilo', 'mines', 'cross'
+    'roulette', 'blackjack', 'poker', 'crash', 'plinko', 'slots', 'racing', 'hilo', 'mines', 'cross', 'vaults'
   ]);
 
   function deactivateInactiveViews(targetKey) {
@@ -764,6 +777,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (targetKey !== 'cross' && cross && typeof cross.onViewDeactivated === 'function') {
       cross.onViewDeactivated();
+    }
+    if (targetKey !== 'vaults' && vaults && typeof vaults.onViewDeactivated === 'function') {
+      vaults.onViewDeactivated();
     }
     if (targetKey !== 'avia' && avia && typeof avia.onViewDeactivated === 'function') {
       avia.onViewDeactivated();
@@ -895,6 +911,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.updatePhase('CROSS_READY', 0, 'SOLO');
       }
       if (announce) ui.showToast('Je speelt nu Monte Carlo Boulevard Cross', 'info');
+    } else if (key === 'vaults') {
+      currentActiveGame = 'Vaults';
+      ui.switchGameView('vaults');
+      if (syncPresence) network.setGamePresence('VAULTS');
+      if (joinPrimaryTables || joinAuxiliary) network.vaultsJoin();
+      ui.switchChatScope('table');
+      if (vaults) {
+        vaults.onViewActivated();
+      } else {
+        ui.updatePhase('WAITING_FOR_PLAYERS', 0, 'KLUIZEN');
+      }
+      if (announce) ui.showToast('Welkom bij Monte Carlo Kluizenroof (Multiplayer)!', 'info');
     } else if (key === 'avia') {
       if (!AVIA_WIP_ENABLED) {
         activateGameView('roulette', { syncPresence, joinPrimaryTables, joinAuxiliary, announce: false });
@@ -954,6 +982,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const g = btn.dataset.game;
       const targetPill = document.querySelector(`.game-pill[data-game="${g}"]`);
       if (targetPill) targetPill.click();
+    });
+  });
+
+  // Left Command Dock category filter tabs (ALLE / MULTI / SOLO)
+  const dockSidebar = document.getElementById('dock-sidebar-left');
+  document.querySelectorAll('.dock-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = btn.dataset.filter || 'all';
+      if (dockSidebar) dockSidebar.setAttribute('data-dock-filter', f);
+      document.querySelectorAll('.dock-filter-btn').forEach(b => {
+        const isSel = b === btn;
+        b.classList.toggle('active', isSel);
+        b.setAttribute('aria-selected', isSel ? 'true' : 'false');
+      });
     });
   });
 

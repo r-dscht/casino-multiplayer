@@ -184,6 +184,14 @@
         <path d="M21.5 2.5L10.8 13.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         <path d="M6.2 15.8L4 19.5M9.5 17.4L7.8 20.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
       </g>
+      <!-- Monte Carlo Kluizenroof Armored Vault Door Icon -->
+      <g id="icon-vaults">
+        <rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+        <line x1="12" y1="6.5" x2="12" y2="17.5" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="6.5" y1="12" x2="17.5" y2="12" stroke="currentColor" stroke-width="1.4"/>
+      </g>
     </defs>
   </svg>
 
@@ -214,8 +222,9 @@
           <button class="game-pill" data-game="plinko" id="pill-plinko" title="Monte Carlo Plinko Pyramid">Plinko</button>
           <button class="game-pill" data-game="hilo" id="pill-hilo" title="Hoger of Lager Kaartspel">Hi-Lo</button>
           <button class="game-pill" data-game="racing" id="pill-racing" title="Monaco Turf Club Paardenrennen">Turf Club</button>
-          <button class="game-pill" data-game="mines" id="pill-mines" title="Royal Mines Vault (Diamanten &amp; Bommen)">Mines</button>
+          <button class="game-pill" data-game="mines" id="pill-mines" title="Royal Mines Vault (Diamanten &amp; Bommen)">Bommen</button>
           <button class="game-pill" data-game="cross" id="pill-cross" title="Monte Carlo Boulevard Cross (Oversteken zonder aangereden te worden)">Cross</button>
+          <button class="game-pill" data-game="vaults" id="pill-vaults" title="Monte Carlo Kluizenroof (Multiplayer Deuren Battle-Royale)">Kluizen</button>
           <!-- WIP: AviaMasters tijdelijk verborgen tot latere hervatting -->
           <button class="game-pill feature-wip-hidden" data-game="avia" id="pill-avia" aria-hidden="true" title="AviaMasters Luchtvaart Arcade (Tot 150x)">AviaMasters</button>
         </div>
@@ -291,49 +300,75 @@
     <!-- Main Viewport (3D Stage + Betting Table + Social Panel) -->
     <main class="main-viewport">
 
-      <!-- Left Vertical Command Dock (Activated under Obsidian layout) -->
-      <aside class="dock-sidebar-left" id="dock-sidebar-left" aria-label="Command Dock">
-        <button type="button" class="dock-left-btn active" data-game="roulette" title="Roulette">
+      <!-- Left Vertical Command Dock (Categorized: Multiplayer vs Solo + Live Salon) -->
+      <aside class="dock-sidebar-left" id="dock-sidebar-left" data-dock-filter="all" aria-label="Spelcategorieen">
+        <div class="dock-mode-filter" id="dock-mode-filter" role="tablist" aria-label="Filter spellen">
+          <button type="button" class="dock-filter-btn active" data-filter="all" role="tab" aria-selected="true">ALLE</button>
+          <button type="button" class="dock-filter-btn" data-filter="multi" role="tab" aria-selected="false">MP</button>
+          <button type="button" class="dock-filter-btn" data-filter="solo" role="tab" aria-selected="false">SOLO</button>
+        </div>
+
+        <div class="dock-cat-header" data-cat-header="multi"><span>MULTIPLAYER</span></div>
+        <button type="button" class="dock-left-btn active" data-game="roulette" data-category="multi" title="Europees Roulette (Live Multiplayer Tafel)">
           <svg viewBox="0 0 24 24"><use href="#nav-roulette"></use></svg>
           <span>Roulette</span>
+          <em class="dock-mode-tag is-multi">TAFEL</em>
         </button>
-        <button type="button" class="dock-left-btn" data-game="blackjack" title="Blackjack">
-          <svg viewBox="0 0 24 24"><use href="#nav-blackjack"></use></svg>
-          <span>Blackjack</span>
+        <button type="button" class="dock-left-btn is-featured-vaults" data-game="vaults" data-category="multi" title="Monte Carlo Kluizenroof (Multiplayer Pot • Min 2 Spelers)">
+          <svg viewBox="0 0 24 24"><use href="#icon-vaults"></use></svg>
+          <span>Kluizen</span>
+          <em class="dock-mode-tag is-new">POT</em>
         </button>
-        <button type="button" class="dock-left-btn" data-game="poker" title="Poker">
+        <button type="button" class="dock-left-btn" data-game="poker" data-category="multi" title="Texas Hold'em Poker (PvP tegen elkaar)">
           <svg viewBox="0 0 24 24"><use href="#nav-poker"></use></svg>
           <span>Poker</span>
+          <em class="dock-mode-tag is-multi">PVP</em>
         </button>
-        <button type="button" class="dock-left-btn" data-game="crash" title="Crash">
+        <button type="button" class="dock-left-btn" data-game="blackjack" data-category="multi" title="Blackjack (Multiplayer Tafel)">
+          <svg viewBox="0 0 24 24"><use href="#nav-blackjack"></use></svg>
+          <span>Blackjack</span>
+          <em class="dock-mode-tag is-multi">TAFEL</em>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="racing" data-category="multi" title="Turf Club Paardenrennen (Live Derby)">
+          <svg viewBox="0 0 24 24"><use href="#icon-racing"></use></svg>
+          <span>Paarden</span>
+          <em class="dock-mode-tag is-multi">LIVE</em>
+        </button>
+
+        <div class="dock-cat-header" data-cat-header="dual"><span>DUAL / LIVE</span></div>
+        <button type="button" class="dock-left-btn" data-game="mines" data-category="both" title="Bommen &amp; Diamanten (Zowel Solo als Gedeeld Multiplayer Bord)">
+          <svg viewBox="0 0 24 24"><use href="#icon-mines"></use></svg>
+          <span>Bommen</span>
+          <em class="dock-mode-tag is-dual">MP+SOLO</em>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="crash" data-category="solo" title="Velocity Crash (Solo uitstappen op gedeelde live curve)">
           <svg viewBox="0 0 24 24"><use href="#nav-crash"></use></svg>
           <span>Crash</span>
+          <em class="dock-mode-tag is-solo">LIVE</em>
         </button>
-        <button type="button" class="dock-left-btn" data-game="slots" title="Gokkasten">
+        <button type="button" class="dock-left-btn" data-game="slots" data-category="solo" title="Grand Sovereign Slots (Solo draaien voor gedeelde Jackpot)">
           <svg viewBox="0 0 24 24"><use href="#icon-slots"></use></svg>
           <span>Slots</span>
+          <em class="dock-mode-tag is-solo">JACKPOT</em>
         </button>
-        <button type="button" class="dock-left-btn" data-game="plinko" title="Plinko">
-          <svg viewBox="0 0 24 24"><use href="#icon-plinko"></use></svg>
-          <span>Plinko</span>
-        </button>
-        <button type="button" class="dock-left-btn" data-game="hilo" title="Hi-Lo">
-          <svg viewBox="0 0 24 24"><use href="#icon-hilo"></use></svg>
-          <span>Hi-Lo</span>
-        </button>
-        <button type="button" class="dock-left-btn" data-game="racing" title="Turf Club">
-          <svg viewBox="0 0 24 24"><use href="#icon-racing"></use></svg>
-          <span>Turf</span>
-        </button>
-        <button type="button" class="dock-left-btn" data-game="mines" title="Royal Mines Vault">
-          <svg viewBox="0 0 24 24"><use href="#icon-mines"></use></svg>
-          <span>Mines</span>
-        </button>
-        <button type="button" class="dock-left-btn" data-game="cross" title="Monte Carlo Boulevard Cross">
+
+        <div class="dock-cat-header" data-cat-header="solo"><span>SOLO</span></div>
+        <button type="button" class="dock-left-btn" data-game="cross" data-category="solo" title="Boulevard Cross (Solo oversteek + live zaaloverzicht)">
           <svg viewBox="0 0 24 24"><use href="#icon-cross"></use></svg>
           <span>Cross</span>
+          <em class="dock-mode-tag is-solo">SOLO</em>
         </button>
-        <button type="button" class="dock-left-btn feature-wip-hidden" data-game="avia" aria-hidden="true" title="AviaMasters Luchtvaart Arcade">
+        <button type="button" class="dock-left-btn" data-game="hilo" data-category="solo" title="Hi-Lo Prive (Solo kaartenladder)">
+          <svg viewBox="0 0 24 24"><use href="#icon-hilo"></use></svg>
+          <span>Hi-Lo</span>
+          <em class="dock-mode-tag is-solo">SOLO</em>
+        </button>
+        <button type="button" class="dock-left-btn" data-game="plinko" data-category="solo" title="Royal Plinko (Solo)">
+          <svg viewBox="0 0 24 24"><use href="#icon-plinko"></use></svg>
+          <span>Plinko</span>
+          <em class="dock-mode-tag is-solo">SOLO</em>
+        </button>
+        <button type="button" class="dock-left-btn feature-wip-hidden" data-game="avia" data-category="solo" aria-hidden="true" title="AviaMasters Luchtvaart Arcade">
           <svg viewBox="0 0 24 24"><use href="#icon-avia"></use></svg>
           <span>Avia</span>
         </button>
@@ -2091,6 +2126,82 @@
           </div>
         </div>
 
+        <!-- View 10: MONTE CARLO KLUIZENROOF (Multiplayer Elimination Vault Doors) -->
+        <div id="vaults-view" class="game-view-pane hidden">
+          <div class="vaults-top-bar glass-panel">
+            <div class="vaults-brand">
+              <span class="vaults-title">MONTE CARLO KLUIZENROOF</span>
+              <span class="vaults-sub" id="vaults-round-badge">5 Kluizen gereed • Min. 2 spelers • 2% Casino Fee</span>
+            </div>
+            <div class="vaults-kpis">
+              <div class="vaults-kpi">
+                <span>POT (<span id="vaults-match-id">#1</span>)</span>
+                <strong id="vaults-pot-val">0 F</strong>
+              </div>
+              <div class="vaults-kpi is-net">
+                <span>WINNAAR (98%)</span>
+                <strong id="vaults-net-pot-val">0 F</strong>
+              </div>
+              <div class="vaults-kpi">
+                <span>CASINO (2%)</span>
+                <strong id="vaults-rake-val">2% (0 F)</strong>
+              </div>
+              <div class="vaults-kpi">
+                <span>OVERLEVENDEN</span>
+                <strong id="vaults-survivors-val">0 / 0</strong>
+              </div>
+              <div class="vaults-kpi">
+                <span>FASE / TIMER</span>
+                <strong id="vaults-timer-val">0/2</strong>
+              </div>
+              <span class="vaults-phase-pill phase-waiting" id="vaults-phase-pill">WACHTEN (0/2+ SPELERS)</span>
+            </div>
+          </div>
+
+          <div class="vaults-main-grid">
+            <div class="vaults-arena-col">
+              <div class="vaults-status-banner" id="vaults-status-banner">
+                Iedereen legt dezelfde inzet in (min. 2 spelers). Kies elke ronde een gepantserde kluis — elke ronde valt 1 kluis definitief weg tot de winnaar overblijft!
+              </div>
+
+              <div class="vaults-doors-grid" id="vaults-doors-grid"></div>
+
+              <div class="vaults-controls-bar glass-panel">
+                <div class="vaults-stake-section">
+                  <span class="vaults-ctrl-lbl">GELIJKE INZET PER SPELER</span>
+                  <div class="vaults-stake-row" id="vaults-stake-row"></div>
+                </div>
+                <div class="vaults-cta-row">
+                  <button type="button" class="btn btn-gold btn-lg" id="btn-vaults-join-pot">OPEN POT MET 1.000 F</button>
+                  <button type="button" class="btn btn-emerald btn-lg hidden" id="btn-vaults-ready">START NU!</button>
+                  <button type="button" class="btn btn-secondary btn-sm hidden" id="btn-vaults-leave-pot">VERLAAT POT (100% TERUG)</button>
+                </div>
+              </div>
+            </div>
+
+            <aside class="vaults-side-panel glass-panel" aria-label="Kluizenroof deelnemers en winnaars">
+              <div class="vaults-side-section">
+                <div class="vaults-side-hdr">
+                  <span>SPELERS IN DE POT</span>
+                  <span class="cross-count-badge" id="vaults-roster-count">0/12</span>
+                </div>
+                <div class="vaults-roster-list" id="vaults-roster-list">
+                  <div class="vaults-empty-note">Nog geen kluiskrakers in de pot. Stap in om te starten!</div>
+                </div>
+              </div>
+
+              <div class="vaults-side-section">
+                <div class="vaults-side-hdr">
+                  <span>RECENTE KLUIZENROOF WINNAARS</span>
+                </div>
+                <div class="vaults-wins-list" id="vaults-wins-list">
+                  <div class="vaults-empty-note">Nog geen kluizenroof-winnaars in deze sessie.</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
       </section>
 
       <!-- Live Multiplayer Social, Leaderboard & Activity Panel -->
@@ -2880,6 +2991,7 @@
   <script src="js/hilo.js"></script>
   <script src="js/mines.js"></script>
   <script src="js/cross.js"></script>
+  <script src="js/vaults.js"></script>
   <script src="js/avia.js"></script>
   <script src="js/lottery.js"></script>
   <script src="js/app.js"></script>

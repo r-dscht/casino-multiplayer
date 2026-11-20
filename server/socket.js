@@ -20,6 +20,7 @@ const HiloEngine = require('./game/hiloEngine');
 const MinesEngine = require('./game/minesEngine');
 const AviaEngine = require('./game/aviaEngine');
 const CrossEngine = require('./game/crossEngine');
+const VaultsEngine = require('./game/vaultsEngine');
 const LotteryEngine = require('./game/lotteryEngine');
 
 /**
@@ -49,7 +50,7 @@ function sanitizeHtml(str) {
  * @param {Object} [racingEngine=null]
  * @returns {{ allowed: boolean, code?: string, game?: string, amount?: number, reason?: string, message?: string }}
  */
-function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null, racingEngine = null, hiloEngine = null, minesEngine = null, crossEngine = null) {
+function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngine = null, crashEngine = null, racingEngine = null, hiloEngine = null, minesEngine = null, crossEngine = null, vaultsEngine = null) {
   if (rouletteEngine && typeof rouletteEngine.hasActiveBets === 'function' && rouletteEngine.hasActiveBets(playerId)) {
     return {
       allowed: false,
@@ -160,6 +161,16 @@ function canPlayerNavigate(playerId, rouletteEngine, blackjackEngine, pokerEngin
       amount: typeof crossEngine.getActiveBetTotal === 'function' ? crossEngine.getActiveBetTotal(playerId) : 0,
       reason: 'Je hebt een actieve Boulevard Cross oversteek openstaan. Cash eerst uit of maak je ronde af.',
       message: 'Active bet present on Boulevard Cross.'
+    };
+  }
+  if (vaultsEngine && typeof vaultsEngine.hasActiveBets === 'function' && vaultsEngine.hasActiveBets(playerId)) {
+    return {
+      allowed: false,
+      code: 'CANNOT_LEAVE_ACTIVE_BETS',
+      game: 'Vaults',
+      amount: typeof vaultsEngine.getActiveBetTotal === 'function' ? vaultsEngine.getActiveBetTotal(playerId) : 0,
+      reason: 'Je zit midden in een actieve Kluizenroof ronde. Speel eerst je ronde uit.',
+      message: 'Active match in progress on Monte Carlo Kluizenroof.'
     };
   }
   return { allowed: true };
@@ -643,6 +654,65 @@ function setupSocket(httpServer, options = {}) {
   });
 
   // -------------------------------------------------------------------------
+  // Monte Carlo Kluizenroof (Multiplayer Elimination Vault Doors, 2% rake)
+  // -------------------------------------------------------------------------
+  const vaultsEngine = new VaultsEngine({ playerManager, bankManager });
+  io.vaultsEngine = vaultsEngine;
+  vaultsEngine.start();
+
+  function emitPersonalizedVaultsStates() {
+    io.emit('vaults_state', vaultsEngine.getPublicState(null));
+    for (const p of playerManager.players.values()) {
+      if (!p || !p.connected) continue;
+      if (vaultsEngine.participants.has(p.id) || vaultsEngine.salonPlayers.has(p.id)) {
+        emitToPlayer(p.id, 'vaults_state', vaultsEngine.getPublicState(p.id));
+      }
+    }
+  }
+
+  vaultsEngine.on('state', () => {
+    emitPersonalizedVaultsStates();
+  });
+
+  vaultsEngine.on('round_reveal', (payload) => {
+    io.emit('vaults_round_reveal', payload);
+    broadcastPlayersUpdate();
+  });
+
+  vaultsEngine.on('match_won', (payload) => {
+    if (!payload) return;
+    io.emit('vaults_match_won', payload);
+    if (typeof payload.remainingChips === 'number') {
+      emitToPlayer(payload.playerId, 'chips_update', { chips: payload.remainingChips, source: 'vaults_win' });
+    }
+    if (Array.isArray(payload.repayments) && payload.repayments.length > 0) {
+      emitCrossRepayments(payload.playerId, payload.playerName, payload.repayments, 'Kluizenroof');
+    }
+    const winMsg = `[KLUIZENROOF] ${payload.playerName} overleefde ${payload.roundsSurvived} rondes en pakte de pot van +${Number(payload.netPrize || 0).toLocaleString()} fiches!`;
+    broadcastChatMessage({
+      sender: 'CASINO',
+      color: '#d4af37',
+      text: winMsg,
+      timestamp: Date.now(),
+      isSystem: true,
+      scope: 'table',
+      table: 'vaults'
+    });
+    if ((Number(payload.netPrize) || 0) >= 2000) {
+      broadcastChatMessage({
+        sender: 'CASINO',
+        color: '#d4af37',
+        text: winMsg,
+        timestamp: Date.now(),
+        isSystem: true,
+        scope: 'global',
+        table: 'all'
+      });
+    }
+    broadcastPlayersUpdate();
+  });
+
+  // -------------------------------------------------------------------------
   // Casino Staatsloterij (30-minute cycle, 100% pot payout, 0% house edge)
   // -------------------------------------------------------------------------
   const lotteryOptions = (options && options.lotteryOptions && typeof options.lotteryOptions === 'object')
@@ -840,6 +910,16 @@ function setupSocket(httpServer, options = {}) {
         amount: typeof crossEngine.getActiveBetTotal === 'function' ? crossEngine.getActiveBetTotal(playerId) : 0,
         reason: 'Je hebt een actieve oversteek op Monte Carlo Boulevard lopen. Cash uit of maak je oversteek eerst af.',
         message: 'Active bet present on Boulevard Cross.'
+      };
+    }
+    if (vaultsEngine && typeof vaultsEngine.hasActiveBets === 'function' && vaultsEngine.hasActiveBets(playerId)) {
+      return {
+        allowed: false,
+        code: 'CANNOT_LEAVE_ACTIVE_BETS',
+        game: 'Vaults',
+        amount: typeof vaultsEngine.getActiveBetTotal === 'function' ? vaultsEngine.getActiveBetTotal(playerId) : 0,
+        reason: 'Je zit midden in een actieve Kluizenroof ronde. Speel eerst je ronde uit.',
+        message: 'Active match in progress on Monte Carlo Kluizenroof.'
       };
     }
     return { allowed: true };
@@ -1485,6 +1565,7 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
       socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      socket.emit('vaults_state', vaultsEngine.getPublicState(player.id));
       socket.emit('avia_state', aviaEngine.getState());
       socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
         resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
@@ -1624,6 +1705,7 @@ function setupSocket(httpServer, options = {}) {
       socket.emit('hilo_state', hiloEngine.getPublicSalonState(player.id));
       socket.emit('mines_state', minesEngine.getPublicState(player.id));
       socket.emit('cross_state', crossEngine.getPublicState(player.id));
+      socket.emit('vaults_state', vaultsEngine.getPublicState(player.id));
       socket.emit('avia_state', aviaEngine.getState());
       socket.emit('lottery_state', lotteryEngine.getPublicState(player.id, Date.now(), {
         resolvedRoundId: lotteryRestore && lotteryRestore.resolvedRoundId
@@ -3573,6 +3655,123 @@ function setupSocket(httpServer, options = {}) {
     });
 
     // -----------------------------------------------------------------------
+    // 8d-2. Monte Carlo Kluizenroof (Multiplayer Elimination Vault Doors)
+    // -----------------------------------------------------------------------
+    function requireVaultsPlayer(errorEvent, actionDesc) {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (!player) {
+        const reason = `Log eerst in om ${actionDesc}.`;
+        socket.emit(errorEvent, { code: 'PLAYER_NOT_FOUND', reason });
+        socket.emit('error_msg', { code: 'PLAYER_NOT_FOUND', message: reason });
+        return null;
+      }
+      return player;
+    }
+
+    socket.on('vaults_join', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (player) {
+        vaultsEngine.joinSalon(player);
+      }
+      socket.emit('vaults_state', vaultsEngine.getPublicState(player ? player.id : null));
+    });
+
+    socket.on('vaults_leave', () => {
+      const player = playerManager.getPlayerBySocket(socket.id);
+      if (player) {
+        vaultsEngine.leaveSalon(player.id);
+      }
+    });
+
+    socket.on('vaults_set_stake', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'vaults_action', 12, 2000)) {
+        const reason = 'Rustig aan — te veel acties tegelijk.';
+        socket.emit('vaults_rejected', { code: 'RATE_LIMITED', reason });
+        return;
+      }
+      const player = requireVaultsPlayer('vaults_rejected', 'de inzet aan te passen');
+      if (!player) return;
+
+      const prevChips = player.chips;
+      const res = vaultsEngine.setStake(player.id, payload && payload.stake);
+      if (!res.ok) {
+        socket.emit('vaults_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      if (typeof res.remainingChips === 'number' && res.remainingChips !== prevChips) {
+        socket.emit('chips_update', { chips: res.remainingChips, source: 'vaults_stake' });
+        broadcastPlayersUpdate();
+      }
+    });
+
+    socket.on('vaults_join_pot', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'vaults_action', 12, 2000)) {
+        const reason = 'Rustig aan — te veel acties tegelijk.';
+        socket.emit('vaults_rejected', { code: 'RATE_LIMITED', reason });
+        return;
+      }
+      const player = requireVaultsPlayer('vaults_rejected', 'mee te doen aan de Kluizenroof');
+      if (!player) return;
+
+      vaultsEngine.joinSalon(player);
+      const res = vaultsEngine.joinMatch(player.id, payload && payload.stake);
+      if (!res.ok) {
+        socket.emit('vaults_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      socket.emit('vaults_joined', { stake: res.stake, remainingChips: res.remainingChips });
+      socket.emit('chips_update', { chips: res.remainingChips, source: 'vaults_join' });
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('vaults_leave_pot', () => {
+      if (!checkRateLimit(socket.id, 'vaults_action', 12, 2000)) {
+        return;
+      }
+      const player = requireVaultsPlayer('vaults_rejected', 'de pot te verlaten');
+      if (!player) return;
+
+      const res = vaultsEngine.leaveMatch(player.id);
+      if (!res.ok) {
+        socket.emit('vaults_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+        return;
+      }
+      if (typeof res.remainingChips === 'number') {
+        socket.emit('chips_update', { chips: res.remainingChips, source: 'vaults_refund' });
+      }
+      broadcastPlayersUpdate();
+    });
+
+    socket.on('vaults_ready', () => {
+      if (!checkRateLimit(socket.id, 'vaults_action', 12, 2000)) return;
+      const player = requireVaultsPlayer('vaults_rejected', 'klaar te melden');
+      if (!player) return;
+
+      const res = vaultsEngine.markReady(player.id);
+      if (!res.ok) {
+        socket.emit('vaults_rejected', { code: res.code, reason: res.message });
+      }
+    });
+
+    socket.on('vaults_pick_door', (payload = {}) => {
+      if (!checkRateLimit(socket.id, 'vaults_action', 18, 2000)) {
+        socket.emit('vaults_rejected', { code: 'RATE_LIMITED', reason: 'Rustig aan — te veel acties tegelijk.' });
+        return;
+      }
+      const player = requireVaultsPlayer('vaults_rejected', 'een kluisdeur te kiezen');
+      if (!player) return;
+
+      const res = vaultsEngine.pickDoor(player.id, payload && payload.doorIndex);
+      if (!res.ok) {
+        socket.emit('vaults_rejected', { code: res.code, reason: res.message });
+        socket.emit('error_msg', { code: res.code, message: res.message });
+      }
+    });
+
+    // -----------------------------------------------------------------------
     // 8e. Casino Staatsloterij (10-minute cycle, 0% rake)
     // -----------------------------------------------------------------------
     socket.on('lottery_get_state', () => {
@@ -3663,12 +3862,14 @@ function setupSocket(httpServer, options = {}) {
       rateLimitBuckets.delete(`${socket.id}:hilo_action`);
       rateLimitBuckets.delete(`${socket.id}:mines_action`);
       rateLimitBuckets.delete(`${socket.id}:cross_action`);
+      rateLimitBuckets.delete(`${socket.id}:vaults_action`);
       rateLimitBuckets.delete(`${socket.id}:lottery_buy`);
       const player = playerManager.disconnectPlayer(socket.id);
       if (player) {
         hiloEngine.leaveSalon(player.id);
         minesEngine.leaveSalon(player.id);
         crossEngine.leaveSalon(player.id);
+        vaultsEngine.handleDisconnect(player.id);
         if (slotsEngine.leaveMachine(player.id)) {
           broadcastSlotsFloor();
         }
@@ -3738,6 +3939,7 @@ function setupSocket(httpServer, options = {}) {
     hiloEngine,
     minesEngine,
     crossEngine,
+    vaultsEngine,
     lotteryEngine,
     canPlayerNavigate: checkNavigation,
     broadcastChatMessage,
@@ -3756,6 +3958,7 @@ function setupSocket(httpServer, options = {}) {
       hiloEngine.stop();
       minesEngine.stop();
       crossEngine.stop();
+      vaultsEngine.stop();
       lotteryEngine.stop();
       for (const tbl of blackjackTables.values()) {
         tbl.stop();

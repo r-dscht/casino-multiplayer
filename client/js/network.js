@@ -1250,6 +1250,23 @@
         });
       });
 
+      // Monte Carlo Kluizenroof Events
+      const vaultsEvents = [
+        'vaults_state',
+        'vaults_joined',
+        'vaults_round_reveal',
+        'vaults_match_won',
+        'vaults_rejected'
+      ];
+      vaultsEvents.forEach((evt) => {
+        this.socket.on(evt, (data) => {
+          if (data && typeof data.remainingChips === 'number') {
+            this.saveClientBackup({ chips: data.remainingChips });
+          }
+          this.emitInternal(evt, data);
+        });
+      });
+
       // Casino Staatsloterij Events
       const lotteryEvents = [
         'lottery_state',
@@ -2069,6 +2086,41 @@
     crossCashout() {
       if (!this.socket) return;
       this.socket.emit('cross_cashout', {});
+    }
+
+    vaultsJoin() {
+      if (!this.socket) return;
+      this.socket.emit('vaults_join', {});
+    }
+
+    vaultsLeave() {
+      if (!this.socket) return;
+      this.socket.emit('vaults_leave', {});
+    }
+
+    vaultsSetStake(stake) {
+      if (!this.socket) return;
+      this.socket.emit('vaults_set_stake', { stake });
+    }
+
+    vaultsJoinPot(stake) {
+      if (!this.socket) return;
+      this.socket.emit('vaults_join_pot', { stake });
+    }
+
+    vaultsLeavePot() {
+      if (!this.socket) return;
+      this.socket.emit('vaults_leave_pot', {});
+    }
+
+    vaultsReady() {
+      if (!this.socket) return;
+      this.socket.emit('vaults_ready', {});
+    }
+
+    vaultsPickDoor(doorIndex) {
+      if (!this.socket) return;
+      this.socket.emit('vaults_pick_door', { doorIndex });
     }
 
     requestLotteryState() {

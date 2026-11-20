@@ -11,10 +11,10 @@
 
 :root {
   --shell-hdr-h: 56px;
-  --shell-rail-w: 78px;
+  --shell-rail-w: 96px;
   --shell-side-w: 320px;
   --shell-perk-h: 34px;
-  --shell-tab-h: 62px;
+  --shell-tab-h: 64px;
   --shell-gap: 10px;
 }
 
@@ -172,29 +172,111 @@ html #dock-sidebar-left {
   z-index: 40;
 }
 html #dock-sidebar-left::-webkit-scrollbar { display: none; }
+html #dock-sidebar-left .dock-mode-filter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  margin-bottom: 2px;
+  flex: 0 0 auto;
+}
+html #dock-sidebar-left .dock-filter-btn {
+  border: none;
+  background: transparent;
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 0.44rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 4px 0;
+  text-align: center;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+html #dock-sidebar-left .dock-filter-btn.active {
+  background: rgba(212, 175, 55, 0.22);
+  color: #fde047;
+}
+html #dock-sidebar-left .dock-cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 2px 2px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(212, 175, 55, 0.2);
+  flex: 0 0 auto;
+}
+html #dock-sidebar-left .dock-cat-header[data-cat-header="multi"] {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 2px;
+}
+html #dock-sidebar-left .dock-cat-header span {
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(229, 193, 88, 0.78);
+  text-align: center;
+  white-space: nowrap;
+}
 html #dock-sidebar-left .dock-left-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 3px;
-  min-height: 49px;
+  min-height: 54px;
   width: 100%;
-  padding: 4px 2px;
+  padding: 5px 3px;
   border-radius: 11px;
   flex: 0 0 auto;
+  position: relative;
 }
-html #dock-sidebar-left .dock-left-btn svg { width: 20px; height: 20px; }
-html #dock-sidebar-left .dock-left-btn span { font-size: 0.64rem; line-height: 1; white-space: nowrap; }
-
-/* Divider between live games and coming-soon halls */
-html #dock-sidebar-left .dock-left-btn[data-game="slots"] { margin-top: 8px; position: relative; }
-html #dock-sidebar-left .dock-left-btn[data-game="slots"]::before {
-  content: '';
-  position: absolute;
-  top: -8px; left: 14px; right: 14px;
-  height: 1px;
-  background: var(--border-subtle, rgba(212, 175, 55, 0.25));
+html #dock-sidebar-left .dock-left-btn svg { width: 19px; height: 19px; }
+html #dock-sidebar-left .dock-left-btn span { font-size: 0.63rem; line-height: 1.05; white-space: nowrap; }
+html #dock-sidebar-left .dock-mode-tag {
+  font-style: normal;
+  font-size: 0.45rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+html #dock-sidebar-left .dock-mode-tag.is-multi {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+html #dock-sidebar-left .dock-mode-tag.is-new {
+  background: rgba(250, 204, 21, 0.22);
+  color: #fde047;
+  border: 1px solid rgba(250, 204, 21, 0.55);
+}
+html #dock-sidebar-left .dock-mode-tag.is-dual {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(212, 175, 55, 0.22));
+  color: #fde047;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+}
+html #dock-sidebar-left .dock-mode-tag.is-solo {
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.32);
+}
+html #dock-sidebar-left .dock-left-btn.is-featured-vaults {
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: linear-gradient(155deg, rgba(212, 175, 55, 0.12), rgba(16, 185, 129, 0.06));
+}
+html #dock-sidebar-left[data-dock-filter="multi"] [data-category="solo"],
+html #dock-sidebar-left[data-dock-filter="multi"] [data-cat-header="solo"],
+html #dock-sidebar-left[data-dock-filter="solo"] [data-category="multi"],
+html #dock-sidebar-left[data-dock-filter="solo"] [data-cat-header="multi"] {
+  display: none !important;
 }
 
 /* Play area: always reachable — scrolls only if a game genuinely needs it */
@@ -326,7 +408,7 @@ html .board-section { padding: 12px 18px; }
    TIER: large desktop
    ========================================================================== */
 @media (min-width: 1680px) {
-  :root { --shell-side-w: 340px; --shell-rail-w: 84px; }
+  :root { --shell-side-w: 340px; --shell-rail-w: 102px; }
 }
 
 /* ==========================================================================
@@ -461,9 +543,19 @@ html .board-section { padding: 12px 18px; }
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
     z-index: 80;
   }
-  html #dock-sidebar-left .dock-left-btn { min-width: 64px; width: 64px; min-height: 0; height: 100%; }
-  html #dock-sidebar-left .dock-left-btn[data-game="slots"] { margin-top: 0; margin-left: 8px; }
-  html #dock-sidebar-left .dock-left-btn[data-game="slots"]::before { top: 10px; bottom: 10px; left: -5px; right: auto; width: 1px; height: auto; }
+  html #dock-sidebar-left .dock-mode-filter,
+  html #dock-sidebar-left .dock-cat-header { display: none !important; }
+  html #dock-sidebar-left .dock-left-btn { min-width: 68px; width: 68px; min-height: 0; height: 100%; gap: 2px; padding: 3px 2px; }
+  html #dock-sidebar-left .dock-left-btn .dock-mode-tag { font-size: 0.42rem; padding: 0 4px; }
+  html #dock-sidebar-left .dock-left-btn[data-game="mines"],
+  html #dock-sidebar-left .dock-left-btn[data-game="cross"] { margin-left: 8px; position: relative; }
+  html #dock-sidebar-left .dock-left-btn[data-game="mines"]::before,
+  html #dock-sidebar-left .dock-left-btn[data-game="cross"]::before {
+    content: '';
+    position: absolute;
+    top: 10px; bottom: 10px; left: -5px; width: 1px;
+    background: rgba(212, 175, 55, 0.35);
+  }
 
   html #casino-app .play-area { padding-bottom: calc(var(--shell-tab-h) + 16px); }
   html #casino-app > #gadgets-perks-dock { display: none !important; }
@@ -5861,5 +5953,600 @@ html .scratch-hist-row.is-loss .shr-val {
     border-radius: 14px;
     padding: 8px 12px;
     font-size: 0.72rem;
+  }
+}
+
+/* ==========================================================================
+   MONTE CARLO KLUIZENROOF (MULTIPLAYER ELIMINATION VAULTS)
+   ========================================================================== */
+html #vaults-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 24px;
+  max-width: 1380px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+html #vaults-view.hidden {
+  display: none !important;
+}
+
+html .vaults-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(212, 175, 55, 0.32);
+}
+
+html .vaults-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+html .vaults-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fde047;
+}
+
+html .vaults-sub {
+  font-size: 0.74rem;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+html .vaults-kpis {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+html .vaults-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html .vaults-kpi span {
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  color: rgba(203, 213, 225, 0.66);
+  font-weight: 700;
+}
+
+html .vaults-kpi strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.86rem;
+  color: #f8fafc;
+}
+
+html .vaults-kpi.is-net {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(6, 78, 59, 0.25);
+}
+
+html .vaults-kpi.is-net strong {
+  color: #34d399;
+}
+
+html .vaults-phase-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  background: rgba(212, 175, 55, 0.14);
+  color: #fde047;
+}
+
+html .vaults-phase-pill.phase-choosing {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+
+html .vaults-phase-pill.phase-revealing {
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(185, 28, 28, 0.35);
+  color: #fecaca;
+}
+
+html .vaults-phase-pill.phase-complete {
+  border-color: #fde047;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.3), rgba(16, 185, 129, 0.28));
+  color: #fef08a;
+}
+
+html .vaults-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 14px;
+  align-items: start;
+}
+
+html .vaults-arena-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+html .vaults-status-banner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+html .vaults-status-banner.is-choosing {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: rgba(6, 78, 59, 0.38);
+  color: #d1fae5;
+}
+
+html .vaults-status-banner.is-alarm {
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(127, 29, 29, 0.45);
+  color: #fecaca;
+}
+
+html .vaults-status-banner.is-safe {
+  border-color: rgba(52, 211, 153, 0.6);
+  background: rgba(6, 95, 70, 0.45);
+  color: #a7f3d0;
+}
+
+html .vaults-status-banner.is-winner {
+  border-color: #fde047;
+  background: linear-gradient(135deg, rgba(161, 98, 7, 0.55), rgba(6, 95, 70, 0.55));
+  color: #fef08a;
+}
+
+html .vaults-doors-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+html .vault-door-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #171d2c, #0b0e17);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+  text-align: left;
+  cursor: default;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
+}
+
+html .vault-door-card.is-clickable {
+  cursor: pointer;
+  border-color: rgba(212, 175, 55, 0.48);
+}
+
+html .vault-door-card.is-clickable:hover {
+  transform: translateY(-4px);
+  border-color: var(--door-accent, #fde047);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(212, 175, 55, 0.22);
+}
+
+html .vault-door-card.is-mine {
+  border-color: #fde047;
+  background: linear-gradient(165deg, rgba(212, 175, 55, 0.2), rgba(12, 16, 28, 0.96));
+  box-shadow: 0 0 22px rgba(253, 224, 71, 0.25);
+}
+
+html .vault-door-card.is-mine .vd-wheel-svg {
+  transform: rotate(90deg);
+}
+
+html .vault-door-card.is-safe {
+  border-color: #34d399;
+  background: linear-gradient(165deg, rgba(16, 185, 129, 0.24), rgba(6, 78, 59, 0.35));
+  box-shadow: 0 0 22px rgba(52, 211, 153, 0.28);
+}
+
+html .vault-door-card.is-trapped {
+  border-color: #f87171;
+  background: linear-gradient(165deg, rgba(185, 28, 28, 0.38), rgba(69, 10, 10, 0.72));
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.38);
+}
+
+html .vault-door-card.is-trapped .vd-laser-overlay {
+  opacity: 1;
+}
+
+html .vault-door-card.is-sealed {
+  opacity: 0.42;
+  filter: grayscale(0.75);
+  background: #0a0c12;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+html .vault-door-card.is-sealed::after {
+  content: 'VERZEGELD';
+  position: absolute;
+  top: 44%;
+  left: -14%;
+  right: -14%;
+  transform: rotate(-14deg);
+  text-align: center;
+  padding: 4px 0;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  background: rgba(15, 23, 42, 0.92);
+  border-top: 1px solid rgba(248, 113, 113, 0.55);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.55);
+  color: #fca5a5;
+  pointer-events: none;
+}
+
+html .vd-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+html .vd-code {
+  font-family: 'Cinzel', serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--door-accent, #fde047);
+}
+
+html .vd-cap {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+html .vd-name {
+  font-size: 0.7rem;
+  color: rgba(203, 213, 225, 0.78);
+  margin-top: -4px;
+}
+
+html .vd-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 76px;
+  border-radius: 12px;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.05), rgba(5, 8, 15, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+html .vd-wheel-svg {
+  width: 56px;
+  height: 56px;
+  color: var(--door-accent, #d4af37);
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html .vault-door-card.is-trapped .vd-wheel-svg {
+  color: #f87171;
+}
+
+html .vault-door-card.is-safe .vd-wheel-svg {
+  color: #34d399;
+}
+
+html .vd-laser-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -35deg,
+    rgba(239, 68, 68, 0.35),
+    rgba(239, 68, 68, 0.35) 3px,
+    transparent 3px,
+    transparent 11px
+  );
+  transition: opacity 0.22s ease;
+}
+
+html .vd-occupants {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 46px;
+}
+
+html .vd-empty-slot {
+  font-size: 0.64rem;
+  color: rgba(148, 163, 184, 0.68);
+}
+
+html .vd-occupant {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+html .vd-occupant.is-self {
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid rgba(250, 204, 21, 0.42);
+  color: #fef08a;
+}
+
+html .vd-occupant.is-elim {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+html .vd-dot {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: #0b0e14;
+  flex-shrink: 0;
+}
+
+html .vd-cta {
+  text-align: center;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  margin-top: auto;
+}
+
+html .vault-door-card.is-clickable .vd-cta {
+  background: rgba(212, 175, 55, 0.18);
+  color: #fde047;
+}
+
+html .vault-door-card.is-mine .vd-cta {
+  background: rgba(253, 224, 71, 0.25);
+  color: #fef08a;
+}
+
+html .vault-door-card.is-safe .vd-cta {
+  background: rgba(16, 185, 129, 0.28);
+  color: #a7f3d0;
+}
+
+html .vault-door-card.is-trapped .vd-cta {
+  background: rgba(220, 38, 38, 0.35);
+  color: #fecaca;
+}
+
+html .vaults-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(212, 175, 55, 0.26);
+}
+
+html .vaults-stake-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+html .vaults-ctrl-lbl {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(229, 193, 88, 0.82);
+}
+
+html .vaults-stake-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html .vaults-stake-btn {
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+html .vaults-stake-btn.active {
+  border-color: #fde047;
+  background: rgba(212, 175, 55, 0.22);
+  color: #fde047;
+}
+
+html .vaults-stake-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+html .vaults-cta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+html .vaults-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(212, 175, 55, 0.24);
+}
+
+html .vaults-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html .vaults-side-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #e5c158;
+}
+
+html .vaults-roster-list,
+html .vaults-wins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+html .vaults-roster-row,
+html .vaults-win-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.74rem;
+}
+
+html .vaults-roster-row.is-self {
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+html .vaults-roster-row.is-elim {
+  opacity: 0.55;
+}
+
+html .vr-mono {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #0b0e14;
+  flex-shrink: 0;
+}
+
+html .vr-name,
+html .vw-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+html .vr-badge {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+html .vr-badge.is-picked {
+  background: rgba(212, 175, 55, 0.22);
+  color: #fde047;
+}
+
+html .vr-badge.is-winner {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+html .vr-badge.is-elim {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+
+html .vw-meta {
+  font-size: 0.64rem;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+html .vw-prize {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: #34d399;
+}
+
+html .vaults-empty-note {
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.75);
+  padding: 6px 2px;
+}
+
+@media (max-width: 1180px) {
+  html .vaults-doors-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  html .vaults-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  html #vaults-view {
+    padding: 10px 10px 24px;
+  }
+  html .vaults-doors-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
